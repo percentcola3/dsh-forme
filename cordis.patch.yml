@@ -1,0 +1,28 @@
+# The dsh-forme meta-bundle patch: one insert layer whose rows are the five
+# plugin packages carried by this repository. Row ids and configs match each
+# plugin's own cordis.patch.yml, so installing this bundle alone or the plugins
+# individually composes to the same tree.
+
+- insert:
+    - id: dsh-git-plus
+      name: dsh-git-plus
+      config:
+        provider: ''
+        model: ''
+        prompt: 'Write a concise Conventional Commits message for the git diff below. Reply with the message only.'
+
+    - id: dsh-file-preview
+      name: dsh-file-preview
+
+    - id: dsh-quick-prompts
+      name: dsh-quick-prompts
+
+    - id: dsh-project-run
+      name: dsh-project-run
+
+    - id: dsh-version-update
+      name: dsh-version-update
+      config:
+        checkIntervalMs: 21600000
+        timeoutMs: 5000
+        registry: https://registry.npmjs.org

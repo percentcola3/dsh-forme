@@ -1,0 +1,23 @@
+{
+  "name": "dsh-forme",
+  "version": "0.1.0",
+  "description": "Meta-bundle that installs the dsh web plugins carried in this repository.",
+  "type": "module",
+  "license": "MIT",
+  "files": [
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "dsh-git-plus": "github:percentcola3/dsh-forme#path:plugins/dsh-git-plus",
+    "dsh-file-preview": "github:percentcola3/dsh-forme#path:plugins/dsh-file-preview",
+    "dsh-quick-prompts": "github:percentcola3/dsh-forme#path:plugins/dsh-quick-prompts",
+    "dsh-project-run": "github:percentcola3/dsh-forme#path:plugins/dsh-project-run",
+    "dsh-version-update": "github:percentcola3/dsh-forme#path:plugins/dsh-version-update"
+  }
+}
