@@ -12,17 +12,20 @@
 
 ## 安装
 
-官方客户端「添加插件」对话框、或命令行：
+官方客户端「添加插件」对话框、或命令行。注意：scp 简写 `git@github.com:...` 会被 pnpm 误判为本地路径，请用完整 `git+ssh://` 或 https 形式：
 
 ```sh
-# 整套装（推荐）
+# 整套装（推荐；走 SSH，稳定）
+dsh plugin --profile web add git+ssh://git@github.com/percentcola3/dsh-forme.git
+
+# 整套装（https 形式；本机直连 github 443 不稳时可能超时）
 dsh plugin --profile web add https://github.com/percentcola3/dsh-forme
 
 # 单个插件
-dsh plugin --profile web add github:percentcola3/dsh-forme#path:plugins/dsh-git-plus
+dsh plugin --profile web add git+ssh://git@github.com/percentcola3/dsh-forme.git#path:plugins/dsh-git-plus
 ```
 
-安装后重启 `dsh web`。
+安装后重启 `dsh web`。纯 profile（无 web-app bundle）启动时，除 `dsh-file-preview` 外的插件会因等待 `webServer` 服务而挂起，属预期——在含 `@deepseek-ai/dsh-web-app` 的正常 profile 中使用。
 
 ## 开发
 
