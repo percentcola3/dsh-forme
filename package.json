@@ -14,10 +14,10 @@
     }
   },
   "dependencies": {
-    "dsh-git-plus": "github:percentcola3/dsh-forme#path:plugins/dsh-git-plus",
-    "dsh-file-preview": "github:percentcola3/dsh-forme#path:plugins/dsh-file-preview",
-    "dsh-quick-prompts": "github:percentcola3/dsh-forme#path:plugins/dsh-quick-prompts",
-    "dsh-project-run": "github:percentcola3/dsh-forme#path:plugins/dsh-project-run",
-    "dsh-version-update": "github:percentcola3/dsh-forme#path:plugins/dsh-version-update"
+    "dsh-git-plus": "git+ssh://git@github.com/percentcola3/dsh-forme.git#path:plugins/dsh-git-plus",
+    "dsh-file-preview": "git+ssh://git@github.com/percentcola3/dsh-forme.git#path:plugins/dsh-file-preview",
+    "dsh-quick-prompts": "git+ssh://git@github.com/percentcola3/dsh-forme.git#path:plugins/dsh-quick-prompts",
+    "dsh-project-run": "git+ssh://git@github.com/percentcola3/dsh-forme.git#path:plugins/dsh-project-run",
+    "dsh-version-update": "git+ssh://git@github.com/percentcola3/dsh-forme.git#path:plugins/dsh-version-update"
   }
 }
