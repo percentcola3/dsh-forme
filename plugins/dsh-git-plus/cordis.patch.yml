@@ -1,0 +1,7 @@
+- insert:
+    - id: dsh-git-plus
+      name: dsh-git-plus
+      config:
+        provider: ''
+        model: ''
+        prompt: 'Write a concise Conventional Commits message for the git diff below. Reply with the message only.'

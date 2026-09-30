@@ -1,0 +1,6 @@
+packages:
+  - dsh-git-plus
+  - dsh-file-preview
+  - dsh-version-update
+  - dsh-project-run
+  - dsh-quick-prompts

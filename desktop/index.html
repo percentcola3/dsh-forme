@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DeepSeek</title>
+<style>
+:root{color-scheme:light dark;font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f7f8fa;color:#252833}body{margin:0;min-height:100vh;display:grid;place-items:center}.drag{position:fixed;inset:0 0 auto;height:38px}main{text-align:center;max-width:360px;padding:32px}img{width:80px;height:80px}h1{font-size:20px;font-weight:600;margin-top:20px}p{font-size:14px;line-height:1.7;color:#737783}button{border:0;border-radius:8px;background:#3564ef;color:white;padding:10px 24px;font:inherit;cursor:pointer}button[hidden]{display:none}@media(prefers-color-scheme:dark){:root{background:#17181b;color:#eff1f5}p{color:#a0a4ae}}
+</style>
+<div class="drag" data-tauri-drag-region></div>
+<main><img src="icon.png" alt=""><h1>DeepSeek</h1><p id="status">正在启动 DeepSeek…</p><button id="retry" hidden>重试</button></main>
+<script>
+const invoke = window.__TAURI__.core.invoke;
+const status = document.getElementById('status');
+const retry = document.getElementById('retry');
+retry.onclick = async () => { retry.hidden = true; status.textContent = '正在重新启动…'; try { await invoke('dsh_restart') } catch { status.textContent = '无法重启服务，请退出 App 后重试。'; retry.hidden = false } };
+async function refresh() { try { const state = await invoke('dsh_status'); status.textContent = state.message || '正在打开工作区…'; retry.hidden = state.phase !== 'error' } catch { status.textContent = '正在连接…' } }
+refresh(); setInterval(refresh, 500);
+</script>
+</html>
