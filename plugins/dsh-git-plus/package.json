@@ -24,13 +24,15 @@
     },
     "client": {
       "platform": "web",
-      "inject": ["@deepseek-ai/dsh-client-runtime"]
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime"
+      ]
     }
   },
   "scripts": {
     "build": "tsdown",
     "prepare": "tsdown",
-    "test": "node --test --experimental-strip-types src/client/diff-rows.test.ts"
+    "test": "node --test --experimental-strip-types src/client/diff-rows.test.ts src/*.test.ts"
   },
   "dependencies": {
     "@deepseek-ai/schemastery": "^3.18.1"
@@ -45,6 +47,7 @@
     "@types/node": "^22.20.0",
     "@types/react": "^18.3.0",
     "tsdown": "^0.22.2",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "@types/react-dom": "^18.3.7"
   }
 }

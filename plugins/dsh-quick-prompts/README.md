@@ -10,4 +10,6 @@
 
 插件独立安装，无需启用项目启动插件。Host 变更后完整重开 App。
 
+已在官方桌面端 **0.2.0-rc.2** 实测三种模式。会话导航使用 `uiWorkspace`；独立 Agent 显式保留会话并等待就绪后才配置模型、发送任务，结果观察结束时释放引用。
+
 验证（Node 22）：pnpm run build、pnpm exec tsc --noEmit、node --experimental-strip-types --test tests/*.test.mjs。

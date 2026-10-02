@@ -14,7 +14,7 @@ test('validation preserves prompt formatting and rejects empty content',()=>{
 })
 test('click dispatches exact saved text to the selected session only',async()=>{
   const calls=[]
-  const ctx={get:()=>({list:{getSnapshot:()=>({current:'a'})},scope:id=>({get:()=>({send:async text=>{calls.push({id,text})}})})})}
+  const ctx={get:name=>name==='uiWorkspace'?{selection:{getSnapshot:()=>({sessionId:'a'})}}:{scope:id=>({get:()=>({send:async text=>{calls.push({id,text})}})})}}
   await sendPrompt(ctx,'a','  检查代码\n保持格式')
   assert.deepEqual(calls,[{id:'a',text:'  检查代码\n保持格式'}])
   await assert.rejects(sendPrompt(ctx,'b','wrong session'))
@@ -23,7 +23,7 @@ test('click dispatches exact saved text to the selected session only',async()=>{
 })
 test('send failure is surfaced and never retried automatically',async()=>{
   let calls=0
-  const ctx={get:()=>({list:{getSnapshot:()=>({current:'a'})},scope:()=>({get:()=>({send:async()=>{calls++;throw new Error('offline')}})})})}
+  const ctx={get:name=>name==='uiWorkspace'?{selection:{getSnapshot:()=>({sessionId:'a'})}}:{scope:()=>({get:()=>({send:async()=>{calls++;throw new Error('offline')}})})}}
   await assert.rejects(sendPrompt(ctx,'a','prompt'),/offline/)
   assert.equal(calls,1)
 })

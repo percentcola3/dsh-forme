@@ -1,12 +1,13 @@
 {
   "name": "dsh-forme",
   "version": "0.1.0",
-  "description": "Meta-bundle that installs the dsh web plugins carried in this repository.",
+  "description": "Git changes, file previews, and reusable task shortcuts for DeepSeek Harness.",
   "type": "module",
   "license": "MIT",
   "files": [
     "cordis.patch.yml",
-    "README.md"
+    "README.md",
+    "README.zh-CN.md"
   ],
   "dsh": {
     "bundle": {
@@ -16,8 +17,9 @@
   "dependencies": {
     "dsh-git-plus": "git+ssh://git@github.com/percentcola3/dsh-forme.git#path:plugins/dsh-git-plus",
     "dsh-file-preview": "git+ssh://git@github.com/percentcola3/dsh-forme.git#path:plugins/dsh-file-preview",
-    "dsh-quick-prompts": "git+ssh://git@github.com/percentcola3/dsh-forme.git#path:plugins/dsh-quick-prompts",
-    "dsh-project-run": "git+ssh://git@github.com/percentcola3/dsh-forme.git#path:plugins/dsh-project-run",
-    "dsh-version-update": "git+ssh://git@github.com/percentcola3/dsh-forme.git#path:plugins/dsh-version-update"
+    "dsh-quick-prompts": "git+ssh://git@github.com/percentcola3/dsh-forme.git#path:plugins/dsh-quick-prompts"
+  },
+  "scripts": {
+    "install:desktop": "node scripts/install-local.mjs"
   }
 }

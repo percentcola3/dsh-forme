@@ -1,7 +1,7 @@
 {
   "name": "dsh-file-preview",
   "version": "0.1.0",
-  "description": "Open the official DeepSeek Harness Files sidebar from a footer action.",
+  "description": "A Files tab with native previews and file or code-selection references for DeepSeek Harness.",
   "type": "module",
   "main": "./lib/index.js",
   "exports": {
@@ -24,12 +24,15 @@
     },
     "client": {
       "platform": "web",
-      "inject": ["@deepseek-ai/dsh-client-runtime"]
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime"
+      ]
     }
   },
   "scripts": {
     "build": "tsdown",
-    "prepare": "tsdown"
+    "prepare": "tsdown",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "*",
@@ -41,6 +44,7 @@
     "@types/node": "^22.20.0",
     "@types/react": "^18.3.0",
     "tsdown": "^0.22.2",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "@types/react-dom": "^18.3.7"
   }
 }

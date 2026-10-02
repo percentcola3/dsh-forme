@@ -34,6 +34,7 @@ window.__ModuleLoader__.load({
 			const rows = [];
 			let leftNo = 0;
 			let rightNo = 0;
+			let inHunk = false;
 			const pendingDel = [];
 			const flushDel = () => {
 				while (pendingDel.length > 0) {
@@ -49,16 +50,22 @@ window.__ModuleLoader__.load({
 				}
 			};
 			for (const line of diff.split("\n")) {
-				if (line.startsWith("diff ") || line.startsWith("index ") || line.startsWith("---") || line.startsWith("+++")) continue;
+				if (line.startsWith("diff ")) {
+					flushDel();
+					inHunk = false;
+					continue;
+				}
 				if (line.startsWith("@@")) {
 					flushDel();
 					const mark = /@@ -(\d+)(?:,\d+)? \+(\d+)/.exec(line);
 					if (mark) {
+						inHunk = true;
 						leftNo = Number(mark[1]) - 1;
 						rightNo = Number(mark[2]) - 1;
 					}
 					continue;
 				}
+				if (!inHunk) continue;
 				if (line.startsWith("\\")) continue;
 				if (line.startsWith("-")) {
 					pendingDel.push(line.slice(1));
@@ -89,8 +96,9 @@ window.__ModuleLoader__.load({
 					}
 					continue;
 				}
+				if (!line.startsWith(" ")) continue;
 				flushDel();
-				const text = line.startsWith(" ") ? line.slice(1) : line;
+				const text = line.slice(1);
 				leftNo += 1;
 				rightNo += 1;
 				rows.push({
@@ -212,10 +220,15 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region src/client/index.ts
-		const inject = ["slots"];
+		const inject = [
+			"slots",
+			"sessions",
+			"uiWorkspace"
+		];
 		function workspaceOf(ctx, sessionId) {
 			const snap = ctx.get("sessions")?.list?.getSnapshot?.();
-			const id = sessionId || snap?.current;
+			const navigation = ctx.get("uiWorkspace");
+			const id = sessionId || navigation.selection.getSnapshot().sessionId;
 			if (!id) return null;
 			const cwd = snap?.byId[id]?.cwd;
 			if (!cwd) return null;
@@ -267,8 +280,9 @@ window.__ModuleLoader__.load({
 			}, react.default.createElement("path", { d: path }));
 		}
 		function apply(ctx) {
+			const slots = ctx.get("slots");
 			injectStyles();
-			ctx.slots.inject("conversation.view", () => ctx.slots.register({
+			slots.inject("conversation.view", () => slots.register({
 				name: "conversation.view",
 				id: "git-changes",
 				order: 20,
@@ -277,7 +291,7 @@ window.__ModuleLoader__.load({
 				ctx,
 				sessionId: props.sessionId
 			})));
-			ctx.slots.inject("conversation.session.header.actions", () => ctx.slots.register({
+			slots.inject("conversation.session.header.actions", () => slots.register({
 				name: "conversation.session.header.actions",
 				id: "dsh-git-plus",
 				order: 1,

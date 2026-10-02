@@ -1,22 +1,25 @@
-import { execFile } from 'node:child_process'
-import { isAbsolute, resolve, sep } from 'node:path'
-import { promisify } from 'node:util'
+import { isAbsolute } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
 import Schema from '@deepseek-ai/schemastery'
-
-const execFileAsync = promisify(execFile)
+import { createGitRunner } from './git.ts'
+import { readStatus, readDiff, sessionOwnsCwd } from './repository.ts'
+import { drainSummary } from './summary.ts'
 
 export const name = 'dsh-git-plus'
-export const inject = ['webServer']
+export const inject = ['webServer', 'connection', 'sessions']
 
 export interface Config {
+  gitExecutable?: string
+  gitExecPath?: string
   provider: string
   model: string
   prompt: string
 }
 
 export const Config: Schema<Config> = Schema.object({
+  gitExecutable: Schema.string().default('').description('Git executable path. Empty uses git from the host PATH.'),
+  gitExecPath: Schema.string().default('').description('Optional Git helper directory (GIT_EXEC_PATH), for portable Git distributions.'),
   provider: Schema.string().default(''),
   model: Schema.string().default(''),
   prompt: Schema.string().default(
@@ -29,8 +32,6 @@ interface ConnectionFence {
 }
 
 const MAX_BODY_BYTES = 256 * 1024
-const GIT_TIMEOUT_MS = 20_000
-const DIFF_MAX_CHARS = 80_000
 
 function sendJson(res: ServerResponse, status: number, payload: unknown): void {
   res.statusCode = status
@@ -56,8 +57,8 @@ async function readBody(req: IncomingMessage): Promise<string | null> {
 function rejected(ctx: Context, req: IncomingMessage, res: ServerResponse): boolean {
   const connection = ctx.get('connection') as ConnectionFence | undefined
   const code = connection?.requestRejection({ headers: req.headers })
-  if (code === undefined) return false
-  res.statusCode = code
+  if (connection && code === undefined) return false
+  res.statusCode = code ?? 403
   res.end()
   return true
 }
@@ -90,91 +91,6 @@ async function parseJsonBody(req: IncomingMessage, res: ServerResponse): Promise
     sendJson(res, 400, { error: 'invalid JSON' })
     return null
   }
-}
-
-function sessionOwnsCwd(ctx: Context, sessionId: string, cwd: string): boolean {
-  const sessions = ctx.get('sessions') as { list?: () => readonly unknown[] } | undefined
-  const list = sessions?.list?.() ?? []
-  for (const raw of list) {
-    const session = raw as {
-      id?: string
-      header?: { id?: string; cwd?: string }
-      cwd?: string
-    }
-    const id = session.id ?? session.header?.id
-    if (id !== sessionId) continue
-    const root = session.header?.cwd ?? session.cwd
-    if (!root) return true
-    const resolved = resolve(cwd)
-    const owned = resolve(root)
-    return resolved === owned || resolved.startsWith(owned + sep)
-  }
-  return list.length === 0
-}
-
-async function git(cwd: string, args: string[]): Promise<{ stdout: string; stderr: string; code: number }> {
-  try {
-    const result = await execFileAsync('git', args, {
-      cwd,
-      timeout: GIT_TIMEOUT_MS,
-      maxBuffer: 4 * 1024 * 1024,
-      windowsHide: true,
-    })
-    return { stdout: result.stdout, stderr: result.stderr, code: 0 }
-  } catch (error) {
-    const err = error as { stdout?: string; stderr?: string; code?: number }
-    return {
-      stdout: err.stdout ?? '',
-      stderr: err.stderr ?? (error instanceof Error ? error.message : String(error)),
-      code: typeof err.code === 'number' ? err.code : 1,
-    }
-  }
-}
-
-function parsePorcelain(stdout: string): {
-  branch: string
-  upstream: string
-  files: Array<{ path: string; status: string }>
-} {
-  const lines = stdout.split('\n').filter(Boolean)
-  let branch = ''
-  let upstream = ''
-  const files: Array<{ path: string; status: string }> = []
-  for (const line of lines) {
-    if (line.startsWith('## ')) {
-      const rest = line.slice(3)
-      const [names] = rest.split(' ', 1)
-      const [head, remote] = (names ?? '').split('...')
-      branch = head ?? ''
-      upstream = remote ?? ''
-      continue
-    }
-    const status = line.slice(0, 2).trim() || line.slice(0, 2)
-    const raw = line.slice(3)
-    const path = raw.includes(' -> ') ? (raw.split(' -> ').pop() ?? raw) : raw
-    if (path) files.push({ path, status })
-  }
-  return { branch, upstream, files }
-}
-
-function parseNumstat(stdout: string): {
-  insertions: number
-  deletions: number
-  byPath: Record<string, { insertions: number; deletions: number }>
-} {
-  let insertions = 0
-  let deletions = 0
-  const byPath: Record<string, { insertions: number; deletions: number }> = {}
-  for (const line of stdout.split('\n')) {
-    if (!line) continue
-    const [added, removed, path] = line.split('\t')
-    const plus = added && added !== '-' ? Number(added) || 0 : 0
-    const minus = removed && removed !== '-' ? Number(removed) || 0 : 0
-    insertions += plus
-    deletions += minus
-    if (path) byPath[path] = { insertions: plus, deletions: minus }
-  }
-  return { insertions, deletions, byPath }
 }
 
 function isSafeRef(name: string): boolean {
@@ -210,52 +126,15 @@ async function readWorkspace(
     sendJson(res, 400, { error: 'sessionId and absolute cwd are required' })
     return null
   }
-  if (!sessionOwnsCwd(ctx, sessionId, cwd)) {
+  if (!await sessionOwnsCwd(ctx, sessionId, cwd)) {
     sendJson(res, 403, { error: 'cwd is not owned by the live session' })
     return null
   }
   return { sessionId, cwd, body }
 }
 
-async function drainSummary(ctx: Context, config: Config, diff: string): Promise<string> {
-  const llm = ctx.get('llm') as {
-    listProviders?: () => readonly { name?: string }[] | readonly string[]
-    listModels?: (provider: string) => Promise<readonly { id?: string }[] | readonly string[]>
-    stream: (request: Record<string, unknown>) => AsyncIterable<{ type?: string; text?: string; reason?: string }>
-  } | undefined
-  if (!llm) throw new Error('llm service is not mounted')
-  const providers = llm.listProviders?.() ?? []
-  const providerName = config.provider
-    || (typeof providers[0] === 'string' ? providers[0] : providers[0]?.name)
-  if (!providerName) throw new Error('no LLM provider is configured')
-  let model = config.model
-  if (!model && llm.listModels) {
-    const models = await llm.listModels(providerName)
-    const first = models[0]
-    model = typeof first === 'string' ? first : first?.id ?? ''
-  }
-  if (!model) throw new Error('no LLM model is configured')
-  const clipped = diff.length > DIFF_MAX_CHARS ? `${diff.slice(0, DIFF_MAX_CHARS)}\n…(truncated)` : diff
-  let text = ''
-  for await (const chunk of llm.stream({
-    provider: providerName,
-    model,
-    system: config.prompt,
-    messages: [{
-      id: crypto.randomUUID(),
-      role: 'user',
-      content: [{ type: 'text', text: clipped || '(no diff)' }],
-    }],
-  })) {
-    if (chunk.type === 'text-delta' && chunk.text) text += chunk.text
-    if (chunk.type === 'finish' && chunk.reason && chunk.reason !== 'stop' && chunk.reason !== 'end') {
-      throw new Error(`model finished with ${chunk.reason}`)
-    }
-  }
-  return text.trim()
-}
-
 export function apply(ctx: Context, config: Config): void {
+  const git = createGitRunner(config)
   const webServer = Reflect.get(ctx, 'webServer') as {
     register: (route: { kind: string; path: string; handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void> }) => () => void
   }
@@ -283,54 +162,23 @@ export function apply(ctx: Context, config: Config): void {
       sendJson(res, 400, { error: 'sessionId and absolute cwd are required' })
       return
     }
-    if (!sessionOwnsCwd(ctx, sessionId, cwd)) {
+    if (!await sessionOwnsCwd(ctx, sessionId, cwd)) {
       sendJson(res, 403, { error: 'cwd is not owned by the live session' })
       return
     }
     const inside = await git(cwd, ['rev-parse', '--is-inside-work-tree'])
     if (inside.code !== 0 || inside.stdout.trim() !== 'true') {
-      sendJson(res, 200, { ok: false, error: 'not a git repository' })
+      sendJson(res, 200, { ok: false, error: inside.stderr.trim() || 'not a git repository' })
       return
     }
-    const status = await git(cwd, ['status', '--porcelain=v1', '-b'])
-    const parsed = parsePorcelain(status.stdout)
-    const numstat = await git(cwd, ['diff', '--numstat', 'HEAD'])
-    const counts = parseNumstat(numstat.stdout)
-    const stat = await git(cwd, ['diff', '--stat', 'HEAD'])
-    sendJson(res, 200, {
-      ok: true,
-      branch: parsed.branch,
-      upstream: parsed.upstream,
-      files: parsed.files.map(file => ({
-        ...file,
-        insertions: counts.byPath[file.path]?.insertions,
-        deletions: counts.byPath[file.path]?.deletions,
-      })),
-      insertions: counts.insertions,
-      deletions: counts.deletions,
-      stat: stat.stdout.trim(),
-    })
+    sendJson(res, 200, { ok: true, ...await readStatus(git, cwd) })
   })
 
   register('/dsh-git-plus/diff', async (req, res) => {
-    const body = await parseJsonBody(req, res)
-    if (!body) return
-    const sessionId = String(body.sessionId ?? '')
-    const cwd = String(body.cwd ?? '')
-    const filePath = String(body.path ?? '')
-    if (!sessionId || !cwd || !isAbsolute(cwd) || !filePath || filePath.includes('..')) {
-      sendJson(res, 400, { error: 'sessionId, absolute cwd, and a relative path are required' })
-      return
-    }
-    if (!sessionOwnsCwd(ctx, sessionId, cwd)) {
-      sendJson(res, 403, { error: 'cwd is not owned by the live session' })
-      return
-    }
-    const tracked = await git(cwd, ['diff', 'HEAD', '--', filePath])
-    const untracked = tracked.stdout.trim()
-      ? tracked
-      : await git(cwd, ['diff', '--no-index', '--', '/dev/null', filePath])
-    sendJson(res, 200, { ok: true, diff: untracked.stdout || untracked.stderr })
+    const loc = await readWorkspace(ctx, req, res)
+    if (!loc) return
+    if (typeof loc.body.path !== 'string') { sendJson(res, 400, {error:'需要文件路径'}); return }
+    sendJson(res, 200, { ok: true, diff: await readDiff(git, loc.cwd, loc.body.path) })
   })
 
   register('/dsh-git-plus/branches', async (req, res) => {
@@ -377,14 +225,20 @@ export function apply(ctx: Context, config: Config): void {
       sendJson(res, 400, { error: 'sessionId and absolute cwd are required' })
       return
     }
-    if (!sessionOwnsCwd(ctx, sessionId, cwd)) {
+    if (!await sessionOwnsCwd(ctx, sessionId, cwd)) {
       sendJson(res, 403, { error: 'cwd is not owned by the live session' })
       return
     }
-    const staged = await git(cwd, ['diff', '--cached'])
-    const unstaged = await git(cwd, ['diff'])
-    const combined = [staged.stdout, unstaged.stdout].filter(Boolean).join('\n')
-    const message = await drainSummary(ctx, config, combined)
+    const status = await readStatus(git, cwd)
+    const parts: string[] = []
+    let size = 0
+    for (const file of status.files) {
+      const diff = await readDiff(git, cwd, file.path)
+      parts.push(diff)
+      size += diff.length
+      if (size >= 80_000) break
+    }
+    const message = await drainSummary(ctx, config, parts.join('\n'), sessionId)
     sendJson(res, 200, { ok: true, message })
   })
 }

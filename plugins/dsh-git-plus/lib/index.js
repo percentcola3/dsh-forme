@@ -1,19 +1,259 @@
-import { execFile } from "node:child_process";
-import { isAbsolute, resolve, sep } from "node:path";
-import { promisify } from "node:util";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import Schema from "@deepseek-ai/schemastery";
-//#region src/index.ts
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { realpath } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+//#region src/git.ts
 const execFileAsync = promisify(execFile);
+function createGitRunner(config = {}) {
+	const executable = config.gitExecutable?.trim() || "git";
+	const helperPath = config.gitExecPath?.trim();
+	return async (cwd, args) => {
+		try {
+			const result = await execFileAsync(executable, args, {
+				cwd,
+				env: helperPath ? {
+					...process.env,
+					GIT_EXEC_PATH: helperPath
+				} : process.env,
+				timeout: 2e4,
+				maxBuffer: 4194304,
+				windowsHide: true
+			});
+			return {
+				stdout: result.stdout,
+				stderr: result.stderr,
+				code: 0
+			};
+		} catch (error) {
+			const err = error;
+			return {
+				stdout: err.stdout ?? "",
+				stderr: err.stderr || (error instanceof Error ? error.message : String(error)),
+				code: typeof err.code === "number" ? err.code : 1
+			};
+		}
+	};
+}
+//#endregion
+//#region src/repository.ts
+function parseStatus(output) {
+	const records = output.split("\0");
+	let branch = "", upstream = "";
+	const files = [];
+	for (let i = 0; i < records.length; i++) {
+		const row = records[i];
+		if (row.startsWith("## ")) {
+			const names = row.slice(3).replace(/^(No commits yet on |Initial commit on )/, "").split(" [")[0];
+			[branch, upstream = ""] = names.split("...");
+		} else if (row) {
+			const status = row.slice(0, 2);
+			const file = {
+				path: row.slice(3),
+				status: status.trim()
+			};
+			if (/[RC]/.test(status)) file.oldPath = records[++i];
+			files.push(file);
+		}
+	}
+	return {
+		branch,
+		upstream,
+		files
+	};
+}
+function parseCounts(output) {
+	let insertions = 0, deletions = 0;
+	const byPath = Object.create(null);
+	const records = output.split("\0");
+	for (let i = 0; i < records.length; i++) {
+		const match = /^(\d+|-)\t(\d+|-)\t([\s\S]*)$/.exec(records[i]);
+		if (!match) continue;
+		let path = match[3];
+		if (!path) {
+			i++;
+			path = records[++i];
+		}
+		const plus = Number(match[1]) || 0, minus = Number(match[2]) || 0;
+		insertions += plus;
+		deletions += minus;
+		byPath[path] = {
+			insertions: plus,
+			deletions: minus
+		};
+	}
+	return {
+		insertions,
+		deletions,
+		byPath
+	};
+}
+async function sessionOwnsCwd(ctx, sessionId, cwd) {
+	const live = ctx.get("sessions")?.list().find((s) => (s.id ?? s.header?.id) === sessionId);
+	const persistence = ctx.get("sessionPersistence");
+	const stored = live ? void 0 : await persistence?.stat(sessionId);
+	if (stored && stored.header.id !== sessionId) return false;
+	const root = live?.header?.cwd ?? live?.cwd ?? stored?.header.cwd;
+	if (!root || !isAbsolute(cwd)) return false;
+	try {
+		const [owned, candidate] = await Promise.all([realpath(root), realpath(cwd)]);
+		return candidate === owned || candidate.startsWith(owned + sep);
+	} catch {
+		return false;
+	}
+}
+async function readStatus(git, cwd) {
+	const status = await git(cwd, [
+		"status",
+		"--porcelain=v1",
+		"-z",
+		"-b",
+		"--untracked-files=all"
+	]);
+	if (status.code !== 0) throw new Error(status.stderr.trim() || "无法读取 Git 状态");
+	const parsed = parseStatus(status.stdout);
+	const hasHead = (await git(cwd, [
+		"rev-parse",
+		"--verify",
+		"HEAD"
+	])).code === 0;
+	let stats = "";
+	if (hasHead) {
+		const result = await git(cwd, [
+			"diff",
+			"--numstat",
+			"-z",
+			"HEAD"
+		]);
+		if (result.code !== 0) throw new Error(result.stderr);
+		stats = result.stdout;
+	}
+	for (const file of parsed.files.filter((f) => !hasHead || f.status === "??")) {
+		const result = await git(cwd, [
+			"diff",
+			"--no-index",
+			"--numstat",
+			"-z",
+			"--",
+			"/dev/null",
+			file.path
+		]);
+		if (result.code <= 1) stats += result.stdout;
+	}
+	const counts = parseCounts(stats);
+	return {
+		...parsed,
+		files: parsed.files.map((file) => ({
+			...file,
+			...counts.byPath[file.path]
+		})),
+		insertions: counts.insertions,
+		deletions: counts.deletions
+	};
+}
+async function readDiff(git, cwd, path) {
+	if (!path || isAbsolute(path) || path.includes("\0")) throw new Error("需要工作区内的相对路径");
+	const rel = relative(resolve(cwd), resolve(cwd, path));
+	if (rel === ".." || rel.startsWith(".." + sep)) throw new Error("路径超出工作区");
+	const status = await git(cwd, [
+		"status",
+		"--porcelain=v1",
+		"-z",
+		"-b",
+		"--untracked-files=all"
+	]);
+	if (status.code !== 0) throw new Error(status.stderr);
+	const file = parseStatus(status.stdout).files.find((f) => f.path === path);
+	if (!file) return "";
+	const hasHead = (await git(cwd, [
+		"rev-parse",
+		"--verify",
+		"HEAD"
+	])).code === 0;
+	let result;
+	if (!hasHead || file.status === "??") {
+		const canonical = await realpath(resolve(cwd, path));
+		const root = await realpath(cwd);
+		if (!canonical.startsWith(root + sep)) throw new Error("文件指向工作区外部");
+		result = await git(cwd, [
+			"diff",
+			"--no-index",
+			"--",
+			"/dev/null",
+			path
+		]);
+		if (result.code > 1) throw new Error(result.stderr);
+	} else {
+		result = await git(cwd, [
+			"--literal-pathspecs",
+			"diff",
+			"HEAD",
+			"--",
+			...file.oldPath ? [file.oldPath] : [],
+			path
+		]);
+		if (result.code !== 0) throw new Error(result.stderr);
+	}
+	return result.stdout;
+}
+//#endregion
+//#region src/summary.ts
+async function drainSummary(ctx, config, diff, sessionId) {
+	if (!diff.trim()) throw new Error("没有可用于生成提交说明的变更");
+	const llm = ctx.get("llm");
+	if (!llm) throw new Error("LLM 服务未加载");
+	const defaults = ctx.get("agentDefaultModel")?.currentSelection();
+	const provider = config.provider || defaults?.provider || llm.listProviders()[0]?.id;
+	if (!provider) throw new Error("请先配置模型提供方");
+	const model = config.model || (provider === defaults?.provider ? defaults.model : "") || (await llm.listModels(provider))[0]?.id;
+	if (!model) throw new Error("请先配置模型");
+	const signal = AbortSignal.timeout(9e4);
+	const clipped = diff.length > 8e4 ? diff.slice(0, 8e4) + "\n…(truncated)" : diff;
+	let text = "", finished = false;
+	for await (const chunk of llm.stream({
+		provider,
+		model,
+		system: config.prompt,
+		messages: [{
+			id: randomUUID(),
+			role: "user",
+			source: { kind: "dsh-git-plus" },
+			content: [{
+				type: "text",
+				text: clipped
+			}]
+		}],
+		sessionId,
+		purpose: "git-commit-message",
+		signal
+	})) {
+		signal.throwIfAborted();
+		if (chunk.type === "text-delta") text += chunk.text ?? "";
+		if (chunk.type === "finish") {
+			if (chunk.reason?.kind !== "stop") throw new Error(chunk.reason?.failure?.message ?? `生成未完成：${chunk.reason?.kind}`);
+			finished = true;
+		}
+	}
+	if (!finished || !text.trim()) throw new Error("模型没有返回完整的提交说明");
+	return text.trim();
+}
+//#endregion
+//#region src/index.ts
 const name = "dsh-git-plus";
-const inject = ["webServer"];
+const inject = [
+	"webServer",
+	"connection",
+	"sessions"
+];
 const Config = Schema.object({
+	gitExecutable: Schema.string().default("").description("Git executable path. Empty uses git from the host PATH."),
+	gitExecPath: Schema.string().default("").description("Optional Git helper directory (GIT_EXEC_PATH), for portable Git distributions."),
 	provider: Schema.string().default(""),
 	model: Schema.string().default(""),
 	prompt: Schema.string().default("Write a concise Conventional Commits message for the git diff below. Reply with the message only.")
 });
 const MAX_BODY_BYTES = 262144;
-const GIT_TIMEOUT_MS = 2e4;
-const DIFF_MAX_CHARS = 8e4;
 function sendJson(res, status, payload) {
 	res.statusCode = status;
 	res.setHeader("content-type", "application/json; charset=utf-8");
@@ -34,9 +274,10 @@ async function readBody(req) {
 	return Buffer.concat(chunks, size).toString("utf8");
 }
 function rejected(ctx, req, res) {
-	const code = ctx.get("connection")?.requestRejection({ headers: req.headers });
-	if (code === void 0) return false;
-	res.statusCode = code;
+	const connection = ctx.get("connection");
+	const code = connection?.requestRejection({ headers: req.headers });
+	if (connection && code === void 0) return false;
+	res.statusCode = code ?? 403;
 	res.end();
 	return true;
 }
@@ -68,90 +309,6 @@ async function parseJsonBody(req, res) {
 		return null;
 	}
 }
-function sessionOwnsCwd(ctx, sessionId, cwd) {
-	const list = ctx.get("sessions")?.list?.() ?? [];
-	for (const raw of list) {
-		const session = raw;
-		if ((session.id ?? session.header?.id) !== sessionId) continue;
-		const root = session.header?.cwd ?? session.cwd;
-		if (!root) return true;
-		const resolved = resolve(cwd);
-		const owned = resolve(root);
-		return resolved === owned || resolved.startsWith(owned + sep);
-	}
-	return list.length === 0;
-}
-async function git(cwd, args) {
-	try {
-		const result = await execFileAsync("git", args, {
-			cwd,
-			timeout: GIT_TIMEOUT_MS,
-			maxBuffer: 4194304,
-			windowsHide: true
-		});
-		return {
-			stdout: result.stdout,
-			stderr: result.stderr,
-			code: 0
-		};
-	} catch (error) {
-		const err = error;
-		return {
-			stdout: err.stdout ?? "",
-			stderr: err.stderr ?? (error instanceof Error ? error.message : String(error)),
-			code: typeof err.code === "number" ? err.code : 1
-		};
-	}
-}
-function parsePorcelain(stdout) {
-	const lines = stdout.split("\n").filter(Boolean);
-	let branch = "";
-	let upstream = "";
-	const files = [];
-	for (const line of lines) {
-		if (line.startsWith("## ")) {
-			const [names] = line.slice(3).split(" ", 1);
-			const [head, remote] = (names ?? "").split("...");
-			branch = head ?? "";
-			upstream = remote ?? "";
-			continue;
-		}
-		const status = line.slice(0, 2).trim() || line.slice(0, 2);
-		const raw = line.slice(3);
-		const path = raw.includes(" -> ") ? raw.split(" -> ").pop() ?? raw : raw;
-		if (path) files.push({
-			path,
-			status
-		});
-	}
-	return {
-		branch,
-		upstream,
-		files
-	};
-}
-function parseNumstat(stdout) {
-	let insertions = 0;
-	let deletions = 0;
-	const byPath = {};
-	for (const line of stdout.split("\n")) {
-		if (!line) continue;
-		const [added, removed, path] = line.split("	");
-		const plus = added && added !== "-" ? Number(added) || 0 : 0;
-		const minus = removed && removed !== "-" ? Number(removed) || 0 : 0;
-		insertions += plus;
-		deletions += minus;
-		if (path) byPath[path] = {
-			insertions: plus,
-			deletions: minus
-		};
-	}
-	return {
-		insertions,
-		deletions,
-		byPath
-	};
-}
 function isSafeRef(name) {
 	return name.length > 0 && name.length < 200 && !name.startsWith("-") && !name.includes("..") && !name.includes("\\") && /^[A-Za-z0-9][A-Za-z0-9._/\-]*$/.test(name);
 }
@@ -177,7 +334,7 @@ async function readWorkspace(ctx, req, res) {
 		sendJson(res, 400, { error: "sessionId and absolute cwd are required" });
 		return null;
 	}
-	if (!sessionOwnsCwd(ctx, sessionId, cwd)) {
+	if (!await sessionOwnsCwd(ctx, sessionId, cwd)) {
 		sendJson(res, 403, { error: "cwd is not owned by the live session" });
 		return null;
 	}
@@ -187,39 +344,8 @@ async function readWorkspace(ctx, req, res) {
 		body
 	};
 }
-async function drainSummary(ctx, config, diff) {
-	const llm = ctx.get("llm");
-	if (!llm) throw new Error("llm service is not mounted");
-	const providers = llm.listProviders?.() ?? [];
-	const providerName = config.provider || (typeof providers[0] === "string" ? providers[0] : providers[0]?.name);
-	if (!providerName) throw new Error("no LLM provider is configured");
-	let model = config.model;
-	if (!model && llm.listModels) {
-		const first = (await llm.listModels(providerName))[0];
-		model = typeof first === "string" ? first : first?.id ?? "";
-	}
-	if (!model) throw new Error("no LLM model is configured");
-	const clipped = diff.length > DIFF_MAX_CHARS ? `${diff.slice(0, DIFF_MAX_CHARS)}\n…(truncated)` : diff;
-	let text = "";
-	for await (const chunk of llm.stream({
-		provider: providerName,
-		model,
-		system: config.prompt,
-		messages: [{
-			id: crypto.randomUUID(),
-			role: "user",
-			content: [{
-				type: "text",
-				text: clipped || "(no diff)"
-			}]
-		}]
-	})) {
-		if (chunk.type === "text-delta" && chunk.text) text += chunk.text;
-		if (chunk.type === "finish" && chunk.reason && chunk.reason !== "stop" && chunk.reason !== "end") throw new Error(`model finished with ${chunk.reason}`);
-	}
-	return text.trim();
-}
 function apply(ctx, config) {
+	const git = createGitRunner(config);
 	const webServer = Reflect.get(ctx, "webServer");
 	const register = (path, handler) => {
 		ctx.effect(() => webServer.register({
@@ -244,7 +370,7 @@ function apply(ctx, config) {
 			sendJson(res, 400, { error: "sessionId and absolute cwd are required" });
 			return;
 		}
-		if (!sessionOwnsCwd(ctx, sessionId, cwd)) {
+		if (!await sessionOwnsCwd(ctx, sessionId, cwd)) {
 			sendJson(res, 403, { error: "cwd is not owned by the live session" });
 			return;
 		}
@@ -252,69 +378,25 @@ function apply(ctx, config) {
 		if (inside.code !== 0 || inside.stdout.trim() !== "true") {
 			sendJson(res, 200, {
 				ok: false,
-				error: "not a git repository"
+				error: inside.stderr.trim() || "not a git repository"
 			});
 			return;
 		}
-		const parsed = parsePorcelain((await git(cwd, [
-			"status",
-			"--porcelain=v1",
-			"-b"
-		])).stdout);
-		const counts = parseNumstat((await git(cwd, [
-			"diff",
-			"--numstat",
-			"HEAD"
-		])).stdout);
-		const stat = await git(cwd, [
-			"diff",
-			"--stat",
-			"HEAD"
-		]);
 		sendJson(res, 200, {
 			ok: true,
-			branch: parsed.branch,
-			upstream: parsed.upstream,
-			files: parsed.files.map((file) => ({
-				...file,
-				insertions: counts.byPath[file.path]?.insertions,
-				deletions: counts.byPath[file.path]?.deletions
-			})),
-			insertions: counts.insertions,
-			deletions: counts.deletions,
-			stat: stat.stdout.trim()
+			...await readStatus(git, cwd)
 		});
 	});
 	register("/dsh-git-plus/diff", async (req, res) => {
-		const body = await parseJsonBody(req, res);
-		if (!body) return;
-		const sessionId = String(body.sessionId ?? "");
-		const cwd = String(body.cwd ?? "");
-		const filePath = String(body.path ?? "");
-		if (!sessionId || !cwd || !isAbsolute(cwd) || !filePath || filePath.includes("..")) {
-			sendJson(res, 400, { error: "sessionId, absolute cwd, and a relative path are required" });
+		const loc = await readWorkspace(ctx, req, res);
+		if (!loc) return;
+		if (typeof loc.body.path !== "string") {
+			sendJson(res, 400, { error: "需要文件路径" });
 			return;
 		}
-		if (!sessionOwnsCwd(ctx, sessionId, cwd)) {
-			sendJson(res, 403, { error: "cwd is not owned by the live session" });
-			return;
-		}
-		const tracked = await git(cwd, [
-			"diff",
-			"HEAD",
-			"--",
-			filePath
-		]);
-		const untracked = tracked.stdout.trim() ? tracked : await git(cwd, [
-			"diff",
-			"--no-index",
-			"--",
-			"/dev/null",
-			filePath
-		]);
 		sendJson(res, 200, {
 			ok: true,
-			diff: untracked.stdout || untracked.stderr
+			diff: await readDiff(git, loc.cwd, loc.body.path)
 		});
 	});
 	register("/dsh-git-plus/branches", async (req, res) => {
@@ -372,15 +454,22 @@ function apply(ctx, config) {
 			sendJson(res, 400, { error: "sessionId and absolute cwd are required" });
 			return;
 		}
-		if (!sessionOwnsCwd(ctx, sessionId, cwd)) {
+		if (!await sessionOwnsCwd(ctx, sessionId, cwd)) {
 			sendJson(res, 403, { error: "cwd is not owned by the live session" });
 			return;
 		}
-		const staged = await git(cwd, ["diff", "--cached"]);
-		const unstaged = await git(cwd, ["diff"]);
+		const status = await readStatus(git, cwd);
+		const parts = [];
+		let size = 0;
+		for (const file of status.files) {
+			const diff = await readDiff(git, cwd, file.path);
+			parts.push(diff);
+			size += diff.length;
+			if (size >= 8e4) break;
+		}
 		sendJson(res, 200, {
 			ok: true,
-			message: await drainSummary(ctx, config, [staged.stdout, unstaged.stdout].filter(Boolean).join("\n"))
+			message: await drainSummary(ctx, config, parts.join("\n"), sessionId)
 		});
 	});
 }

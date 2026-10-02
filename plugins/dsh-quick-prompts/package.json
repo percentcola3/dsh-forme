@@ -1,7 +1,7 @@
 {
   "name": "dsh-quick-prompts",
   "version": "0.1.0",
-  "description": "Saved prompt shortcuts above the conversation composer",
+  "description": "Reusable chat prompts, independent agents, and shell commands for DeepSeek Harness.",
   "type": "module",
   "main": "./lib/index.js",
   "exports": {
@@ -31,7 +31,8 @@
   },
   "scripts": {
     "build": "tsdown",
-    "prepare": "tsdown"
+    "prepare": "tsdown",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "*",

@@ -34,11 +34,10 @@ window.__ModuleLoader__.load({
 			if (/[\u0000-\u001f\u007f-\u009f"]/u.test(path)) throw new Error("文件路径包含不支持的字符。");
 			const mention = /\s/u.test(path) ? `@"${path}"` : `@${path}`;
 			const location = lines ? `:${lines.start}${lines.end === lines.start ? "" : `-${lines.end}`}` : "";
-			const ref = `${mention}${lines ? ` （第 ${lines.start}${lines.end === lines.start ? "" : `–${lines.end}`} 行）` : ""}`;
 			return {
 				source: "reference",
-				ref,
-				clipboardText: ref,
+				ref: mention,
+				clipboardText: mention,
 				appearance: "file",
 				label: `${path.split("/").pop()}${location} · ${path}`
 			};
@@ -120,13 +119,16 @@ window.__ModuleLoader__.load({
 				if (!selection) return;
 				try {
 					const sessions = ctx.get("sessions");
-					if (!sessionId || sessions.list.getSnapshot().current !== sessionId) throw new Error("会话已切换，请重新打开文件菜单。");
+					const navigation = ctx.get("uiWorkspace");
+					if (!sessionId || navigation.selection.getSnapshot().sessionId !== sessionId) throw new Error("会话已切换，请重新打开文件菜单。");
 					const scope = sessions.scope(sessionId);
 					if (!scope) throw new Error("当前会话输入框不可用。");
-					const state = scope.get("conversation").input.for(scope).state.getSnapshot();
+					const input = scope.get("conversation").input.for(scope);
+					const state = input.state.getSnapshot();
 					if (state.phase !== "plain") throw new Error("输入框正在处理操作，请稍后再加入。");
 					const end = state.draft.length - state.occurrences.reduce((total, ref) => total + ref.length - 1, 0);
-					if (scope.bail(scope, "slash/input-insert-reference", {
+					const events = scope;
+					if (events.bail(scope, "slash/input-insert-reference", {
 						reference: fileReference(selection.path, selection.lines),
 						span: {
 							start: end,
@@ -134,6 +136,19 @@ window.__ModuleLoader__.load({
 							draftRev: state.draftRev
 						}
 					}) !== true) throw new Error("输入内容已变化，请重试。");
+					if (selection.lines) {
+						const next = input.state.getSnapshot();
+						const tail = next.draft.length - next.occurrences.reduce((total, ref) => total + ref.length - 1, 0);
+						const { start, end } = selection.lines;
+						if (events.bail(scope, "slash/input-insert-text", {
+							text: ` （第 ${start}${end === start ? "" : `–${end}`} 行） `,
+							span: {
+								start: tail,
+								end: tail,
+								draftRev: next.draftRev
+							}
+						}) !== true) throw new Error("文件已加入，但行号插入失败，请补充选区行号。");
+					}
 					setSelection(null);
 					document.querySelector("[data-input-scroll] [contenteditable=\"true\"], [data-composer-seat] textarea")?.focus();
 				} catch (err) {
@@ -244,11 +259,6 @@ window.__ModuleLoader__.load({
 				mount(host, session = currentSession()) {
 					leave?.();
 					if (!session) return () => {};
-					const mountedAt = performance.now();
-					document.dispatchEvent(new CustomEvent("dsh-performance", { detail: {
-						kind: "files-mount",
-						duration: 0
-					} }));
 					const wasExpanded = sidebar.isExpanded();
 					const previousTab = sidebar.active()?.id;
 					let presentation = [true, false];
@@ -258,7 +268,6 @@ window.__ModuleLoader__.load({
 					let timer;
 					let frame;
 					let ready = false;
-					let treeReady = false;
 					let selectedPath;
 					const composer = host.closest("[data-conversation-scroll]")?.querySelector("[data-composer-seat]");
 					const marked = /* @__PURE__ */ new Set();
@@ -274,7 +283,6 @@ window.__ModuleLoader__.load({
 					layout.openRightbar = presentationOverride;
 					layout.closeRightbar();
 					const sync = () => {
-						const syncStart = performance.now();
 						if (stopped || currentSession() !== session) return;
 						const dock = panel();
 						if (!dock) return;
@@ -296,23 +304,12 @@ window.__ModuleLoader__.load({
 						const tree = panes[0];
 						if (!tree) return;
 						mark(tree, "data-dfp-tree");
-						if (!treeReady && tree.querySelector("[data-files-entry]")) {
-							treeReady = true;
-							document.dispatchEvent(new CustomEvent("dsh-performance", { detail: {
-								kind: "files-ready",
-								duration: performance.now() - mountedAt
-							} }));
-						}
 						const preview = panes[1];
 						if (!preview) {
 							if (!splitPending) splitPending = !!sidebar.split(tree.dataset.dockkitPane);
 							return;
 						}
 						splitPending = false;
-						if (!ready) document.dispatchEvent(new CustomEvent("dsh-performance", { detail: {
-							kind: "files-mount",
-							duration: performance.now() - mountedAt
-						} }));
 						ready = true;
 						clearTimeout(timer);
 						mark(preview, "data-dfp-preview");
@@ -336,11 +333,6 @@ window.__ModuleLoader__.load({
 								if (button.getAttribute("aria-current") !== selected) button.setAttribute("aria-current", selected);
 							}
 						}
-						const duration = performance.now() - syncStart;
-						if (duration > 8) document.dispatchEvent(new CustomEvent("dsh-performance", { detail: {
-							kind: "files-sync",
-							duration
-						} }));
 					};
 					active = {
 						session,
@@ -443,22 +435,26 @@ window.__ModuleLoader__.load({
 		const inject = [
 			"slots",
 			"sidebarRight",
-			"layout"
+			"layout",
+			"sessions",
+			"uiWorkspace"
 		];
 		function workspaceName(ctx, sessionId) {
 			const snap = ctx.get("sessions")?.list?.getSnapshot?.();
-			const id = sessionId || snap?.current;
+			const navigation = ctx.get("uiWorkspace");
+			const id = sessionId || navigation.selection.getSnapshot().sessionId;
 			const cwd = id ? snap?.byId[id]?.cwd : void 0;
 			if (!cwd) return "文件";
 			return cwd;
 		}
 		function apply(ctx) {
+			const slots = ctx.get("slots");
 			injectStyles();
 			const workspace = installFilesWorkspace(ctx.get("sidebarRight"), ctx.get("layout"), () => {
-				return ctx.get("sessions")?.list?.getSnapshot?.().current;
+				return ctx.get("uiWorkspace").selection.getSnapshot().sessionId;
 			});
 			ctx.effect(() => () => workspace.dispose());
-			ctx.slots.inject("conversation.view", () => ctx.slots.register({
+			slots.inject("conversation.view", () => slots.register({
 				name: "conversation.view",
 				id: "dsh-files",
 				order: 21,
@@ -468,7 +464,7 @@ window.__ModuleLoader__.load({
 				sessionId: props.sessionId,
 				workspace
 			})));
-			ctx.slots.inject("conversation.session.header.actions", () => ctx.slots.register({
+			slots.inject("conversation.session.header.actions", () => slots.register({
 				name: "conversation.session.header.actions",
 				id: "dsh-file-preview",
 				order: 0,

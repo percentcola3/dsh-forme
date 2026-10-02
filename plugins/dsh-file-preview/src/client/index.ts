@@ -4,7 +4,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { renderOnTabRow, useWorkspaceToolHost } from './tab-host.ts'
 import { installFilesWorkspace, type Layout, type Sidebar } from './files-workspace.ts'
 
-export const inject = ['slots', 'sidebarRight', 'layout']
+export const inject = ['slots', 'sidebarRight', 'layout', 'sessions', 'uiWorkspace']
 
 type HeaderProps = {
   sessionId?: string
@@ -13,28 +13,33 @@ type HeaderProps = {
 
 function workspaceName(ctx: Context, sessionId?: string): string {
   const sessions = ctx.get('sessions') as {
-    list?: { getSnapshot?: () => { current?: string; byId: Record<string, { cwd?: string }> } }
+    list?: { getSnapshot?: () => { byId: Record<string, { cwd?: string }> } }
   } | undefined
   const snap = sessions?.list?.getSnapshot?.()
-  const id = sessionId || snap?.current
+  const navigation = ctx.get('uiWorkspace') as { selection: { getSnapshot(): { sessionId?: string } } }
+  const id = sessionId || navigation.selection.getSnapshot().sessionId
   const cwd = id ? snap?.byId[id]?.cwd : undefined
   if (!cwd) return '文件'
   return cwd
 }
 
 export function apply(ctx: Context): void {
+  const slots = ctx.get('slots') as {
+    inject(name: string, register: () => () => void): () => void
+    register(options: {name: string; id: string; order: number; label: string}, render: (props: {sessionId?: string}) => React.ReactElement): () => void
+  }
   injectStyles()
   const sidebar = ctx.get('sidebarRight') as Sidebar
   const workspace = installFilesWorkspace(sidebar, ctx.get('layout') as Layout, () => {
-    const sessions = ctx.get('sessions') as { list?: { getSnapshot?: () => { current?: string } } } | undefined
-    return sessions?.list?.getSnapshot?.().current
+    const navigation = ctx.get('uiWorkspace') as { selection: { getSnapshot(): { sessionId?: string } } }
+    return navigation.selection.getSnapshot().sessionId
   })
   ctx.effect(() => () => workspace.dispose())
-  ctx.slots.inject('conversation.view', () => ctx.slots.register(
+  slots.inject('conversation.view', () => slots.register(
     { name: 'conversation.view', id: 'dsh-files', order: 21, label: '文件' },
     (props: { sessionId?: string }) => React.createElement(FilesView, { ctx, sessionId: props.sessionId, workspace }),
   ))
-  ctx.slots.inject('conversation.session.header.actions', () => ctx.slots.register(
+  slots.inject('conversation.session.header.actions', () => slots.register(
     { name: 'conversation.session.header.actions', id: 'dsh-file-preview', order: 0, label: '文件' },
     (props: { sessionId?: string }) => React.createElement(FilesAction, { ctx, sessionId: props.sessionId }),
   ))

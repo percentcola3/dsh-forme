@@ -1,4 +1,4 @@
-# The dsh-forme meta-bundle patch: one insert layer whose rows are the five
+# The dsh-forme meta-bundle patch: one insert layer whose rows are the three
 # plugin packages carried by this repository. Row ids and configs match each
 # plugin's own cordis.patch.yml, so installing this bundle alone or the plugins
 # individually composes to the same tree.
@@ -16,13 +16,3 @@
 
     - id: dsh-quick-prompts
       name: dsh-quick-prompts
-
-    - id: dsh-project-run
-      name: dsh-project-run
-
-    - id: dsh-version-update
-      name: dsh-version-update
-      config:
-        checkIntervalMs: 21600000
-        timeoutMs: 5000
-        registry: https://registry.npmjs.org

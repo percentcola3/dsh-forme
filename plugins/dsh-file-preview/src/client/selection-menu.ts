@@ -11,8 +11,7 @@ export function fileReference(path: string, lines?: { start: number; end: number
   if (/[\u0000-\u001f\u007f-\u009f"]/u.test(path)) throw new Error('文件路径包含不支持的字符。')
   const mention = /\s/u.test(path) ? `@"${path}"` : `@${path}`
   const location = lines ? `:${lines.start}${lines.end === lines.start ? '' : `-${lines.end}`}` : ''
-  const ref = `${mention}${lines ? ` （第 ${lines.start}${lines.end === lines.start ? '' : `–${lines.end}`} 行）` : ''}`
-  return { source: 'reference', ref, clipboardText: ref, appearance: 'file',
+  return { source: 'reference', ref: mention, clipboardText: mention, appearance: 'file',
     label: `${path.split('/').pop()}${location} · ${path}` }
 }
 
@@ -80,8 +79,9 @@ export function SelectionMenu({ ctx, sessionId }: { ctx: Context; sessionId?: st
   const add = () => {
     if (!selection) return
     try {
-      const sessions = ctx.get('sessions') as { scope(id: string): Context | undefined; list: { getSnapshot(): { current?: string } } }
-      if (!sessionId || sessions.list.getSnapshot().current !== sessionId) throw new Error('会话已切换，请重新打开文件菜单。')
+      const sessions = ctx.get('sessions') as { scope(id: string): Context | undefined }
+      const navigation = ctx.get('uiWorkspace') as { selection: { getSnapshot(): { sessionId?: string } } }
+      if (!sessionId || navigation.selection.getSnapshot().sessionId !== sessionId) throw new Error('会话已切换，请重新打开文件菜单。')
       const scope = sessions.scope(sessionId)
       if (!scope) throw new Error('当前会话输入框不可用。')
       const conversation = scope.get('conversation') as { input: { for(scope: Context): Input } }
@@ -96,6 +96,18 @@ export function SelectionMenu({ ctx, sessionId }: { ctx: Context; sessionId?: st
         reference: fileReference(selection.path, selection.lines), span: { start: end, end, draftRev: state.draftRev },
       })
       if (applied !== true) throw new Error('输入内容已变化，请重试。')
+      // The native reference opener treats ref as a path. Keep line context in
+      // ordinary prompt text so the chip remains clickable and serializable.
+      if (selection.lines) {
+        const next = input.state.getSnapshot()
+        const tail = next.draft.length - next.occurrences.reduce((total, ref) => total + ref.length - 1, 0)
+        const { start, end } = selection.lines
+        const inserted = events.bail(scope, 'slash/input-insert-text', {
+          text: ` （第 ${start}${end === start ? '' : `–${end}`} 行） `,
+          span: { start: tail, end: tail, draftRev: next.draftRev },
+        })
+        if (inserted !== true) throw new Error('文件已加入，但行号插入失败，请补充选区行号。')
+      }
       setSelection(null)
       document.querySelector<HTMLElement>('[data-input-scroll] [contenteditable="true"], [data-composer-seat] textarea')?.focus()
     } catch (err) {

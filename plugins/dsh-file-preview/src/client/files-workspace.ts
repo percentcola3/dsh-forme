@@ -33,8 +33,6 @@ export function installFilesWorkspace(sidebar: Sidebar, layout: Layout, currentS
     mount(host: HTMLElement, session = currentSession()): () => void {
       leave?.()
       if (!session) return () => {}
-      const mountedAt = performance.now()
-      document.dispatchEvent(new CustomEvent('dsh-performance',{detail:{kind:'files-mount',duration:0}}))
       const wasExpanded = sidebar.isExpanded()
       const previousTab = sidebar.active()?.id
       let presentation: [boolean, boolean] = [true, false]
@@ -44,7 +42,6 @@ export function installFilesWorkspace(sidebar: Sidebar, layout: Layout, currentS
       let timer: ReturnType<typeof setTimeout> | undefined
       let frame: number | undefined
       let ready = false
-      let treeReady = false
       let selectedPath: string | undefined
       const scroller = host.closest('[data-conversation-scroll]')
       const composer = scroller?.querySelector<HTMLElement>('[data-composer-seat]')
@@ -63,7 +60,6 @@ export function installFilesWorkspace(sidebar: Sidebar, layout: Layout, currentS
       layout.closeRightbar()
 
       const sync = () => {
-        const syncStart = performance.now()
         if (stopped || currentSession() !== session) return
         const dock = panel()
         if (!dock) return
@@ -83,10 +79,6 @@ export function installFilesWorkspace(sidebar: Sidebar, layout: Layout, currentS
         const tree = panes[0]
         if (!tree) return
         mark(tree, 'data-dfp-tree')
-        if(!treeReady && tree.querySelector('[data-files-entry]')) {
-          treeReady=true
-          document.dispatchEvent(new CustomEvent('dsh-performance',{detail:{kind:'files-ready',duration:performance.now()-mountedAt}}))
-        }
         const preview = panes[1]
         if (!preview) {
           // Retry after DockSurface has measured the bounded viewport.
@@ -94,7 +86,6 @@ export function installFilesWorkspace(sidebar: Sidebar, layout: Layout, currentS
           return
         }
         splitPending = false
-        if (!ready) document.dispatchEvent(new CustomEvent('dsh-performance',{detail:{kind:'files-mount',duration:performance.now()-mountedAt}}))
         ready = true
         clearTimeout(timer)
         mark(preview, 'data-dfp-preview')
@@ -118,8 +109,6 @@ export function installFilesWorkspace(sidebar: Sidebar, layout: Layout, currentS
             if (button.getAttribute('aria-current') !== selected) button.setAttribute('aria-current', selected)
           }
         }
-        const duration = performance.now()-syncStart
-        if(duration>8) document.dispatchEvent(new CustomEvent('dsh-performance',{detail:{kind:'files-sync',duration}}))
       }
       active = { session, route(address, options) {
         pending = { address, options }

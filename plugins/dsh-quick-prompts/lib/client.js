@@ -31,6 +31,7 @@ window.__ModuleLoader__.load({
 		let react_dom = require("react-dom");
 		//#region src/client/tasks.ts
 		const sessionsFor = (ctx) => ctx.get("sessions");
+		const openSession = (ctx, id) => ctx.get("uiWorkspace").openSession(id);
 		const modelsFor = (ctx) => ctx.get("modelDirectories");
 		async function taskRequest(action, value = {}) {
 			const res = await fetch("/dsh-quick-prompts", {
@@ -50,35 +51,51 @@ window.__ModuleLoader__.load({
 			const sessions = sessionsFor(ctx);
 			const id = await sessions.create({ cwd });
 			created(id);
-			const binding = sessions.binding(id);
-			if (!binding) throw new Error("独立会话尚未就绪。");
-			const renamed = await binding.session.rename(`快捷任务 · ${item.name}`);
-			if (!renamed.ok) throw new Error(renamed.error?.message ?? "会话命名失败");
-			if (item.selection) {
-				const models = modelsFor(ctx);
-				if (!models) throw new Error("模型选择服务不可用。");
-				await models.directoryFor(id).select(item.selection);
+			const reference = sessions.retain(id, { source: "quickPromptSend" });
+			try {
+				await reference.ready;
+				const binding = sessions.binding(id);
+				if (!binding) throw new Error("独立会话尚未就绪。");
+				const renamed = await binding.session.rename(`快捷任务 · ${item.name}`);
+				if (!renamed.ok) throw new Error(renamed.error?.message ?? "会话命名失败");
+				if (item.selection) {
+					const models = modelsFor(ctx);
+					if (!models) throw new Error("模型选择服务不可用。");
+					await models.directoryFor(id).select(item.selection);
+				}
+				const conversation = sessions.scope(id)?.get("conversation");
+				if (!conversation) throw new Error("独立会话暂不可用。");
+				await conversation.send(item.text);
+				return id;
+			} finally {
+				reference.release();
 			}
-			const conversation = sessions.scope(id)?.get("conversation");
-			if (!conversation) throw new Error("独立会话暂不可用。");
-			await conversation.send(item.text);
-			return id;
 		}
 		//#endregion
 		//#region src/client/logic.ts
 		function shortName(name) {
 			return Array.from(new Intl.Segmenter("zh", { granularity: "grapheme" }).segment(name), (item) => item.segment).slice(0, 5).join("");
 		}
+		function currentSessionId(ctx) {
+			return ctx.get("uiWorkspace").selection.getSnapshot().sessionId;
+		}
 		async function sendPrompt(ctx, sessionId, text) {
 			const sessions = ctx.get("sessions");
-			if (!sessionId || sessions.list.getSnapshot().current !== sessionId) throw new Error("请先选择要发送的对话。");
+			if (!sessionId || currentSessionId(ctx) !== sessionId) throw new Error("请先选择要发送的对话。");
 			const conversation = sessions.scope(sessionId)?.get("conversation");
 			if (!conversation) throw new Error("当前对话暂不可用。");
 			await conversation.send(text);
 		}
 		//#endregion
 		//#region src/client/index.ts
-		const inject = ["slots"];
+		const inject = [
+			"slots",
+			"sessions",
+			"uiWorkspace",
+			"modelDirectories",
+			"remote",
+			"remote.session"
+		];
 		async function request(action, value = {}) {
 			const res = await fetch("/dsh-quick-prompts", {
 				method: "POST",
@@ -196,7 +213,21 @@ window.__ModuleLoader__.load({
 				draft?.mode
 			]);
 			react.default.useEffect(() => {
-				const stops = Object.values(runs).map((id) => sessionsFor(ctx).binding(id)?.session.subscribe(() => tick((n) => n + 1)));
+				const stops = Object.values(runs).map((id) => {
+					const reference = sessionsFor(ctx).retain(id, { source: "quickPromptStatus" });
+					let live = true;
+					reference.ready.then(() => {
+						if (live) tick((n) => n + 1);
+					}).catch((err) => {
+						if (live) setError(String(err));
+					});
+					const stop = reference.binding.session.subscribe(() => tick((n) => n + 1));
+					return () => {
+						live = false;
+						stop();
+						reference.release();
+					};
+				});
 				return () => {
 					for (const stop of stops) stop?.();
 				};
@@ -281,7 +312,6 @@ window.__ModuleLoader__.load({
 				sending.current = true;
 				setBusy(true);
 				setError("");
-				const started = performance.now();
 				try {
 					const items = await request(action, draft);
 					setDraft(null);
@@ -292,10 +322,6 @@ window.__ModuleLoader__.load({
 				} finally {
 					sending.current = false;
 					setBusy(false);
-					document.dispatchEvent(new CustomEvent("dsh-performance", { detail: {
-						kind: "quick-save",
-						duration: performance.now() - started
-					} }));
 				}
 			};
 			const send = async (item) => {
@@ -304,7 +330,7 @@ window.__ModuleLoader__.load({
 				setBusy(true);
 				setError("");
 				try {
-					if (!sessionId || sessionsFor(ctx).list.getSnapshot().current !== sessionId) throw new Error("请先选择会话。");
+					if (!sessionId || currentSessionId(ctx) !== sessionId) throw new Error("请先选择会话。");
 					if (item.mode === "shell") {
 						setOutput(await taskRequest("run", {
 							id: item.id,
@@ -469,7 +495,7 @@ window.__ModuleLoader__.load({
 				"aria-hidden": true
 			}, react.default.createElement("path", { d: "M15 5l4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15v5Z" }))))))), Object.keys(runs).length > 0 || output.status !== "idle" ? react.default.createElement("div", { className: "dqp-task-status" }, ...Object.entries(runs).map(([key, id]) => react.default.createElement("span", { key }, react.default.createElement("button", {
 				type: "button",
-				onClick: () => sessionsFor(ctx).open(id)
+				onClick: () => openSession(ctx, id)
 			}, `${shortName(items.find((i) => i.id === key)?.name ?? "任务")} · ${sessionsFor(ctx).binding(id)?.session.getSnapshot().running ? "运行中" : "查看结果/审批"}`), react.default.createElement("button", {
 				type: "button",
 				onClick: () => {

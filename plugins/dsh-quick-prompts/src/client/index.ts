@@ -1,9 +1,9 @@
 import React from 'react'
 import { createPortal } from 'react-dom'
 import type { Context } from '@deepseek-ai/cordis'
-import { taskRequest, startAgent, sessionsFor, modelsFor, type Catalog, type Prompt } from './tasks.ts'
-import { shortName, sendPrompt } from './logic.ts'
-export const inject = ['slots']
+import { taskRequest, startAgent, sessionsFor, openSession, modelsFor, type Catalog, type Prompt } from './tasks.ts'
+import { shortName, sendPrompt, currentSessionId } from './logic.ts'
+export const inject = ['slots', 'sessions', 'uiWorkspace', 'modelDirectories', 'remote', 'remote.session']
 type Draft = Omit<Prompt,'id'> & {id?:string}
 async function request(action: string, value: Partial<Prompt> = {}): Promise<Prompt[]> {
   const res = await fetch('/dsh-quick-prompts',{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({action,...value})})
@@ -79,7 +79,13 @@ function QuickPrompts({ctx,sessionId}:{ctx:Context;sessionId?:string}):React.Rea
     return()=>{live=false}
   },[ctx,sessionId,draft?.mode])
   React.useEffect(()=>{
-    const stops=Object.values(runs).map(id=>sessionsFor(ctx).binding(id)?.session.subscribe(()=>tick(n=>n+1)))
+    const stops=Object.values(runs).map(id=>{
+      const reference=sessionsFor(ctx).retain(id,{source:'quickPromptStatus'})
+      let live=true
+      void reference.ready.then(()=>{if(live)tick(n=>n+1)}).catch(err=>{if(live)setError(String(err))})
+      const stop=reference.binding.session.subscribe(()=>tick(n=>n+1))
+      return ()=>{live=false;stop();reference.release()}
+    })
     return()=>{for(const stop of stops)stop?.()}
   },[ctx,runs])
   const commandRunning=['running','stopping'].includes(output.status)
@@ -114,20 +120,19 @@ function QuickPrompts({ctx,sessionId}:{ctx:Context;sessionId?:string}):React.Rea
   const save = async (action:'save'|'delete') => {
     if(!draft||sending.current)return
     sending.current=true;setBusy(true);setError('')
-    const started=performance.now()
     try {
       const items=await request(action,draft)
       setDraft(null);trigger.current?.focus()
       React.startTransition(()=>setItems(items))
     }
     catch(err){setError(err instanceof Error?err.message:String(err))}
-    finally{sending.current=false;setBusy(false);document.dispatchEvent(new CustomEvent('dsh-performance',{detail:{kind:'quick-save',duration:performance.now()-started}}))}
+    finally{sending.current=false;setBusy(false)}
   }
   const send = async(item:Prompt)=>{
     if(sending.current)return
     sending.current=true;setBusy(true);setError('')
     try {
-      if(!sessionId || sessionsFor(ctx).list.getSnapshot().current!==sessionId)throw new Error('请先选择会话。')
+      if(!sessionId || currentSessionId(ctx)!==sessionId)throw new Error('请先选择会话。')
       if(item.mode==='shell') {setOutput(await taskRequest('run',{id:item.id,sessionId}));setPanel(true)}
       else if(item.mode==='agent') {
         const {cwd}=await taskRequest('workspace',{sessionId})
@@ -164,7 +169,7 @@ function QuickPrompts({ctx,sessionId}:{ctx:Context;sessionId?:string}):React.Rea
         React.createElement('svg',{width:12,height:12,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.8,'aria-hidden':true},React.createElement('path',{d:'M15 5l4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15v5Z'}))))))),
     (Object.keys(runs).length>0||output.status!=='idle')?React.createElement('div',{className:'dqp-task-status'},
       ...Object.entries(runs).map(([key,id])=>React.createElement('span',{key},
-        React.createElement('button',{type:'button',onClick:()=>sessionsFor(ctx).open(id)},`${shortName(items.find(i=>i.id===key)?.name??'任务')} · ${sessionsFor(ctx).binding(id)?.session.getSnapshot().running?'运行中':'查看结果/审批'}`),
+        React.createElement('button',{type:'button',onClick:()=>openSession(ctx,id)},`${shortName(items.find(i=>i.id===key)?.name??'任务')} · ${sessionsFor(ctx).binding(id)?.session.getSnapshot().running?'运行中':'查看结果/审批'}`),
         React.createElement('button',{type:'button',onClick:()=>{void sessionsFor(ctx).binding(id)?.session.cancel().then(r=>{if(!r.ok)setError(r.error?.message??'停止失败')}).catch(e=>setError(String(e)))}},'停止'))),
       output.status!=='idle'?React.createElement('button',{type:'button',onClick:()=>setPanel(true)},'终端任务日志'):null):null,
     panel?createPortal(React.createElement('div',{className:'dqp-backdrop',onClick:(e:React.MouseEvent)=>{if(e.target===e.currentTarget)setPanel(false)}},React.createElement('section',{className:'dqp-dialog',role:'dialog','aria-modal':true,'aria-label':'命令输出'},

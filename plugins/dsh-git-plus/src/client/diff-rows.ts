@@ -10,6 +10,7 @@ export function splitUnifiedDiff(diff: string): SplitLine[] {
   const rows: SplitLine[] = []
   let leftNo = 0
   let rightNo = 0
+  let inHunk = false
   const pendingDel: string[] = []
   const flushDel = (): void => {
     while (pendingDel.length > 0) {
@@ -19,21 +20,22 @@ export function splitUnifiedDiff(diff: string): SplitLine[] {
     }
   }
   for (const line of diff.split('\n')) {
-    if (
-      line.startsWith('diff ')
-      || line.startsWith('index ')
-      || line.startsWith('---')
-      || line.startsWith('+++')
-    ) continue
+    if (line.startsWith('diff ')) {
+      flushDel()
+      inHunk = false
+      continue
+    }
     if (line.startsWith('@@')) {
       flushDel()
       const mark = /@@ -(\d+)(?:,\d+)? \+(\d+)/.exec(line)
       if (mark) {
+        inHunk = true
         leftNo = Number(mark[1]) - 1
         rightNo = Number(mark[2]) - 1
       }
       continue
     }
+    if (!inHunk) continue
     if (line.startsWith('\\')) continue
     if (line.startsWith('-')) {
       pendingDel.push(line.slice(1))
@@ -52,8 +54,9 @@ export function splitUnifiedDiff(diff: string): SplitLine[] {
       }
       continue
     }
+    if (!line.startsWith(' ')) continue
     flushDel()
-    const text = line.startsWith(' ') ? line.slice(1) : line
+    const text = line.slice(1)
     leftNo += 1
     rightNo += 1
     rows.push({ leftNo, rightNo, left: text, right: text, kind: 'ctx' })

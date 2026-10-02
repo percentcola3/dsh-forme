@@ -3,10 +3,9 @@ import type { Context } from '@deepseek-ai/cordis'
 import { splitUnifiedDiff, type SplitLine } from './diff-rows.ts'
 import { FloatingPanel, renderOnTabRow, useWorkspaceToolHost } from './tab-host.ts'
 
-export const inject = ['slots']
+export const inject = ['slots', 'sessions', 'uiWorkspace']
 
 type SessionSnap = {
-  current?: string
   byId: Record<string, { cwd?: string }>
 }
 
@@ -29,7 +28,8 @@ type HeaderProps = {
 function workspaceOf(ctx: Context, sessionId?: string): { sessionId: string; cwd: string } | null {
   const sessions = ctx.get('sessions') as { list?: { getSnapshot?: () => SessionSnap } } | undefined
   const snap = sessions?.list?.getSnapshot?.()
-  const id = sessionId || snap?.current
+  const navigation = ctx.get('uiWorkspace') as { selection: { getSnapshot(): { sessionId?: string } } }
+  const id = sessionId || navigation.selection.getSnapshot().sessionId
   if (!id) return null
   const cwd = snap?.byId[id]?.cwd
   if (!cwd) return null
@@ -87,14 +87,18 @@ function icon(path: string): React.ReactElement {
 }
 
 export function apply(ctx: Context): void {
+  const slots = ctx.get('slots') as {
+    inject(name: string, register: () => () => void): () => void
+    register(options: {name: string; id: string; order: number; label: string}, render: (props: {sessionId?: string}) => React.ReactElement): () => void
+  }
   injectStyles()
-  ctx.slots.inject('conversation.view', () => ctx.slots.register(
+  slots.inject('conversation.view', () => slots.register(
     { name: 'conversation.view', id: 'git-changes', order: 20, label: 'Changes' },
-    (props: HeaderProps) => React.createElement(GitChangesView, { ctx, sessionId: props.sessionId }),
+    (props: { sessionId?: string }) => React.createElement(GitChangesView, { ctx, sessionId: props.sessionId }),
   ))
-  ctx.slots.inject('conversation.session.header.actions', () => ctx.slots.register(
+  slots.inject('conversation.session.header.actions', () => slots.register(
     { name: 'conversation.session.header.actions', id: 'dsh-git-plus', order: 1, label: 'Git' },
-    (props: HeaderProps) => React.createElement(GitToolbar, { ctx, sessionId: props.sessionId }),
+    (props: { sessionId?: string }) => React.createElement(GitToolbar, { ctx, sessionId: props.sessionId }),
   ))
 }
 
