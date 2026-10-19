@@ -1,7 +1,7 @@
 import * as pty from 'node-pty'
 import { randomUUID } from 'node:crypto'
 type Entry = { id: string; cwd: string; process: pty.IPty; output: string; offset: number; exited: boolean }
-export class ProjectTerminals {
+export class SessionTerminals {
   private entries = new Map<string, Entry>()
   private disposed = false
   open(key: string, cwd: string, cols: number, rows: number) {

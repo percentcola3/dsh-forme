@@ -1,7 +1,0 @@
-- insert:
-    - id: dsh-version-update
-      name: dsh-version-update
-      config:
-        checkIntervalMs: 21600000
-        timeoutMs: 5000
-        registry: https://registry.npmjs.org

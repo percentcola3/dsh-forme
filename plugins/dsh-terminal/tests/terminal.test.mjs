@@ -1,13 +1,13 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { tmpdir } from 'node:os'
-import { ProjectTerminals } from '../src/terminal.ts'
+import { SessionTerminals } from '../src/terminal.ts'
 const waitFor = async read => {
   for (let i = 0; i < 60; i++) { const value = read(); if (value) return value; await new Promise(resolve => setTimeout(resolve, 50)) }
   throw new Error('terminal output timed out')
 }
 test('interactive PTY preserves shell state, scopes access and closes', async () => {
-  const terminals = new ProjectTerminals()
+  const terminals = new SessionTerminals()
   try {
     const first = terminals.open('session-a', tmpdir(), 80, 24)
     assert.equal(terminals.open('session-a', tmpdir(), 80, 24).id, first.id)
