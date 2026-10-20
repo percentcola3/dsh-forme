@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { PromptStore } from './prompt-store.ts'
 import { TaskManager, type Parent, type Runtime } from './task-manager.ts'
 import type { Prompt } from './types.ts'
+import type { AssistantFrame } from './live-output.ts'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { randomUUID } from 'node:crypto'
@@ -18,6 +19,7 @@ export function apply(ctx: Context, _config: unknown = {}, internals: { director
   const agents = ctx.get('agents') as { get(id: string): Parent | undefined }
   const host = ctx as unknown as { on(name: string, listener: (...args: any[]) => void, options: { global: boolean }): () => void }
   host.on('session/event', (session: { id: string }, event: { type: string; data: Record<string, any> }) => { try { manager.observe(session.id, event) } catch (error) { console.warn('dsh-quick-prompts: task observation failed', error) } }, { global: true })
+  host.on('agent/assistant-stream', ({ agent, frame }: { agent: { session: { id: string } }; frame: AssistantFrame }) => { try { manager.stream(agent.session.id, frame) } catch (error) { console.warn('dsh-quick-prompts: stream observation failed', error) } }, { global: true })
   ctx.effect(() => () => manager.dispose())
   const store = new PromptStore<Prompt>(join(internals.directory ?? join(homedir(), '.dsh'), 'quick-prompts.json'))
   const prompts = async () => (await store.read()).map(item => ({ id: item.id, ...validatePrompt(item) }))

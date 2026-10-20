@@ -36,15 +36,6 @@ window.__ModuleLoader__.load({
 			"waiting",
 			"stopping"
 		].includes(status);
-		const statusLabels = {
-			starting: "启动中",
-			running: "运行中",
-			waiting: "需要处理",
-			stopping: "停止中",
-			completed: "已完成",
-			stopped: "已停止",
-			failed: "失败"
-		};
 		//#endregion
 		//#region src/client/tasks.ts
 		async function taskRequest(action, body = {}) {
@@ -61,18 +52,11 @@ window.__ModuleLoader__.load({
 			if (!res.ok) throw new Error(value.error ?? "快捷任务操作失败。");
 			return value;
 		}
-		function openRun(ctx, run) {
-			ctx.get("uiWorkspace").openSession({
-				kind: "subagent",
-				parentSessionId: run.parentId,
-				childSessionId: run.childId,
-				mode: "continuable"
-			});
-		}
+		const ongoingRuns = (runs) => runs.filter((run) => active(run.status)).sort((a, b) => b.startedAt - a.startedAt);
 		function createTasks(request = taskRequest) {
 			let current = {
 				runs: [],
-				open: false,
+				open: true,
 				error: "",
 				syncError: ""
 			};
@@ -104,10 +88,14 @@ window.__ModuleLoader__.load({
 					const revision = mutation;
 					try {
 						const { runs } = await request("runs");
-						if (revision === mutation) publish({
-							runs,
-							syncError: ""
-						});
+						if (revision === mutation) {
+							const failed = runs.find((run) => run.status === "failed" && current.runs.some((previous) => previous.id === run.id && active(previous.status)));
+							publish({
+								runs,
+								syncError: "",
+								...failed ? { error: `${failed.name}：${failed.error ?? "任务未能完成，请从原生子智能体列表查看记录。"}` } : {}
+							});
+						}
 					} catch {
 						publish({ syncError: "任务状态同步失败，正在重连；当前显示可能已过期。" });
 					} finally {
@@ -123,7 +111,10 @@ window.__ModuleLoader__.load({
 						requestId: crypto.randomUUID()
 					}).then(({ run }) => {
 						mutation++;
-						publish({ runs: [run, ...current.runs.filter((item) => item.id !== run.id)] });
+						publish({
+							runs: [run, ...current.runs.filter((item) => item.id !== run.id)],
+							...run.status === "failed" ? { error: `${run.name}：${run.error ?? "任务未能启动。"}` } : {}
+						});
 					}).catch((error) => {
 						publish({ error: error instanceof Error ? error.message : String(error) });
 					}).finally(() => {
@@ -193,49 +184,20 @@ window.__ModuleLoader__.load({
 [data-conversation-content]:has(> .dqp-dock-seat > .dqp-dock)>[data-width-handle]{display:none}
 .dqp-dock-seat:has(> .dqp-dock){
   grid-column:2;grid-row:1;display:flex;min-width:0;min-height:0;overflow:hidden;
-  border-left:1px solid var(--dsw-alias-border-l3,#9db8ca22);
-  background:color-mix(in srgb,var(--dsw-alias-bg-base,#101c29) 92%,#9ab9d1 8%);
+  background:transparent;
 }
 .dqp-dock{display:flex;flex:1;flex-direction:column;min-width:0;min-height:0;overflow:hidden;box-sizing:border-box;color:var(--dsw-alias-label-primary,#dce7ef);font:12px/1.6 var(--moss-text,system-ui)}
 [data-conversation-content][data-dqp-layout=stacked]:has(> .dqp-dock-seat > .dqp-dock){grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(0,min(220px,35%))}
-[data-dqp-layout=stacked]>.dqp-dock-seat:has(> .dqp-dock){grid-column:1;grid-row:2;border-left:0;border-top:1px solid var(--dsw-alias-border-l3,#9db8ca22)}
-.dqp-dock-head{display:flex;align-items:center;gap:9px;min-height:42px;box-sizing:border-box;padding:8px 12px;border-bottom:1px solid #b9d3e416;flex:none}
-.dqp-dock-head strong{font-size:12px;font-weight:600}
-.dqp-dock-count{font-size:10px;color:#8ca7ba}
-.dqp-dock button{cursor:pointer;font:inherit;color:inherit}
-.dqp-dock-head button{display:grid;place-items:center;margin-left:auto;width:24px;height:24px;padding:0;border:0;border-radius:5px;background:transparent;color:#9eb6c9}
-.dqp-dock-head button:hover{background:#adc9db12;color:#e2eff7}
-.dqp-dock-body{flex:1;overflow:auto;padding:8px;min-height:0;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#839eb644 transparent;scrollbar-gutter:stable}
-.dqp-dock-empty{padding:18px 8px;text-align:center;color:#8faabd;font-size:11px}
-.dqp-run-card{padding:10px;margin-bottom:7px;border:1px solid #a1b7cc1b;border-radius:8px;background:#8faec207}
+[data-dqp-layout=stacked]>.dqp-dock-seat:has(> .dqp-dock){grid-column:1;grid-row:2}
+.dqp-dock-body{flex:1;overflow:auto;padding:12px 10px;min-height:0;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#839eb644 transparent;scrollbar-gutter:stable}
+.dqp-run-card{padding:13px;margin-bottom:10px;border:1px solid var(--dsw-alias-border-l3,#a1b7cc22);border-radius:10px;background:color-mix(in srgb,var(--dsw-alias-bg-base,#101c29) 93%,#9ab9d1 7%)}
 .dqp-run-card:last-child{margin-bottom:0}
-.dqp-run-heading{display:flex;gap:7px;align-items:center}
-.dqp-run-heading strong{flex:1;min-width:0;font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.dqp-run-status{font-size:10px;white-space:nowrap;color:#a9bfce}
-.dqp-run-status[data-status=completed]{color:#8ecdbd}
-.dqp-run-status[data-status=failed],.dqp-run-status[data-status=waiting]{color:#ef9298}
-.dqp-run-meta{display:flex;gap:10px;color:#7694ab;font-size:10px;margin-top:3px}
-.dqp-run-meta span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.dqp-run-meta time{font-variant-numeric:tabular-nums}
-.dqp-run-progress{margin-top:7px;font-size:11px;color:#9eb8cb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dqp-run-preview{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere;margin:7px 0 0;color:#b4c9d8;font-size:11px;line-height:1.65}
-.dqp-run-error{white-space:pre-wrap;overflow-wrap:anywhere;color:#f1a3a5;margin-top:7px;font-size:11px}
-.dqp-run-details{margin-top:8px;padding-top:8px;border-top:1px solid #a8c2d415}
-.dqp-run-output{font:11px/1.75 var(--moss-text,system-ui);white-space:pre-wrap;overflow-wrap:anywhere;max-height:150px;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;margin:6px 0 0;color:#c1d3e1}
-.dqp-run-tools{list-style:none;margin:0;padding:0;color:#8faec2;font:10px/1.8 var(--moss-code,monospace)}
-.dqp-run-tools li{display:flex;gap:8px}.dqp-run-tools span{flex:1;min-width:0;overflow-wrap:anywhere}.dqp-run-tools b{font-weight:400;color:#7b9aac;white-space:nowrap}
-.dqp-run-actions{display:flex;gap:10px;align-items:center;margin-top:8px}
-.dqp-run-actions button{display:inline-flex;align-items:center;gap:4px;border:0;border-radius:4px;padding:2px 0;background:transparent;font-size:10px;color:#89a9c0}
-.dqp-run-actions button:hover{color:#dcecf7}.dqp-run-actions button:disabled{opacity:.35;cursor:default}
-.dqp-run-actions .dqp-run-record{margin-left:auto}
-.dqp-run-actions .dqp-run-stop{padding:2px 6px;background:#e9778010;color:#f1a3a5}
-.dqp-dot{width:5px;height:5px;border-radius:50%;background:#7b98ac;flex:none}
-.dqp-dot[data-status=running],.dqp-dot[data-status=starting]{background:#b2d8ef;box-shadow:0 0 8px #98c7e188;animation:dqp-breathe 1.7s ease-in-out infinite}
-.dqp-dot[data-status=completed]{background:#84c9b4}
-.dqp-dot[data-status=failed],.dqp-dot[data-status=waiting]{background:#e97780}
-.dqp-dock-error{margin:0 0 8px;padding:8px;border:1px solid #ed8c9626;border-radius:6px;color:#f2a2a5;font-size:11px;overflow-wrap:anywhere}
-.dqp-dialog :is(button,input,textarea):focus-visible,.dqp-bar button:focus-visible,.dqp-dock button:focus-visible,.dqp-dock-body:focus-visible,.dqp-run-output:focus-visible{outline:2px solid #a3c8e1;outline-offset:2px}
-@keyframes dqp-breathe{50%{opacity:.35;box-shadow:0 0 3px #98c7e144}}@media(prefers-reduced-motion:reduce){.dqp-dot{animation:none!important}}body[data-moss-motion=off] .dqp-dot{animation:none}
+.dqp-live-output{margin:0;min-height:24px;max-height:min(340px,45vh);overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;font:12px/1.85 var(--moss-text,system-ui);color:var(--dsw-alias-label-secondary,#c1d3e1);white-space:pre-wrap;overflow-wrap:anywhere}
+.dqp-live-pending{display:flex;flex-direction:column;gap:8px;padding:3px 0;opacity:.5;animation:dqp-pending 1.8s ease-in-out infinite}
+.dqp-live-pending i{display:block;height:5px;width:88%;border-radius:3px;background:color-mix(in srgb,var(--dsw-alias-label-primary,#dce7ef) 16%,transparent)}
+.dqp-live-pending i:nth-child(2){width:66%}.dqp-live-pending i:nth-child(3){width:40%}
+.dqp-dialog :is(button,input,textarea):focus-visible,.dqp-bar button:focus-visible,.dqp-dock-body:focus-visible,.dqp-live-output:focus-visible{outline:2px solid #a3c8e1;outline-offset:2px}
+@keyframes dqp-pending{50%{opacity:.22}}@media(prefers-reduced-motion:reduce){.dqp-live-pending{animation:none!important}}body[data-moss-motion=off] .dqp-live-pending{animation:none}
 @media(max-width:600px){.dqp-panel-trigger{font-size:10px!important}}
 `;
 		//#endregion
@@ -331,10 +293,7 @@ window.__ModuleLoader__.load({
 				name: "shell.overlay",
 				id: "dsh-quick-prompts-panel",
 				order: 95
-			}, () => h(TaskPanel, {
-				ctx,
-				tasks
-			}))));
+			}, () => h(TaskPanel, { tasks }))));
 			ctx.effect(() => {
 				const style = document.createElement("style");
 				style.textContent = styles;
@@ -346,7 +305,7 @@ window.__ModuleLoader__.load({
 					tasks.refresh().catch(() => {});
 				};
 				poll();
-				const timer = setInterval(poll, 1200);
+				const timer = setInterval(poll, 400);
 				window.addEventListener("focus", poll);
 				return () => {
 					clearInterval(timer);
@@ -487,7 +446,8 @@ window.__ModuleLoader__.load({
 				className: "dqp-save",
 				disabled: saving || !draft.name.trim() || !draft.text.trim()
 			}, saving ? "保存中…" : "保存")))), document.body) : null;
-			const running = state.runs.filter((run) => active(run.status)).length;
+			const running = ongoingRuns(state.runs).length;
+			const notice = error || state.error || state.syncError;
 			return h(react.default.Fragment, null, h("div", {
 				className: "dqp-bar",
 				role: "group",
@@ -523,130 +483,66 @@ window.__ModuleLoader__.load({
 				stroke: "currentColor",
 				strokeWidth: 1.8,
 				"aria-hidden": true
-			}, h("path", { d: "M15 5l4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15v5Z" })))))), h("button", {
+			}, h("path", { d: "M15 5l4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15v5Z" })))))), running > 0 && h("button", {
 				type: "button",
 				className: "dqp-panel-trigger",
-				onClick: () => tasks.show()
-			}, "后台任务", running ? ` ${running}` : "")), error && !draft && h("div", {
+				"aria-expanded": state.open,
+				title: state.open ? "收起进行中的任务" : "显示进行中的任务",
+				onClick: () => tasks.show(!state.open)
+			}, `后台任务 ${running}`)), notice && !draft && h("div", {
 				className: "dqp-notice",
 				role: "alert",
-				title: error
-			}, error), modal);
+				title: notice
+			}, notice), modal);
 		}
-		function elapsed(run, now) {
-			const seconds = Math.max(0, Math.floor(((run.endedAt ?? now) - run.startedAt) / 1e3));
-			return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-		}
-		function TaskPanel({ ctx, tasks }) {
+		function TaskPanel({ tasks }) {
 			const state = react.default.useSyncExternalStore(tasks.subscribe, tasks.getSnapshot);
-			const [now, setNow] = react.default.useState(Date.now);
 			const [seat, setSeat] = react.default.useState(null);
 			react.default.useLayoutEffect(() => installTaskDock(document.body, setSeat), []);
-			const count = state.runs.filter((run) => active(run.status)).length;
-			react.default.useEffect(() => {
-				if (!state.open || !count) return;
-				setNow(Date.now());
-				const timer = setInterval(() => setNow(Date.now()), 1e3);
-				return () => clearInterval(timer);
-			}, [state.open, count]);
-			if (!state.open || !seat) return null;
-			const runs = [...state.runs].sort((a, b) => Number(active(b.status)) - Number(active(a.status)) || b.startedAt - a.startedAt).slice(0, 20);
+			const runs = ongoingRuns(state.runs);
+			if (!state.open || !seat || !runs.length) return null;
 			return (0, react_dom.createPortal)(h("aside", {
 				className: "dqp-dock",
-				"aria-label": "后台快捷任务"
-			}, h("header", { className: "dqp-dock-head" }, h("strong", null, "快捷任务"), h("span", {
-				className: "dqp-dock-count",
-				role: "status"
-			}, count ? `${count} 个执行中` : `${runs.length} 条记录`), h("button", {
-				type: "button",
-				"aria-label": "收起后台任务面板",
-				onClick: () => tasks.show(false)
-			}, h("svg", {
-				width: 14,
-				height: 14,
-				viewBox: "0 0 24 24",
-				fill: "none",
-				stroke: "currentColor",
-				strokeWidth: 1.6,
-				"aria-hidden": true
-			}, h("path", { d: "M5 12h14" })))), h("div", {
+				"aria-label": "进行中的快捷任务"
+			}, h("div", {
 				className: "dqp-dock-body",
 				role: "region",
-				"aria-label": "快捷任务列表",
+				"aria-label": "进行中的任务卡片",
 				tabIndex: 0
-			}, (state.error || state.syncError) && h("p", {
-				role: "alert",
-				className: "dqp-dock-error"
-			}, state.error || state.syncError), !runs.length && h("div", { className: "dqp-dock-empty" }, "点击快捷指令，在后台执行任务。"), ...runs.map((run) => h(RunCard, {
+			}, ...runs.map((run) => h(RunCard, {
 				key: run.id,
-				ctx,
-				tasks,
-				run,
-				now
+				run
 			})))), seat);
 		}
-		function RunCard({ ctx, tasks, run, now }) {
-			const [expanded, setExpanded] = react.default.useState(false);
-			const hasDetails = !!(run.output || run.error || run.tools.length);
-			const detailId = `dqp-details-${run.id}`;
+		function RunCard({ run }) {
+			const output = run.liveOutput ?? run.output;
+			const viewport = react.default.useRef(null);
+			const follow = react.default.useRef(true);
+			react.default.useLayoutEffect(() => {
+				const node = viewport.current;
+				if (node && follow.current) node.scrollTop = node.scrollHeight;
+			}, [output]);
 			return h("section", {
 				className: "dqp-run-card",
 				"data-run-id": run.id,
-				"aria-label": run.name
-			}, h("div", { className: "dqp-run-heading" }, h("i", {
-				className: "dqp-dot",
-				"data-status": run.status
-			}), h("strong", { title: run.name }, run.name), h("span", {
-				className: "dqp-run-status",
-				"data-status": run.status,
-				role: "status"
-			}, statusLabels[run.status])), h("div", { className: "dqp-run-meta" }, h("span", { title: run.parentTitle }, run.parentTitle), h("time", null, elapsed(run, now))), active(run.status) && h("div", {
-				className: "dqp-run-progress",
-				title: run.progress
-			}, run.progress), !expanded && run.error && h("div", {
-				className: "dqp-run-error dqp-run-preview",
-				title: run.error
-			}, run.error), !expanded && !run.error && run.output && h("p", { className: "dqp-run-preview" }, run.output.replace(/\s+/g, " ").trim()), expanded && h("div", {
-				className: "dqp-run-details",
-				id: detailId
-			}, run.error && h("div", { className: "dqp-run-error" }, run.error), !!run.tools.length && h("ul", { className: "dqp-run-tools" }, ...run.tools.map((tool) => h("li", { key: tool.callId }, h("span", null, tool.name), h("b", null, {
-				running: "执行中",
-				done: "已返回",
-				failed: "失败",
-				ended: "已结束"
-			}[tool.state])))), !!run.output && h("pre", {
-				className: "dqp-run-output",
+				"aria-label": run.name,
+				title: run.name
+			}, output ? h("pre", {
+				ref: viewport,
+				className: "dqp-live-output",
+				role: "log",
 				tabIndex: 0,
-				"aria-label": `${run.name} 的执行结果`
-			}, run.output)), h("div", { className: "dqp-run-actions" }, hasDetails && h("button", {
-				type: "button",
-				className: "dqp-run-expand",
-				"aria-expanded": expanded,
-				"aria-controls": expanded ? detailId : void 0,
-				onClick: () => setExpanded(!expanded)
-			}, expanded ? "收起详情" : "展开详情", h("svg", {
-				width: 10,
-				height: 10,
-				viewBox: "0 0 24 24",
-				fill: "none",
-				stroke: "currentColor",
-				strokeWidth: 1.8,
-				"aria-hidden": true,
-				style: { transform: expanded ? "rotate(180deg)" : void 0 }
-			}, h("path", { d: "m6 9 6 6 6-6" }))), h("button", {
-				type: "button",
-				className: "dqp-run-record",
-				disabled: !run.steps && !run.output,
-				onClick: () => openRun(ctx, run)
-			}, "完整记录", h("span", { "aria-hidden": true }, "↗")), active(run.status) && h("button", {
-				type: "button",
-				className: "dqp-run-stop",
-				disabled: run.status === "stopping",
-				"aria-label": `停止 ${run.name}`,
-				onClick: () => {
-					tasks.stop(run.id);
+				"aria-label": `${run.name} 的实时输出`,
+				"aria-live": "off",
+				onScroll: (event) => {
+					const node = event.currentTarget;
+					follow.current = node.scrollHeight - node.scrollTop - node.clientHeight < 32;
 				}
-			}, run.status === "stopping" ? "停止中…" : "停止")));
+			}, output) : h("div", {
+				className: "dqp-live-pending",
+				role: "status",
+				"aria-label": `${run.name} 等待输出`
+			}, h("i"), h("i"), h("i")));
 		}
 		//#endregion
 		exports.QuickPrompts = QuickPrompts;

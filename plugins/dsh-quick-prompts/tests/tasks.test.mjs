@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { TaskManager } from '../src/task-manager.ts'
-import { createTasks, openRun } from '../src/client/tasks.ts'
+import { createTasks, openRun, ongoingRuns } from '../src/client/tasks.ts'
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no }); return { promise, resolve, reject } }
 const tick = () => new Promise(resolve => setImmediate(resolve))
 function fixture({ delayed = false } = {}) {
@@ -142,4 +142,41 @@ test('stopping an idle child waiting for a late answer does not stick at stoppin
   assert.equal(f.manager.list()[0].status, 'waiting')
   f.manager.stop(run.id); assert.equal(f.manager.list()[0].status, 'stopped')
   await f.manager.dispose()
+})
+
+test('visible cards include only live tasks and disappear immediately on settlement', () => {
+  const runs = ['completed', 'stopped', 'failed', 'starting', 'running', 'waiting', 'stopping'].map((status, i) => ({ id: String(i), status, startedAt: i }))
+  assert.deepEqual(ongoingRuns(runs).map(run => run.status), ['stopping', 'waiting', 'running', 'starting'])
+  assert.equal(ongoingRuns(runs.map(run => ({ ...run, status: 'completed' }))).length, 0)
+})
+test('native assistant frames are visible before settlement, tool text joins once, and late frames are ignored', async () => {
+  const f = fixture(); const run = f.manager.start(f.parent, f.prompt, 'one'); await tick()
+  f.manager.stream(run.childId, { type: 'start', attemptId: 'a' })
+  f.manager.stream(run.childId, { type: 'chunk', attemptId: 'a', index: 0, chunk: { type: 'text-delta', text: '实时' } })
+  f.manager.stream(run.childId, { type: 'chunk', attemptId: 'a', index: 1, chunk: { type: 'text-delta', text: '输出' } })
+  assert.equal(f.manager.list()[0].liveOutput, '实时输出')
+  assert.equal(f.manager.list()[0].status, 'running')
+  f.manager.observe(run.childId, { type: 'assistant/message', data: { message: { content: [{ type: 'text', text: '实时输出' }] } } })
+  f.manager.stream(run.childId, { type: 'end', attemptId: 'a', index: 2, outcome: { kind: 'settled', eventType: 'assistant/message' } })
+  f.manager.observe(run.childId, { type: 'tool/result', data: { message: { content: [{ type: 'text', text: 'stdout' }] } } })
+  assert.equal(f.manager.list()[0].liveOutput, '实时输出\n\nstdout')
+  f.admissions[0].result.resolve({ stopReason: 'completed' }); await tick()
+  f.manager.stream(run.childId, { type: 'start', attemptId: 'late' })
+  f.manager.stream(run.childId, { type: 'chunk', attemptId: 'late', index: 0, chunk: { type: 'text-delta', text: 'bad' } })
+  assert.equal(f.manager.list()[0].liveOutput, '实时输出\n\nstdout')
+  await f.manager.dispose()
+})
+test('a newly failed task surfaces an error outside its removed card; old failures do not reappear', async () => {
+  let runs = [{ id: 'new', name: '检查', status: 'running' }, { id: 'old', name: '旧任务', status: 'failed', error: 'old failure' }]
+  const tasks = createTasks(async () => ({ runs })); await tasks.refresh()
+  assert.equal(tasks.getSnapshot().error, '')
+  runs = [{ ...runs[0], status: 'failed', error: 'model unavailable' }, runs[1]]; await tasks.refresh()
+  assert.match(tasks.getSnapshot().error, /检查：model unavailable/)
+  assert.equal(ongoingRuns(tasks.getSnapshot().runs).length, 0)
+})
+test('a startup failure already present in the admission response still shows an error', async () => {
+  const tasks = createTasks(async () => ({ run: { id: 'failed', name: '检查', status: 'failed', error: 'spawn unavailable' } }))
+  await tasks.start('main', 'p')
+  assert.match(tasks.getSnapshot().error, /检查：spawn unavailable/)
+  assert.equal(ongoingRuns(tasks.getSnapshot().runs).length, 0)
 })

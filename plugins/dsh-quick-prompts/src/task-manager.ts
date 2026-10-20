@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { LiveOutput, type AssistantFrame } from './live-output.ts'
 import { active, type Prompt, type TaskRun } from './types.ts'
 export type Parent = { id: string; session: { header: { id: string; cwd?: string }; snapshotEvents?(): { type: string; data: Record<string, any> }[] } }
 export type Receipt = { childId: string; result: Promise<{ output?: { type: string; text?: string }[]; stopReason: string; diagnostic?: unknown }>; dispose(): Promise<unknown> }
@@ -8,7 +9,7 @@ export type Runtime = {
   startActivation(spec: { provider: string; childId: string; label: string; request: { parent: Parent; prompt: { type: 'text'; text: string }[]; maxDepth?: number }; signal: AbortSignal; delivery: 'caller' }): Promise<Receipt>
   interrupt(childId: string, authority: { kind: 'user'; parentSessionId: string }): void
 }
-type Entry = { run: TaskRun; controller: AbortController; receipt?: Receipt; admission?: Promise<void>; pending: Set<string>; parent: Parent; settled?: boolean; turnActive?: boolean }
+type Entry = { run: TaskRun; controller: AbortController; receipt?: Receipt; admission?: Promise<void>; pending: Set<string>; parent: Parent; live: LiveOutput; settled?: boolean; turnActive?: boolean }
 const textOf = (blocks: unknown): string => Array.isArray(blocks) ? blocks.filter(block => block?.type === 'text' && typeof block.text === 'string').map(block => block.text).join('\n').slice(-24000) : ''
 const messageOf = (error: unknown) => error instanceof Error ? error.message : String(error)
 const CONTEXT = '你正在执行用户从快捷指令栏启动的后台子任务。仅处理下面的任务内容，完成后给出清晰结果。主对话继续独立运行，不要调用 send_message 给主 Agent 发送进度或触发它继续执行。若内容是命令，请由你使用当前获准的工具执行并反馈结果；遵守继承的权限和审批规则，遇到限制明确说明。'
@@ -40,7 +41,7 @@ export class TaskManager {
     const parentTitle = parent.session.snapshotEvents?.().findLast(event => event.type === 'session/title')?.data.title
     const entry: Entry = {
       run: { id: randomUUID(), requestId, promptId: prompt.id, name: prompt.name, parentId: parent.id, parentTitle: typeof parentTitle === 'string' ? parentTitle.slice(0, 100) : parent.session.header.cwd?.split(/[\\/]/).at(-1) ?? '主会话', childId: randomUUID(), status: 'starting', startedAt: now, updatedAt: now, output: '', progress: '正在创建原生子 Agent…', steps: 0, tools: [] },
-      controller: new AbortController(), pending: new Set(), parent,
+      controller: new AbortController(), pending: new Set(), parent, live: new LiveOutput(),
     }
     this.entries.set(entry.run.id, entry)
     entry.admission = this.launch(entry, prompt, maxDepth)
@@ -105,6 +106,13 @@ export class TaskManager {
     else entry.controller.abort()
     entry.run.status = 'stopping'; entry.run.progress = '正在停止子 Agent…'; entry.run.updatedAt = Date.now()
   }
+  stream(sessionId: string, frame: AssistantFrame): void {
+    const entry = [...this.entries.values()].find(entry => entry.run.childId === sessionId && active(entry.run.status))
+    if (!entry) return
+    entry.live.frame(frame)
+    entry.run.liveOutput = entry.live.text
+    entry.run.updatedAt = Date.now()
+  }
   observe(sessionId: string, event: { type: string; data: Record<string, any> }): void {
     const entry = [...this.entries.values()].find(entry => entry.run.childId === sessionId && active(entry.run.status))
     if (!entry) return
@@ -118,6 +126,8 @@ export class TaskManager {
         if (data.name === 'ask_user_question') pending.add(`question:${data.callId}`)
         break
       case 'tool/result': {
+        const output = textOf(data.message?.content)
+        entry.live.append(output); run.liveOutput = entry.live.text
         const tool = run.tools.find(tool => tool.callId === data.message?.toolCallId)
         if (tool) tool.state = data.message?.isError || data.error ? 'failed' : 'done'
         let continued = false
@@ -134,7 +144,11 @@ export class TaskManager {
       case 'approval/asked': pending.add(`approval:${data.id}`); run.progress = '需要处理权限或审批请求'; break
       case 'approval/decided': pending.delete(`approval:${data.id}`); break
       case 'user/message': if (data.source?.kind === 'user-question-reply') { pending.delete(`question:${data.source.callId}`); run.progress = '已收到回复，继续执行…' } break
-      case 'assistant/message': { const text = textOf(data.message?.content); if (text) run.output = text; break }
+      case 'assistant/message': {
+        const text = textOf(data.message?.content)
+        if (text) { run.output = text; entry.live.message(text); run.liveOutput = entry.live.text }
+        break
+      }
       case 'turn/end':
         entry.turnActive = false
         if (entry.settled) this.finish(entry, data.reason?.kind ?? 'error')

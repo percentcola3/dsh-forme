@@ -11,8 +11,9 @@ export function openRun(ctx: Pick<Context, 'get'>, run: TaskRun): void {
   const workspace = ctx.get('uiWorkspace') as { openSession(address: { kind: 'subagent'; parentSessionId: string; childSessionId: string; mode: 'continuable' }): void }
   workspace.openSession({ kind: 'subagent', parentSessionId: run.parentId, childSessionId: run.childId, mode: 'continuable' })
 }
+export const ongoingRuns = (runs: TaskRun[]): TaskRun[] => runs.filter(run => active(run.status)).sort((a, b) => b.startedAt - a.startedAt)
 export function createTasks(request: typeof taskRequest = taskRequest) {
-  let current = { runs: [] as TaskRun[], open: false, error: '', syncError: '' }
+  let current = { runs: [] as TaskRun[], open: true, error: '', syncError: '' }
   const listeners = new Set<() => void>()
   const starting = new Map<string, Promise<void>>()
   let polling = false
@@ -26,7 +27,13 @@ export function createTasks(request: typeof taskRequest = taskRequest) {
       if (polling) return
       polling = true
       const revision = mutation
-      try { const { runs } = await request('runs'); if (revision === mutation) publish({ runs, syncError: '' }) }
+      try {
+        const { runs } = await request('runs') as { runs: TaskRun[] }
+        if (revision === mutation) {
+          const failed = runs.find(run => run.status === 'failed' && current.runs.some(previous => previous.id === run.id && active(previous.status)))
+          publish({ runs, syncError: '', ...(failed ? { error: `${failed.name}：${failed.error ?? '任务未能完成，请从原生子智能体列表查看记录。'}` } : {}) })
+        }
+      }
       catch { publish({ syncError: '任务状态同步失败，正在重连；当前显示可能已过期。' }) }
       finally { polling = false }
     },
@@ -35,7 +42,7 @@ export function createTasks(request: typeof taskRequest = taskRequest) {
       if (starting.has(key)) return starting.get(key)!
       const operation = request('start', { sessionId, id: promptId, requestId: crypto.randomUUID() }).then(({ run }) => {
         mutation++
-        publish({ runs: [run, ...current.runs.filter(item => item.id !== run.id)] })
+        publish({ runs: [run, ...current.runs.filter(item => item.id !== run.id)], ...(run.status === 'failed' ? { error: `${run.name}：${run.error ?? '任务未能启动。'}` } : {}) })
       }).catch(error => { publish({ error: error instanceof Error ? error.message : String(error) }) }).finally(() => { starting.delete(key); publish({}) })
       starting.set(key, operation); publish({ open: true, error: '' })
       return operation

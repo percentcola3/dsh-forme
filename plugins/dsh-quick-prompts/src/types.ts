@@ -4,7 +4,7 @@ export type TaskRun = {
   id: string; requestId: string; promptId: string; name: string
   parentId: string; parentTitle: string; childId: string
   status: RunStatus; startedAt: number; updatedAt: number; endedAt?: number
-  output: string; progress: string; error?: string; steps: number
+  output: string; liveOutput?: string; progress: string; error?: string; steps: number
   tools: { callId: string; name: string; state: 'running' | 'done' | 'failed' | 'ended' }[]
 }
 export const active = (status: RunStatus) => ['starting', 'running', 'waiting', 'stopping'].includes(status)

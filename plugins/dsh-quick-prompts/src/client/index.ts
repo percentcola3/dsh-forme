@@ -1,9 +1,9 @@
 import React from 'react'
 import { createPortal } from 'react-dom'
 import type { Context } from '@deepseek-ai/cordis'
-import { taskRequest, createTasks, openRun, type TaskStore, type Prompt } from './tasks.ts'
+import { taskRequest, createTasks, ongoingRuns, type TaskStore, type Prompt } from './tasks.ts'
 import { shortName, currentSessionId } from './logic.ts'
-import { active, statusLabels, type TaskRun } from '../types.ts'
+import type { TaskRun } from '../types.ts'
 import { styles } from './styles.ts'
 import { installTaskDock } from './task-dock.ts'
 export const inject = ['slots', 'uiWorkspace']
@@ -13,11 +13,11 @@ export function apply(ctx: Context): void {
   const tasks = createTasks()
   const slots = ctx.get('slots') as { inject(name: string, register: () => () => void): () => void; register(options: { name: string; id: string; order: number }, render: (props: { sessionId?: string }) => React.ReactElement | null): () => void }
   ctx.effect(() => slots.inject('conversation.input.overlay', () => slots.register({ name: 'conversation.input.overlay', id: 'dsh-quick-prompts', order: 5 }, props => h(QuickPrompts, { ctx, tasks, sessionId: props.sessionId, key: props.sessionId }))))
-  ctx.effect(() => slots.inject('shell.overlay', () => slots.register({ name: 'shell.overlay', id: 'dsh-quick-prompts-panel', order: 95 }, () => h(TaskPanel, { ctx, tasks }))))
+  ctx.effect(() => slots.inject('shell.overlay', () => slots.register({ name: 'shell.overlay', id: 'dsh-quick-prompts-panel', order: 95 }, () => h(TaskPanel, { tasks }))))
   ctx.effect(() => { const style = document.createElement('style'); style.textContent = styles; document.head.appendChild(style); return () => style.remove() })
   ctx.effect(() => {
     const poll = () => { void tasks.refresh().catch(() => {}) }
-    poll(); const timer = setInterval(poll, 1200)
+    poll(); const timer = setInterval(poll, 400)
     window.addEventListener('focus', poll)
     return () => { clearInterval(timer); window.removeEventListener('focus', poll) }
   })
@@ -65,7 +65,8 @@ export function QuickPrompts({ ctx, tasks, sessionId }: { ctx: Context; tasks: T
       h('small', null, '沿用主 Agent 的模型、工作目录与权限。结果和执行进度显示在对话右侧任务栏，主对话可继续使用。'),
       error && h('p', { role: 'alert' }, error),
       h('footer', null, draft.id && h('button', { type: 'button', className: 'dqp-delete', disabled: saving, onClick: () => { void save('delete') } }, '删除'), h('button', { type: 'button', disabled: saving, onClick: close }, '取消'), h('button', { type: 'submit', className: 'dqp-save', disabled: saving || !draft.name.trim() || !draft.text.trim() }, saving ? '保存中…' : '保存')))), document.body) : null
-  const running = state.runs.filter(run => active(run.status)).length
+  const running = ongoingRuns(state.runs).length
+  const notice = error || state.error || state.syncError
   return h(React.Fragment, null,
     h('div', { className: 'dqp-bar', role: 'group', 'aria-label': '快捷任务' }, h('button', { type: 'button', className: 'dqp-add', 'aria-label': '新增快捷任务', disabled: saving, onClick: (event: React.MouseEvent<HTMLButtonElement>) => open(event) }, '+'),
       h('div', { className: 'dqp-items' }, ...items.map(item =>
@@ -82,56 +83,35 @@ export function QuickPrompts({ ctx, tasks, sessionId }: { ctx: Context; tasks: T
           }, h('svg', { width: 12, height: 12, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, 'aria-hidden': true },
             h('path', { d: 'M15 5l4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15v5Z' }))),
         ))),
-      h('button', { type: 'button', className: 'dqp-panel-trigger', onClick: () => tasks.show() }, '后台任务', running ? ` ${running}` : '')),
-    error && !draft && h('div', { className: 'dqp-notice', role: 'alert', title: error }, error), modal)
+      running > 0 && h('button', { type: 'button', className: 'dqp-panel-trigger', 'aria-expanded': state.open, title: state.open ? '收起进行中的任务' : '显示进行中的任务', onClick: () => tasks.show(!state.open) }, `后台任务 ${running}`)),
+    notice && !draft && h('div', { className: 'dqp-notice', role: 'alert', title: notice }, notice), modal)
 }
-function elapsed(run: TaskRun, now: number): string { const seconds = Math.max(0, Math.floor(((run.endedAt ?? now) - run.startedAt) / 1000)); return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}` }
-export function TaskPanel({ ctx, tasks }: { ctx: Context; tasks: TaskStore }): React.ReactPortal | null {
+export function TaskPanel({ tasks }: { tasks: TaskStore }): React.ReactPortal | null {
   const state = React.useSyncExternalStore(tasks.subscribe, tasks.getSnapshot)
-  const [now, setNow] = React.useState(Date.now)
   const [seat, setSeat] = React.useState<HTMLElement | null>(null)
   React.useLayoutEffect(() => installTaskDock(document.body, setSeat), [])
-  const count = state.runs.filter(run => active(run.status)).length
-  React.useEffect(() => {
-    if (!state.open || !count) return
-    setNow(Date.now())
-    const timer = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(timer)
-  }, [state.open, count])
-  if (!state.open || !seat) return null
-  const runs = [...state.runs].sort((a, b) => Number(active(b.status)) - Number(active(a.status)) || b.startedAt - a.startedAt).slice(0, 20)
-  return createPortal(h('aside', { className: 'dqp-dock', 'aria-label': '后台快捷任务' },
-    h('header', { className: 'dqp-dock-head' },
-      h('strong', null, '快捷任务'),
-      h('span', { className: 'dqp-dock-count', role: 'status' }, count ? `${count} 个执行中` : `${runs.length} 条记录`),
-      h('button', { type: 'button', 'aria-label': '收起后台任务面板', onClick: () => tasks.show(false) },
-        h('svg', { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, 'aria-hidden': true }, h('path', { d: 'M5 12h14' })))),
-    h('div', { className: 'dqp-dock-body', role: 'region', 'aria-label': '快捷任务列表', tabIndex: 0 },
-      (state.error || state.syncError) && h('p', { role: 'alert', className: 'dqp-dock-error' }, state.error || state.syncError),
-      !runs.length && h('div', { className: 'dqp-dock-empty' }, '点击快捷指令，在后台执行任务。'),
-      ...runs.map(run => h(RunCard, { key: run.id, ctx, tasks, run, now })))), seat)
+  const runs = ongoingRuns(state.runs)
+  if (!state.open || !seat || !runs.length) return null
+  return createPortal(h('aside', { className: 'dqp-dock', 'aria-label': '进行中的快捷任务' },
+    h('div', { className: 'dqp-dock-body', role: 'region', 'aria-label': '进行中的任务卡片', tabIndex: 0 },
+      ...runs.map(run => h(RunCard, { key: run.id, run })))), seat)
 }
-function RunCard({ ctx, tasks, run, now }: { ctx: Context; tasks: TaskStore; run: TaskRun; now: number }): React.ReactElement {
-  const [expanded, setExpanded] = React.useState(false)
-  const hasDetails = !!(run.output || run.error || run.tools.length)
-  const detailId = `dqp-details-${run.id}`
-  return h('section', { className: 'dqp-run-card', 'data-run-id': run.id, 'aria-label': run.name },
-    h('div', { className: 'dqp-run-heading' },
-      h('i', { className: 'dqp-dot', 'data-status': run.status }),
-      h('strong', { title: run.name }, run.name),
-      h('span', { className: 'dqp-run-status', 'data-status': run.status, role: 'status' }, statusLabels[run.status])),
-    h('div', { className: 'dqp-run-meta' }, h('span', { title: run.parentTitle }, run.parentTitle), h('time', null, elapsed(run, now))),
-    active(run.status) && h('div', { className: 'dqp-run-progress', title: run.progress }, run.progress),
-    !expanded && run.error && h('div', { className: 'dqp-run-error dqp-run-preview', title: run.error }, run.error),
-    !expanded && !run.error && run.output && h('p', { className: 'dqp-run-preview' }, run.output.replace(/\s+/g, ' ').trim()),
-    expanded && h('div', { className: 'dqp-run-details', id: detailId },
-      run.error && h('div', { className: 'dqp-run-error' }, run.error),
-      !!run.tools.length && h('ul', { className: 'dqp-run-tools' }, ...run.tools.map(tool =>
-        h('li', { key: tool.callId }, h('span', null, tool.name), h('b', null, { running: '执行中', done: '已返回', failed: '失败', ended: '已结束' }[tool.state])))),
-      !!run.output && h('pre', { className: 'dqp-run-output', tabIndex: 0, 'aria-label': `${run.name} 的执行结果` }, run.output)),
-    h('div', { className: 'dqp-run-actions' },
-      hasDetails && h('button', { type: 'button', className: 'dqp-run-expand', 'aria-expanded': expanded, 'aria-controls': expanded ? detailId : undefined, onClick: () => setExpanded(!expanded) },
-        expanded ? '收起详情' : '展开详情', h('svg', { width: 10, height: 10, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, 'aria-hidden': true, style: { transform: expanded ? 'rotate(180deg)' : undefined } }, h('path', { d: 'm6 9 6 6 6-6' }))),
-      h('button', { type: 'button', className: 'dqp-run-record', disabled: !run.steps && !run.output, onClick: () => openRun(ctx, run) }, '完整记录', h('span', { 'aria-hidden': true }, '↗')),
-      active(run.status) && h('button', { type: 'button', className: 'dqp-run-stop', disabled: run.status === 'stopping', 'aria-label': `停止 ${run.name}`, onClick: () => { void tasks.stop(run.id) } }, run.status === 'stopping' ? '停止中…' : '停止')))
+function RunCard({ run }: { run: TaskRun }): React.ReactElement {
+  const output = run.liveOutput ?? run.output
+  const viewport = React.useRef<HTMLPreElement>(null)
+  const follow = React.useRef(true)
+  React.useLayoutEffect(() => {
+    const node = viewport.current
+    if (node && follow.current) node.scrollTop = node.scrollHeight
+  }, [output])
+  return h('section', { className: 'dqp-run-card', 'data-run-id': run.id, 'aria-label': run.name, title: run.name },
+    output ? h('pre', {
+      ref: viewport, className: 'dqp-live-output', role: 'log', tabIndex: 0,
+      'aria-label': `${run.name} 的实时输出`, 'aria-live': 'off',
+      onScroll: (event: React.UIEvent<HTMLPreElement>) => {
+        const node = event.currentTarget
+        follow.current = node.scrollHeight - node.scrollTop - node.clientHeight < 32
+      },
+    }, output) : h('div', { className: 'dqp-live-pending', role: 'status', 'aria-label': `${run.name} 等待输出` },
+      h('i'), h('i'), h('i')))
 }

@@ -27,48 +27,19 @@ export const styles = `
 [data-conversation-content]:has(> .dqp-dock-seat > .dqp-dock)>[data-width-handle]{display:none}
 .dqp-dock-seat:has(> .dqp-dock){
   grid-column:2;grid-row:1;display:flex;min-width:0;min-height:0;overflow:hidden;
-  border-left:1px solid var(--dsw-alias-border-l3,#9db8ca22);
-  background:color-mix(in srgb,var(--dsw-alias-bg-base,#101c29) 92%,#9ab9d1 8%);
+  background:transparent;
 }
 .dqp-dock{display:flex;flex:1;flex-direction:column;min-width:0;min-height:0;overflow:hidden;box-sizing:border-box;color:var(--dsw-alias-label-primary,#dce7ef);font:12px/1.6 var(--moss-text,system-ui)}
 [data-conversation-content][data-dqp-layout=stacked]:has(> .dqp-dock-seat > .dqp-dock){grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(0,min(220px,35%))}
-[data-dqp-layout=stacked]>.dqp-dock-seat:has(> .dqp-dock){grid-column:1;grid-row:2;border-left:0;border-top:1px solid var(--dsw-alias-border-l3,#9db8ca22)}
-.dqp-dock-head{display:flex;align-items:center;gap:9px;min-height:42px;box-sizing:border-box;padding:8px 12px;border-bottom:1px solid #b9d3e416;flex:none}
-.dqp-dock-head strong{font-size:12px;font-weight:600}
-.dqp-dock-count{font-size:10px;color:#8ca7ba}
-.dqp-dock button{cursor:pointer;font:inherit;color:inherit}
-.dqp-dock-head button{display:grid;place-items:center;margin-left:auto;width:24px;height:24px;padding:0;border:0;border-radius:5px;background:transparent;color:#9eb6c9}
-.dqp-dock-head button:hover{background:#adc9db12;color:#e2eff7}
-.dqp-dock-body{flex:1;overflow:auto;padding:8px;min-height:0;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#839eb644 transparent;scrollbar-gutter:stable}
-.dqp-dock-empty{padding:18px 8px;text-align:center;color:#8faabd;font-size:11px}
-.dqp-run-card{padding:10px;margin-bottom:7px;border:1px solid #a1b7cc1b;border-radius:8px;background:#8faec207}
+[data-dqp-layout=stacked]>.dqp-dock-seat:has(> .dqp-dock){grid-column:1;grid-row:2}
+.dqp-dock-body{flex:1;overflow:auto;padding:12px 10px;min-height:0;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#839eb644 transparent;scrollbar-gutter:stable}
+.dqp-run-card{padding:13px;margin-bottom:10px;border:1px solid var(--dsw-alias-border-l3,#a1b7cc22);border-radius:10px;background:color-mix(in srgb,var(--dsw-alias-bg-base,#101c29) 93%,#9ab9d1 7%)}
 .dqp-run-card:last-child{margin-bottom:0}
-.dqp-run-heading{display:flex;gap:7px;align-items:center}
-.dqp-run-heading strong{flex:1;min-width:0;font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.dqp-run-status{font-size:10px;white-space:nowrap;color:#a9bfce}
-.dqp-run-status[data-status=completed]{color:#8ecdbd}
-.dqp-run-status[data-status=failed],.dqp-run-status[data-status=waiting]{color:#ef9298}
-.dqp-run-meta{display:flex;gap:10px;color:#7694ab;font-size:10px;margin-top:3px}
-.dqp-run-meta span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.dqp-run-meta time{font-variant-numeric:tabular-nums}
-.dqp-run-progress{margin-top:7px;font-size:11px;color:#9eb8cb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dqp-run-preview{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere;margin:7px 0 0;color:#b4c9d8;font-size:11px;line-height:1.65}
-.dqp-run-error{white-space:pre-wrap;overflow-wrap:anywhere;color:#f1a3a5;margin-top:7px;font-size:11px}
-.dqp-run-details{margin-top:8px;padding-top:8px;border-top:1px solid #a8c2d415}
-.dqp-run-output{font:11px/1.75 var(--moss-text,system-ui);white-space:pre-wrap;overflow-wrap:anywhere;max-height:150px;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;margin:6px 0 0;color:#c1d3e1}
-.dqp-run-tools{list-style:none;margin:0;padding:0;color:#8faec2;font:10px/1.8 var(--moss-code,monospace)}
-.dqp-run-tools li{display:flex;gap:8px}.dqp-run-tools span{flex:1;min-width:0;overflow-wrap:anywhere}.dqp-run-tools b{font-weight:400;color:#7b9aac;white-space:nowrap}
-.dqp-run-actions{display:flex;gap:10px;align-items:center;margin-top:8px}
-.dqp-run-actions button{display:inline-flex;align-items:center;gap:4px;border:0;border-radius:4px;padding:2px 0;background:transparent;font-size:10px;color:#89a9c0}
-.dqp-run-actions button:hover{color:#dcecf7}.dqp-run-actions button:disabled{opacity:.35;cursor:default}
-.dqp-run-actions .dqp-run-record{margin-left:auto}
-.dqp-run-actions .dqp-run-stop{padding:2px 6px;background:#e9778010;color:#f1a3a5}
-.dqp-dot{width:5px;height:5px;border-radius:50%;background:#7b98ac;flex:none}
-.dqp-dot[data-status=running],.dqp-dot[data-status=starting]{background:#b2d8ef;box-shadow:0 0 8px #98c7e188;animation:dqp-breathe 1.7s ease-in-out infinite}
-.dqp-dot[data-status=completed]{background:#84c9b4}
-.dqp-dot[data-status=failed],.dqp-dot[data-status=waiting]{background:#e97780}
-.dqp-dock-error{margin:0 0 8px;padding:8px;border:1px solid #ed8c9626;border-radius:6px;color:#f2a2a5;font-size:11px;overflow-wrap:anywhere}
-.dqp-dialog :is(button,input,textarea):focus-visible,.dqp-bar button:focus-visible,.dqp-dock button:focus-visible,.dqp-dock-body:focus-visible,.dqp-run-output:focus-visible{outline:2px solid #a3c8e1;outline-offset:2px}
-@keyframes dqp-breathe{50%{opacity:.35;box-shadow:0 0 3px #98c7e144}}@media(prefers-reduced-motion:reduce){.dqp-dot{animation:none!important}}body[data-moss-motion=off] .dqp-dot{animation:none}
+.dqp-live-output{margin:0;min-height:24px;max-height:min(340px,45vh);overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;font:12px/1.85 var(--moss-text,system-ui);color:var(--dsw-alias-label-secondary,#c1d3e1);white-space:pre-wrap;overflow-wrap:anywhere}
+.dqp-live-pending{display:flex;flex-direction:column;gap:8px;padding:3px 0;opacity:.5;animation:dqp-pending 1.8s ease-in-out infinite}
+.dqp-live-pending i{display:block;height:5px;width:88%;border-radius:3px;background:color-mix(in srgb,var(--dsw-alias-label-primary,#dce7ef) 16%,transparent)}
+.dqp-live-pending i:nth-child(2){width:66%}.dqp-live-pending i:nth-child(3){width:40%}
+.dqp-dialog :is(button,input,textarea):focus-visible,.dqp-bar button:focus-visible,.dqp-dock-body:focus-visible,.dqp-live-output:focus-visible{outline:2px solid #a3c8e1;outline-offset:2px}
+@keyframes dqp-pending{50%{opacity:.22}}@media(prefers-reduced-motion:reduce){.dqp-live-pending{animation:none!important}}body[data-moss-motion=off] .dqp-live-pending{animation:none}
 @media(max-width:600px){.dqp-panel-trigger{font-size:10px!important}}
 `

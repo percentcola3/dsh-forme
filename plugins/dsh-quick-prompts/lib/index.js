@@ -41,6 +41,51 @@ var PromptStore = class {
 	}
 };
 //#endregion
+//#region src/live-output.ts
+const join$1 = (before, after) => [before, after].filter(Boolean).join("\n\n").slice(-24e3);
+/** Public text only. Reasoning, tool arguments and protocol frames stay out. */
+var LiveOutput = class {
+	text = "";
+	attempt;
+	frame(frame) {
+		if (frame.type === "start") {
+			if (this.attempt?.id === frame.attemptId) return;
+			if (this.attempt && !this.attempt.committed && !this.attempt.ended) this.text = this.attempt.before;
+			this.attempt = {
+				id: frame.attemptId,
+				index: 0,
+				before: this.text,
+				text: "",
+				committed: false,
+				ended: false
+			};
+			return;
+		}
+		const attempt = this.attempt;
+		if (!attempt || attempt.id !== frame.attemptId || attempt.ended) return;
+		if (frame.type === "end") {
+			attempt.ended = true;
+			if (!attempt.committed && (frame.outcome?.kind === "abandoned" || frame.outcome?.eventType === "assistant/attempt")) this.text = attempt.before;
+			return;
+		}
+		if (frame.index !== attempt.index) return;
+		attempt.index++;
+		if (frame.chunk?.type !== "text-delta" || typeof frame.chunk.text !== "string" || attempt.committed) return;
+		attempt.text = (attempt.text + frame.chunk.text).slice(-24e3);
+		this.text = join$1(attempt.before, attempt.text);
+	}
+	message(text) {
+		if (!text) return;
+		if (this.attempt && !this.attempt.committed) {
+			this.text = join$1(this.attempt.before, text);
+			this.attempt.committed = true;
+		} else this.append(text);
+	}
+	append(text) {
+		if (text) this.text = join$1(this.text, text);
+	}
+};
+//#endregion
 //#region src/types.ts
 const active = (status) => [
 	"starting",
@@ -102,7 +147,8 @@ var TaskManager = class {
 			},
 			controller: new AbortController(),
 			pending: /* @__PURE__ */ new Set(),
-			parent
+			parent,
+			live: new LiveOutput()
 		};
 		this.entries.set(entry.run.id, entry);
 		entry.admission = this.launch(entry, prompt, maxDepth);
@@ -205,6 +251,13 @@ var TaskManager = class {
 		entry.run.progress = "正在停止子 Agent…";
 		entry.run.updatedAt = Date.now();
 	}
+	stream(sessionId, frame) {
+		const entry = [...this.entries.values()].find((entry) => entry.run.childId === sessionId && active(entry.run.status));
+		if (!entry) return;
+		entry.live.frame(frame);
+		entry.run.liveOutput = entry.live.text;
+		entry.run.updatedAt = Date.now();
+	}
 	observe(sessionId, event) {
 		const entry = [...this.entries.values()].find((entry) => entry.run.childId === sessionId && active(entry.run.status));
 		if (!entry) return;
@@ -231,6 +284,9 @@ var TaskManager = class {
 				if (data.name === "ask_user_question") pending.add(`question:${data.callId}`);
 				break;
 			case "tool/result": {
+				const output = textOf(data.message?.content);
+				entry.live.append(output);
+				run.liveOutput = entry.live.text;
 				const tool = run.tools.find((tool) => tool.callId === data.message?.toolCallId);
 				if (tool) tool.state = data.message?.isError || data.error ? "failed" : "done";
 				let continued = false;
@@ -260,7 +316,11 @@ var TaskManager = class {
 				break;
 			case "assistant/message": {
 				const text = textOf(data.message?.content);
-				if (text) run.output = text;
+				if (text) {
+					run.output = text;
+					entry.live.message(text);
+					run.liveOutput = entry.live.text;
+				}
 				break;
 			}
 			case "turn/end":
@@ -303,11 +363,19 @@ function validatePrompt(value) {
 function apply(ctx, _config = {}, internals = {}) {
 	const manager = new TaskManager(ctx.get("subagents"));
 	const agents = ctx.get("agents");
-	ctx.on("session/event", (session, event) => {
+	const host = ctx;
+	host.on("session/event", (session, event) => {
 		try {
 			manager.observe(session.id, event);
 		} catch (error) {
 			console.warn("dsh-quick-prompts: task observation failed", error);
+		}
+	}, { global: true });
+	host.on("agent/assistant-stream", ({ agent, frame }) => {
+		try {
+			manager.stream(agent.session.id, frame);
+		} catch (error) {
+			console.warn("dsh-quick-prompts: stream observation failed", error);
 		}
 	}, { global: true });
 	ctx.effect(() => () => manager.dispose());
