@@ -1,9 +1,9 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { Context, Service } from '@deepseek-ai/cordis'
+import { Context } from '@deepseek-ai/cordis'
 import * as theme from '../src/client/index.ts'
 
-test('activates the complete theme through Cordis remote service injection and disposes it cleanly', async () => {
+test('activates passive status, inline settings and branding without a remote preset service, then disposes cleanly', async () => {
   const originals = ['window', 'document'].map(key => Object.getOwnPropertyDescriptor(globalThis, key))
   const attributes = new Map()
   const styles = new Set()
@@ -34,7 +34,6 @@ test('activates the complete theme through Cordis remote service injection and d
       removeEventListener: name => events.delete(name),
     }
     console.error = (...args) => errors.push(args.map(String).join(' '))
-    const roster = { ok: true, value: { presets: [{ id: 'moss' }] } }
     await ctx.plugin(provider => {
       provider.provide('slots', {
         inject: (_name, register) => register(),
@@ -46,19 +45,16 @@ test('activates the complete theme through Cordis remote service injection and d
       provider.provide('sessions', {})
       provider.provide('uiWorkspace', {})
       provider.provide('uiSession', { sessionStatus: { getSnapshot: () => new Map(), subscribe: () => () => {} } })
-      // Service associates remote.agentPresets with the caller's fiber, just as
-      // DSH's gateway does. A plain object would miss the missing-inject bug.
-      new Service(provider, 'remote')
-      provider.provide('remote.agentPresets', { list: async () => roster })
+
     })
 
     fiber = ctx.plugin(theme)
     await fiber
     assert.deepEqual(errors, [], 'activation must succeed without falling back or swallowing an injection error')
     assert.equal(storage.has('dsh-moss-theme:boot-error'), false)
-    assert.equal(registrations.size, 5, 'header, window behavior, Earth hero and both sidebar brand slots must activate')
+    assert.equal(registrations.size, 6, 'passive status, settings, window behavior, Earth hero and both brand slots must activate')
     const { services } = registrations.get('conversation.header.leading')().props
-    assert.equal(await services.listPresets(), roster)
+    assert.ok(registrations.has('settings.general.item'))
     assert.equal(services.selection.getSnapshot(), services.selection.getSnapshot(), 'idle snapshot must be stable for React')
     assert.equal(attributes.get('data-moss-theme'), 'on')
     assert.equal(styles.size, 1)

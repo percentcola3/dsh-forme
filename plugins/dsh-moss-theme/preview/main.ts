@@ -31,7 +31,6 @@ const services = {
       session.set({}); selection.set({ sessionId: id })
     },
   },
-  remote: { agentPresets: { list: async () => ({ ok: true, value: { presets: [{ id: 'standard' }, { id: 'moss' }] } }) } },
   sessions: { list: catalog, retain() { return { ready: Promise.resolve(), binding: { session }, release() {} } } },
   slots: {
     inject(_name: string, register: () => () => void) { return register() },
@@ -138,6 +137,7 @@ function Preview() {
   const [hero, setHero] = React.useState(true)
   const [replay, setReplay] = React.useState(0)
   const [details, setDetails] = React.useState(false)
+  const [settings, setSettings] = React.useState(false)
   const [selectedTask, setSelectedTask] = React.useState('550W 界面主题')
   const [startup, setStartup] = React.useState(false)
   const finishStartup = React.useCallback(() => setStartup(false), [])
@@ -152,6 +152,7 @@ function Preview() {
       h('div', { className: 'fixture-side-bottom' }, h(MossIcon, { name: 'orbit' }), '本地工作空间', h('small', null, '领航员终端 · LOCAL WORKSPACE'))),
     h('main', { 'data-conversation-scroll': '' }, h('header', { 'data-window-drag': '' }, h('div', { 'data-conversation-header-leading': '' }, mounted && renderSlot('conversation.header.leading')), h('div', { className: 'fixture-session-title', 'data-slot': 'conversation.session.header' }, h('nav', { 'aria-label': '会话层级' }, h('strong', null, '550W 界面主题'))), h('nav', { role: 'tablist', 'aria-label': '工作视图' }, h('button', { role: 'tab', 'aria-selected': true }, h(MossIcon, { name: 'chat' }), '对话'), h('button', { role: 'tab', 'aria-selected': false }, h(MossIcon, { name: 'folder' }), '文件'), h('button', { role: 'tab', 'aria-selected': false }, h(MossIcon, { name: 'changes' }), '变更'))),
       details && h(DetailsExample),
+      settings && h('section', { style: { margin: '24px auto', maxWidth: 560, padding: '0 24px' } }, mounted && renderSlot('settings.general.item')),
       hero ? h('div', { className: 'fixture-hero' }, h('div', null, h('span', null, h('span', { 'data-slot': 'conversation.hero.brand.mark' }, mounted && renderSlot('conversation.hero.brand.mark'))), h('span', {className:'fixture-native-title'}, '探索未至之境', h('small', null, '预览版')))) : h('article', { className: 'fixture-chat' }, h('div', { className: 'fixture-label' }, 'MISSION LOG / 任务记录'),
         h('div', { 'data-chat-flow-kind': 'user' }, h('div', { 'data-slot': 'conversation.chat.node' }, h('div', null, h('div', null, h('div', { className: 'fixture-user' }, h('span', null, '把这次界面方案整理成通讯简报，并给出下一步。')))))),
         h(TransmissionExample, { replay }),
@@ -161,6 +162,7 @@ function Preview() {
         h('button', {onClick:()=>setHero(value=>!value)}, hero ? '对话预览' : '首页预览'),
         h('button', { onClick: () => { setHero(false); setReplay(value => value + 1) } }, '文字演示'),
         h('button', { 'aria-pressed': details, onClick: () => { setHero(false); setDetails(value => !value) } }, '细节预览'),
+        h('button', { 'aria-pressed': settings, onClick: () => setSettings(value => !value) }, '主题设置'),
         h('button', { onClick: () => setStartup(true) }, '启动预览'),
         ...[['待命', {}], ['连接中', {openState:'loading'}], ['处理中', { running: true }], ['等待确认', { running: true }], ['异常', { lastAgentError: 'preview' }], ['不可用', { removed: true }]].map(([label, value]) => h('button', { key: String(label), onClick: () => {
           const id = selection.getSnapshot().sessionId

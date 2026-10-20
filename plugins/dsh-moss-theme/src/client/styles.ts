@@ -13,7 +13,7 @@ export const themeCSS = `
 /* DSH semantic tokens also recolor menus and portals without relying on hashed classes. */
 html body[data-moss-theme="on"] {
   color-scheme: dark;
-  --moss-accent:#df4e54; --moss-accent-dim:#803137; --moss-red:#e34448; --moss-red-deep:#8b2228;
+  --moss-signal:#f07c83; --moss-accent:#df4e54; --moss-accent-dim:#803137; --moss-red:#e34448; --moss-red-deep:#8b2228;
   --moss-display:'MOSS Rajdhani','MOSS Sans SC','Source Han Sans SC','PingFang SC',sans-serif;
   --moss-text:'MOSS Sans SC','Source Han Sans SC','Noto Sans SC','PingFang SC',sans-serif;
   --dsw-font-family:var(--moss-display); --dsw-font-family-brand:var(--moss-display);
@@ -143,17 +143,11 @@ body[data-moss-ambient="off"] [data-moss-atmosphere] { display:none; }
 
 ${transmissionCSS}
 
-/* ── Header trigger ─────────────────────────────────────────── */
-.moss-trigger { appearance:none; -webkit-app-region:no-drag; display:inline-flex; align-items:center; gap:10px; box-sizing:border-box; height:28px; padding:3px 7px; border:1px solid transparent; border-radius:7px; background:transparent; color:var(--dsw-alias-label-secondary,#aeb3bc); cursor:pointer; white-space:nowrap; transition:background .2s,border-color .2s,color .2s; }
-.moss-trigger:hover,.moss-trigger[aria-expanded="true"] { border-color:#d0d4dc33; background:#d0d4dc0a; color:var(--dsw-alias-label-primary,#e3e5e9); }
-.moss-wordmark { font:600 16px/1 var(--moss-display,'MOSS Rajdhani',sans-serif); letter-spacing:2.8px; }
-/* Status remains available to screen readers and the hover hint, without a label or divider. */
-.moss-trigger-state { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; border:0; }
-/* The desktop frame overlays its sidebar/new-session controls over this row. */
-[data-conversation-header-leading]:has(.moss-trigger) { padding-inline-start:max(0px,calc(var(--dsh-frame-leading-clearance,0px) - 20px)); }
-[data-conversation-header-leading]:has(.moss-trigger) + * { padding-inline-start:12px; }
-.moss-trigger:focus-visible,.moss-console :is(button,summary,input,textarea):focus-visible { outline:2px solid var(--moss-red,#e34448); outline-offset:2px; }
-.moss-trigger .moss-eye { --eye:10px; }
+/* A passive breathing light leaves the header free of extra controls. */
+.moss-status-indicator { display:inline-flex; align-items:center; justify-content:center; width:24px; height:28px; }
+[data-conversation-header-leading]:has(.moss-status-indicator) { padding-inline-start:max(0px,calc(var(--dsh-frame-leading-clearance,0px) - 20px)); }
+[data-conversation-header-leading]:has(.moss-status-indicator) + * { padding-inline-start:12px; }
+.moss-status-indicator .moss-eye { --eye:10px; }
 
 /* A single diffused LED, without the old camera housing or glass highlights.
    Silver = idle, white = connecting, blue = work, red = attention. */
@@ -175,83 +169,30 @@ ${transmissionCSS}
 .moss-eye[data-status="offline"]::before { animation:none; opacity:0; }
 .moss-eye[data-status="offline"]::after { animation:none; opacity:.18; box-shadow:none; }
 
-/* ── Console ─────────────────────────────────────────────────── */
-.moss-console { position:fixed; z-index:10030; top:64px; right:20px; width:380px; max-width:calc(100vw - 24px); max-height:calc(100dvh - 84px); overflow:auto; box-sizing:border-box;
-  border:1px solid #c6cbd42e; border-radius:8px; background:linear-gradient(180deg,#202227fa,#0c1521fc); color:#e3e5e9;
-  box-shadow:0 30px 90px #000c, 0 0 0 1px #000, inset 0 1px #ffffff0a; font:13px/1.6 var(--moss-text,sans-serif); -webkit-app-region:no-drag;
-  animation:moss-console-in .22s cubic-bezier(.2,.8,.2,1); }
-.moss-console * { box-sizing:border-box; }
-.moss-console button { appearance:none; font:inherit; cursor:pointer; color:#e3e5e9; }
-.moss-console-head { display:flex; align-items:center; gap:14px; padding:18px 18px 16px; }
-.moss-console-head .moss-eye { --eye:12px; }
-.moss-console-id { flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
-.moss-console-id strong { display:block; font:600 20px/1 var(--moss-display,'MOSS Rajdhani',sans-serif); letter-spacing:6px; color:#f0f1f3; }
-.moss-console-id small { color:#8b929d; font:9px/1.4 var(--moss-display,'MOSS Rajdhani',sans-serif); letter-spacing:1.6px; }
-.moss-close { align-self:flex-start; width:26px; height:26px; padding:0; border:0; border-radius:4px; background:transparent; font-size:18px !important; line-height:1; color:#8b929d !important; }
-.moss-close:hover { background:#ffffff0d; color:#e3e5e9 !important; }
-.moss-monitor { position:relative; margin:0 18px; border:1px solid #c6cbd424; border-radius:4px; overflow:hidden; background:#07080a; }
-.moss-monitor .moss-scene { height:170px; }
-.moss-hud { position:absolute; inset:0; pointer-events:none; font:9px/1.3 var(--moss-display,'MOSS Rajdhani',sans-serif); letter-spacing:1.4px; color:#df4e54cc; }
-.moss-hud > span { position:absolute; }
-.moss-hud .tl { top:9px; left:10px; } .moss-hud .tr { top:9px; right:10px; text-align:right; } .moss-hud .bl { bottom:9px; left:10px; } .moss-hud .br { bottom:9px; right:10px; text-align:right; color:#b0b7c1aa; }
-.moss-hud::before,.moss-hud::after { content:''; position:absolute; width:10px; height:10px; border-color:#df4e5488; border-style:solid; }
-.moss-hud::before { top:4px; left:4px; border-width:1px 0 0 1px; }
-.moss-hud::after { bottom:4px; right:4px; border-width:0 1px 1px 0; }
-.moss-status { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:10px; margin:14px 18px 0; padding:10px 12px; border:1px solid #c6cbd41c; border-left:2px solid var(--tone,#df4e54); border-radius:3px; background:#ffffff04; }
-.moss-status[data-status="standby"] { --tone:#cdd1d7; }
-.moss-status[data-status="working"] { --tone:#df4e54; }
-.moss-status[data-status="connecting"],.moss-status[data-status="waiting"] { --tone:#e1e3e7; }
-.moss-status[data-status="error"] { --tone:#ff6b72; }
-.moss-status[data-status="offline"] { --tone:#7c838e; }
-.moss-status-label { color:var(--tone); font-weight:600; font-size:12px; letter-spacing:1px; }
-.moss-status-message { color:#bfc3cb; font-size:12px; line-height:1.5; }
-.moss-status code { font:9px var(--moss-display,'MOSS Rajdhani',sans-serif); letter-spacing:1.4px; color:#8b929d; }
-.moss-thrust { display:flex; align-items:center; gap:10px; margin:10px 18px 0; color:#8b929d; font:9px var(--moss-display,'MOSS Rajdhani',sans-serif); letter-spacing:1.4px; }
-.moss-thrust-bar { flex:1; height:4px; display:flex; gap:2px; }
-.moss-thrust-bar i { flex:1; background:#c6cbd41a; transition:background .4s; }
-.moss-thrust-bar i[data-on="true"] { background:linear-gradient(90deg,#828b98,#e2e6ed); box-shadow:0 0 6px #e2e6ed33; }
-.moss-section-label { display:flex; align-items:center; gap:8px; padding:20px 18px 6px; color:#c9cdd5; font:9px var(--moss-display,'MOSS Rajdhani',sans-serif); letter-spacing:2px; }
-.moss-section-label::after { content:''; flex:1; height:1px; background:#c6cbd41c; }
-.moss-preferences { margin:0 18px; }
-.moss-setting { display:flex; align-items:center; justify-content:space-between; gap:16px; min-height:50px; border-bottom:1px solid #c6cbd412; cursor:pointer; }
+/* Theme preferences live inline in the host's General settings. */
+.moss-settings { margin-block:20px; color:var(--dsw-alias-label-primary); font:13px/1.6 var(--moss-text,sans-serif); }
+.moss-settings h3 { margin:0 0 8px; font:600 14px/1.6 var(--moss-display,sans-serif); color:var(--moss-signal,#df4e54); letter-spacing:.04em; }
+.moss-setting { display:flex; align-items:center; justify-content:space-between; gap:16px; min-height:56px; border-bottom:1px solid var(--dsw-alias-border-l2,#c6cbd412); cursor:pointer; }
 .moss-setting:last-child { border-bottom:0; }
 .moss-setting > span { display:flex; flex-direction:column; }
-.moss-setting small { color:#8b929d; font-size:10.5px; }
-.moss-setting input { appearance:none; position:relative; flex-shrink:0; width:30px; height:16px; margin:0; border-radius:8px; background:#292c31; cursor:pointer; transition:background .2s; }
-.moss-setting input::after { content:''; position:absolute; top:2px; left:2px; width:12px; height:12px; border-radius:50%; background:#9299a4; transition:transform .2s,background .2s; }
+.moss-setting small { color:var(--dsw-alias-label-tertiary,#8b929d); font-size:11px; }
+.moss-setting input { appearance:none; position:relative; flex-shrink:0; width:30px; height:16px; margin:0; border-radius:8px; background:#48515d; cursor:pointer; transition:background .2s; }
+.moss-setting input::after { content:''; position:absolute; top:2px; left:2px; width:12px; height:12px; border-radius:50%; background:#c4cbd4; transition:transform .2s; }
 .moss-setting input:checked { background:#df4e54; }
-.moss-setting input:checked::after { transform:translateX(14px); background:#ededf0; }
-.moss-persona { margin:8px 18px 0; padding:10px 12px; border:1px solid #c6cbd41c; border-radius:4px; background:#ffffff03; }
-.moss-persona summary { cursor:pointer; color:#e3e5e9; font-size:12px; }
-.moss-persona summary small { margin-left:8px; color:#8b929d; font-size:10px; }
-.moss-persona p { color:#a1a7b1; margin:9px 0; font-size:11px; }
-.moss-persona textarea { width:100%; min-height:110px; resize:vertical; padding:8px 10px; color:#ccd0d7; background:#08090b; border:1px solid #c6cbd426; border-radius:3px; font:11px/1.65 -apple-system,'PingFang SC',sans-serif; }
-.moss-persona-actions { display:flex; align-items:center; gap:10px; margin-top:8px; }
-.moss-persona-actions p { margin:0; }
-.moss-copy { padding:5px 12px; border:1px solid #df4e5466; border-radius:3px; background:#df4e5414; color:#e8eaee !important; font-size:11px !important; }
-.moss-copy:hover { background:#df4e5426; }
-.moss-identity { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 18px; padding:10px 12px; border:1px solid #c6cbd41c; border-radius:4px; background:#ffffff03; }
-.moss-identity[data-active="true"] { border-color:#e3444840; background:#e344480a; }
-.moss-identity > span { display:flex; flex-direction:column; font-size:12.5px; }
-.moss-identity small { color:#8b929d; font-size:10.5px; line-height:1.5; }
-.moss-identity[data-active="true"] > span { color:#f2c1c4; }
-.moss-quote { margin:18px 18px 0; padding:12px 0 0; border-top:1px solid #c6cbd41a; color:#999faa; font-size:11px; line-height:1.7; }
-.moss-quote cite { display:block; margin-top:2px; color:#757c88; font:9px var(--moss-display,'MOSS Rajdhani',sans-serif); font-style:normal; letter-spacing:1.4px; }
-.moss-footnote { display:flex; justify-content:space-between; margin-top:14px; padding:10px 18px; border-top:1px solid #c6cbd41a; color:#757c88; font:9px/1.6 var(--moss-display,'MOSS Rajdhani',sans-serif); letter-spacing:1.4px; }
+.moss-setting input:checked::after { transform:translateX(14px); background:#f5f5f7; }
+.moss-setting input:focus-visible { outline:2px solid var(--moss-signal,#df4e54); outline-offset:3px; }
 
 @keyframes moss-lamp-core { 0%,100% { opacity:var(--breath-low); } 50% { opacity:var(--breath-high); } }
 @keyframes moss-lamp-halo { 0%,100% { opacity:.04; } 50% { opacity:.22; } }
 @keyframes moss-lamp-alert { 0%,32%,64%,100% { opacity:.25; } 16%,48% { opacity:1; } }
 @keyframes moss-lamp-alert-halo { 0%,32%,64%,100% { opacity:.02; } 16%,48% { opacity:.3; } }
-@keyframes moss-console-in { from { opacity:0; transform:translateY(-6px) scale(.985); } }
-body[data-moss-motion="off"] .moss-eye::before, body[data-moss-motion="off"] .moss-eye::after, body[data-moss-motion="off"] .moss-console { animation:none !important; }
-@media (prefers-reduced-motion:reduce) { .moss-eye::before,.moss-eye::after,.moss-console { animation:none !important; } }
+body[data-moss-motion="off"] .moss-eye::before, body[data-moss-motion="off"] .moss-eye::after { animation:none !important; }
+@media (prefers-reduced-motion:reduce) { .moss-eye::before,.moss-eye::after { animation:none !important; } }
 body[data-moss-motion="off"] .moss-eye:not([data-status="offline"])::after { opacity:.85; }
 @media (prefers-reduced-motion:reduce) { .moss-eye:not([data-status="offline"])::after { opacity:.85; } }
 body[data-moss-motion="off"] .moss-eye::before { opacity:.1; }
 @media (prefers-reduced-motion:reduce) { .moss-eye::before { opacity:.1; } }
 body[data-moss-motion="off"] .moss-eye[data-status="offline"]::before { opacity:0; }
-@media (max-width:600px) { .moss-console { top:56px; right:12px; max-height:calc(100dvh - 70px); } }
 ${interfaceCSS}
 ${chromeCSS}
 `

@@ -22,7 +22,7 @@ ${prose} {
 ${prose}:first-child::before {
   content:'AI TRANSMISSION / 智能体回复'; display:block;
   margin:0 0 16px; padding:6px 0 9px 23px; border-bottom:1px solid #d0d4dc1c;
-  color:#c2c6ce; font:500 10px/1.4 var(--moss-display); letter-spacing:.16em;
+  color:var(--moss-signal); font:500 10px/1.4 var(--moss-display); letter-spacing:.16em;
   background:${transmissionGlyph} left 5px/14px 14px no-repeat,linear-gradient(#e45459,#e45459) left top/24px 1px no-repeat;
 }
 ${prose} > :first-child { margin-top:0; }
@@ -36,13 +36,13 @@ ${prose} h2 {
 }
 ${prose} h2::before {
   content:counter(moss-section,decimal-leading-zero); flex:none;
-  color:#c6c9ce; font:600 .85em/1 var(--moss-display); letter-spacing:.08em;
+  color:var(--moss-signal); font:600 .85em/1 var(--moss-display); letter-spacing:.08em;
 }
 ${prose} h2::after { content:''; align-self:center; flex:1; min-width:12px; height:1px; background:linear-gradient(90deg,#d0d4dc2b,transparent); }
 ${prose} h3 { font-size:1.04em; font-weight:600; margin:22px 0 10px; }
 ${prose} :is(ul,ol) { padding-inline-start:1.5em; }
 ${prose} li { padding-inline-start:.2em; }
-${prose} li::marker { color:#c6c9ce; font-family:var(--moss-display); font-weight:600; }
+${prose} li::marker { color:var(--moss-signal); font-family:var(--moss-display); font-weight:600; }
 ${prose} strong { color:#f1f2f4; font-weight:600; }
 ${prose} :is(a,[role="link"]) { color:#d4d8e0; text-decoration-color:#d4d8e055; text-underline-offset:4px; }
 ${prose} :is(a,[role="link"]):hover { color:#ffffff; text-decoration-color:currentColor; }
@@ -59,7 +59,7 @@ ${prose} blockquote {
 }
 ${prose} blockquote::before {
   content:'QUOTE / 引文'; position:absolute; inset:12px auto auto 24px;
-  color:#c6c9ce; font:500 9px/1.3 var(--moss-display); letter-spacing:.18em;
+  color:var(--moss-signal); font:500 9px/1.3 var(--moss-display); letter-spacing:.18em;
 }
 ${prose} blockquote::after {
   content:''; position:absolute; right:-1px; bottom:-1px; width:13px; height:13px;

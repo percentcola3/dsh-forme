@@ -23,7 +23,7 @@ ${theme} :is([role="treeitem"],[role="option"])[aria-selected="true"],
 ${theme} :is(button[aria-current="page"],button[aria-pressed="true"]) {
   background-color:#20374d; background-image:none;
   box-shadow:inset 0 0 0 1px #a8c6dd26;
-  color:#edf4fa; border-color:transparent; border-radius:6px; corner-shape:round;
+  color:var(--moss-signal); border-color:transparent; border-radius:6px; corner-shape:round;
 }
 ${theme} [role="treeitem"][aria-selected="true"] { outline:none; }
 ${theme} :is([role="treeitem"],[role="option"]):not([aria-selected="true"]):hover { background-color:#9cbed513; }
@@ -32,7 +32,7 @@ ${theme} :is(button,[role="treeitem"],[role="option"],a):focus-visible {
   outline:1px solid #d75b62; outline-offset:3px;
 }
 ${theme} header [role="tab"][aria-selected="true"] {
-  color:#f0f1f4; text-shadow:0 0 18px #ffffff24;
+  color:var(--moss-signal); text-shadow:0 0 18px #f07c831c;
   box-shadow:inset 0 -1px #e15d6388;
 }
 ${theme} :is([role="tab"],[role="treeitem"],[role="option"]) { font-variant-numeric:tabular-nums; }
@@ -63,7 +63,7 @@ ${theme} [data-turn-tail] :is(button,time) { font-family:var(--moss-display); fo
 ${theme} [data-disclosure-header] { border-radius:4px; }
 ${theme} [data-disclosure-header]:hover { background-color:#d0d4dc0b; }
 ${theme} :is([data-variant="think"],[data-variant="others"])[data-open] > [data-disclosure-header] {
-  color:#d3d6dc; box-shadow:inset 2px 0 #d3d6dc66;
+  color:var(--moss-signal); box-shadow:inset 2px 0 #e7646c66;
 }
 ${theme} [data-code-block-banner] {
   background:linear-gradient(90deg,#1c2d40,#142334); border-bottom:1px solid #a8c6dd26;
@@ -73,14 +73,6 @@ ${theme} :has(> [data-code-block-banner]) { border-radius:5px; corner-shape:roun
 ${theme} [data-code-block-content] { background-color:#0a1420; }
 
 .moss-icon { display:inline-block; width:16px; height:16px; flex:none; vertical-align:-3px; }
-.moss-section-label .moss-icon { width:13px; height:13px; opacity:.85; }
-.moss-close { display:inline-flex; align-items:center; justify-content:center; }
-.moss-close .moss-icon { width:18px; height:18px; }
-.moss-connect,.moss-copy { display:inline-flex; align-items:center; justify-content:center; gap:7px; }
-.moss-connect .moss-icon,.moss-copy .moss-icon { width:13px; height:13px; }
-${theme} .moss-persona summary { font-family:var(--moss-display); }
-${theme} .moss-persona textarea { font-family:var(--moss-display); }
-${theme} .moss-console { background-image:radial-gradient(ellipse at 100% 0,#9ac2e610,transparent 50%),linear-gradient(180deg,#17283afa,#0c1724fc); }
 @media (prefers-reduced-motion:reduce) {
   ${theme} :is(header[data-window-drag],[data-turn-tail],[data-code-block-banner]) button svg { transition:none; }
 }

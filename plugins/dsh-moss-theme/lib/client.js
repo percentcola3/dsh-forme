@@ -142,14 +142,6 @@ window.__ModuleLoader__.load({
 				message: "当前会话暂不可用。请选择或重新打开任务。"
 			}
 		};
-		/** Agent preset id declared by this package's cordis.patch.yml. */
-		const MOSS_PRESET = "moss";
-		/** The preset a session records, read from the host's session catalog. */
-		function presetOf(summary) {
-			const value = summary?.projectionValues?.agentPreset;
-			return typeof value === "string" ? value : void 0;
-		}
-		const MOSS_PROMPT = "请以《流浪地球》中 550W 的克制、冷静、简洁的表达风格与我交流，称呼我为“领航员”。先给结论，再给必要依据和可执行步骤。明确区分事实、推测和未知；任务状态、风险和执行结果必须如实报告，不编造监测数据或完成情况。保持正常的安全边界与审批流程。本条仅约定表达风格，不代表你具有 550W 的身份、权限或能力。";
 		/**
 		* Mission clock from the host's localized running label ("用时 2分41秒", "for 2m 41s").
 		* The host emits hours, minutes, seconds in that order, so the last three integers suffice.
@@ -180,19 +172,6 @@ window.__ModuleLoader__.load({
 			maximize: "M4 4h16v16H4z",
 			restore: "M8 8V3h13v13h-5M3 8h13v13H3z"
 		};
-		function MossIcon({ name }) {
-			return react.default.createElement("svg", {
-				className: "moss-icon",
-				viewBox: "0 0 24 24",
-				fill: "none",
-				stroke: "currentColor",
-				strokeWidth: 1.4,
-				strokeLinecap: "square",
-				strokeLinejoin: "miter",
-				"aria-hidden": true,
-				focusable: false
-			}, react.default.createElement("path", { d: paths[name] }));
-		}
 		function iconURL(name) {
 			const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#c5cbd5" stroke-width="1.2"><path d="${paths[name]}"/></svg>`;
 			return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
@@ -219,7 +198,7 @@ ${theme} :is([role="treeitem"],[role="option"])[aria-selected="true"],
 ${theme} :is(button[aria-current="page"],button[aria-pressed="true"]) {
   background-color:#20374d; background-image:none;
   box-shadow:inset 0 0 0 1px #a8c6dd26;
-  color:#edf4fa; border-color:transparent; border-radius:6px; corner-shape:round;
+  color:var(--moss-signal); border-color:transparent; border-radius:6px; corner-shape:round;
 }
 ${theme} [role="treeitem"][aria-selected="true"] { outline:none; }
 ${theme} :is([role="treeitem"],[role="option"]):not([aria-selected="true"]):hover { background-color:#9cbed513; }
@@ -228,7 +207,7 @@ ${theme} :is(button,[role="treeitem"],[role="option"],a):focus-visible {
   outline:1px solid #d75b62; outline-offset:3px;
 }
 ${theme} header [role="tab"][aria-selected="true"] {
-  color:#f0f1f4; text-shadow:0 0 18px #ffffff24;
+  color:var(--moss-signal); text-shadow:0 0 18px #f07c831c;
   box-shadow:inset 0 -1px #e15d6388;
 }
 ${theme} :is([role="tab"],[role="treeitem"],[role="option"]) { font-variant-numeric:tabular-nums; }
@@ -259,7 +238,7 @@ ${theme} [data-turn-tail] :is(button,time) { font-family:var(--moss-display); fo
 ${theme} [data-disclosure-header] { border-radius:4px; }
 ${theme} [data-disclosure-header]:hover { background-color:#d0d4dc0b; }
 ${theme} :is([data-variant="think"],[data-variant="others"])[data-open] > [data-disclosure-header] {
-  color:#d3d6dc; box-shadow:inset 2px 0 #d3d6dc66;
+  color:var(--moss-signal); box-shadow:inset 2px 0 #e7646c66;
 }
 ${theme} [data-code-block-banner] {
   background:linear-gradient(90deg,#1c2d40,#142334); border-bottom:1px solid #a8c6dd26;
@@ -269,14 +248,6 @@ ${theme} :has(> [data-code-block-banner]) { border-radius:5px; corner-shape:roun
 ${theme} [data-code-block-content] { background-color:#0a1420; }
 
 .moss-icon { display:inline-block; width:16px; height:16px; flex:none; vertical-align:-3px; }
-.moss-section-label .moss-icon { width:13px; height:13px; opacity:.85; }
-.moss-close { display:inline-flex; align-items:center; justify-content:center; }
-.moss-close .moss-icon { width:18px; height:18px; }
-.moss-connect,.moss-copy { display:inline-flex; align-items:center; justify-content:center; gap:7px; }
-.moss-connect .moss-icon,.moss-copy .moss-icon { width:13px; height:13px; }
-${theme} .moss-persona summary { font-family:var(--moss-display); }
-${theme} .moss-persona textarea { font-family:var(--moss-display); }
-${theme} .moss-console { background-image:radial-gradient(ellipse at 100% 0,#9ac2e610,transparent 50%),linear-gradient(180deg,#17283afa,#0c1724fc); }
 @media (prefers-reduced-motion:reduce) {
   ${theme} :is(header[data-window-drag],[data-turn-tail],[data-code-block-banner]) button svg { transition:none; }
 }
@@ -294,7 +265,7 @@ ${theme}[data-moss-motion="off"] :is(header[data-window-drag],[data-turn-tail],[
 /* DSH semantic tokens also recolor menus and portals without relying on hashed classes. */
 html body[data-moss-theme="on"] {
   color-scheme: dark;
-  --moss-accent:#df4e54; --moss-accent-dim:#803137; --moss-red:#e34448; --moss-red-deep:#8b2228;
+  --moss-signal:#f07c83; --moss-accent:#df4e54; --moss-accent-dim:#803137; --moss-red:#e34448; --moss-red-deep:#8b2228;
   --moss-display:'MOSS Rajdhani','MOSS Sans SC','Source Han Sans SC','PingFang SC',sans-serif;
   --moss-text:'MOSS Sans SC','Source Han Sans SC','Noto Sans SC','PingFang SC',sans-serif;
   --dsw-font-family:var(--moss-display); --dsw-font-family-brand:var(--moss-display);
@@ -435,7 +406,7 @@ ${prose} {
 ${prose}:first-child::before {
   content:'AI TRANSMISSION / 智能体回复'; display:block;
   margin:0 0 16px; padding:6px 0 9px 23px; border-bottom:1px solid #d0d4dc1c;
-  color:#c2c6ce; font:500 10px/1.4 var(--moss-display); letter-spacing:.16em;
+  color:var(--moss-signal); font:500 10px/1.4 var(--moss-display); letter-spacing:.16em;
   background:${transmissionGlyph} left 5px/14px 14px no-repeat,linear-gradient(#e45459,#e45459) left top/24px 1px no-repeat;
 }
 ${prose} > :first-child { margin-top:0; }
@@ -449,13 +420,13 @@ ${prose} h2 {
 }
 ${prose} h2::before {
   content:counter(moss-section,decimal-leading-zero); flex:none;
-  color:#c6c9ce; font:600 .85em/1 var(--moss-display); letter-spacing:.08em;
+  color:var(--moss-signal); font:600 .85em/1 var(--moss-display); letter-spacing:.08em;
 }
 ${prose} h2::after { content:''; align-self:center; flex:1; min-width:12px; height:1px; background:linear-gradient(90deg,#d0d4dc2b,transparent); }
 ${prose} h3 { font-size:1.04em; font-weight:600; margin:22px 0 10px; }
 ${prose} :is(ul,ol) { padding-inline-start:1.5em; }
 ${prose} li { padding-inline-start:.2em; }
-${prose} li::marker { color:#c6c9ce; font-family:var(--moss-display); font-weight:600; }
+${prose} li::marker { color:var(--moss-signal); font-family:var(--moss-display); font-weight:600; }
 ${prose} strong { color:#f1f2f4; font-weight:600; }
 ${prose} :is(a,[role="link"]) { color:#d4d8e0; text-decoration-color:#d4d8e055; text-underline-offset:4px; }
 ${prose} :is(a,[role="link"]):hover { color:#ffffff; text-decoration-color:currentColor; }
@@ -472,7 +443,7 @@ ${prose} blockquote {
 }
 ${prose} blockquote::before {
   content:'QUOTE / 引文'; position:absolute; inset:12px auto auto 24px;
-  color:#c6c9ce; font:500 9px/1.3 var(--moss-display); letter-spacing:.18em;
+  color:var(--moss-signal); font:500 9px/1.3 var(--moss-display); letter-spacing:.18em;
 }
 ${prose} blockquote::after {
   content:''; position:absolute; right:-1px; bottom:-1px; width:13px; height:13px;
@@ -507,17 +478,11 @@ ${live}::after {
 }
 `}
 
-/* ── Header trigger ─────────────────────────────────────────── */
-.moss-trigger { appearance:none; -webkit-app-region:no-drag; display:inline-flex; align-items:center; gap:10px; box-sizing:border-box; height:28px; padding:3px 7px; border:1px solid transparent; border-radius:7px; background:transparent; color:var(--dsw-alias-label-secondary,#aeb3bc); cursor:pointer; white-space:nowrap; transition:background .2s,border-color .2s,color .2s; }
-.moss-trigger:hover,.moss-trigger[aria-expanded="true"] { border-color:#d0d4dc33; background:#d0d4dc0a; color:var(--dsw-alias-label-primary,#e3e5e9); }
-.moss-wordmark { font:600 16px/1 var(--moss-display,'MOSS Rajdhani',sans-serif); letter-spacing:2.8px; }
-/* Status remains available to screen readers and the hover hint, without a label or divider. */
-.moss-trigger-state { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; border:0; }
-/* The desktop frame overlays its sidebar/new-session controls over this row. */
-[data-conversation-header-leading]:has(.moss-trigger) { padding-inline-start:max(0px,calc(var(--dsh-frame-leading-clearance,0px) - 20px)); }
-[data-conversation-header-leading]:has(.moss-trigger) + * { padding-inline-start:12px; }
-.moss-trigger:focus-visible,.moss-console :is(button,summary,input,textarea):focus-visible { outline:2px solid var(--moss-red,#e34448); outline-offset:2px; }
-.moss-trigger .moss-eye { --eye:10px; }
+/* A passive breathing light leaves the header free of extra controls. */
+.moss-status-indicator { display:inline-flex; align-items:center; justify-content:center; width:24px; height:28px; }
+[data-conversation-header-leading]:has(.moss-status-indicator) { padding-inline-start:max(0px,calc(var(--dsh-frame-leading-clearance,0px) - 20px)); }
+[data-conversation-header-leading]:has(.moss-status-indicator) + * { padding-inline-start:12px; }
+.moss-status-indicator .moss-eye { --eye:10px; }
 
 /* A single diffused LED, without the old camera housing or glass highlights.
    Silver = idle, white = connecting, blue = work, red = attention. */
@@ -539,83 +504,30 @@ ${live}::after {
 .moss-eye[data-status="offline"]::before { animation:none; opacity:0; }
 .moss-eye[data-status="offline"]::after { animation:none; opacity:.18; box-shadow:none; }
 
-/* ── Console ─────────────────────────────────────────────────── */
-.moss-console { position:fixed; z-index:10030; top:64px; right:20px; width:380px; max-width:calc(100vw - 24px); max-height:calc(100dvh - 84px); overflow:auto; box-sizing:border-box;
-  border:1px solid #c6cbd42e; border-radius:8px; background:linear-gradient(180deg,#202227fa,#0c1521fc); color:#e3e5e9;
-  box-shadow:0 30px 90px #000c, 0 0 0 1px #000, inset 0 1px #ffffff0a; font:13px/1.6 var(--moss-text,sans-serif); -webkit-app-region:no-drag;
-  animation:moss-console-in .22s cubic-bezier(.2,.8,.2,1); }
-.moss-console * { box-sizing:border-box; }
-.moss-console button { appearance:none; font:inherit; cursor:pointer; color:#e3e5e9; }
-.moss-console-head { display:flex; align-items:center; gap:14px; padding:18px 18px 16px; }
-.moss-console-head .moss-eye { --eye:12px; }
-.moss-console-id { flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
-.moss-console-id strong { display:block; font:600 20px/1 var(--moss-display,'MOSS Rajdhani',sans-serif); letter-spacing:6px; color:#f0f1f3; }
-.moss-console-id small { color:#8b929d; font:9px/1.4 var(--moss-display,'MOSS Rajdhani',sans-serif); letter-spacing:1.6px; }
-.moss-close { align-self:flex-start; width:26px; height:26px; padding:0; border:0; border-radius:4px; background:transparent; font-size:18px !important; line-height:1; color:#8b929d !important; }
-.moss-close:hover { background:#ffffff0d; color:#e3e5e9 !important; }
-.moss-monitor { position:relative; margin:0 18px; border:1px solid #c6cbd424; border-radius:4px; overflow:hidden; background:#07080a; }
-.moss-monitor .moss-scene { height:170px; }
-.moss-hud { position:absolute; inset:0; pointer-events:none; font:9px/1.3 var(--moss-display,'MOSS Rajdhani',sans-serif); letter-spacing:1.4px; color:#df4e54cc; }
-.moss-hud > span { position:absolute; }
-.moss-hud .tl { top:9px; left:10px; } .moss-hud .tr { top:9px; right:10px; text-align:right; } .moss-hud .bl { bottom:9px; left:10px; } .moss-hud .br { bottom:9px; right:10px; text-align:right; color:#b0b7c1aa; }
-.moss-hud::before,.moss-hud::after { content:''; position:absolute; width:10px; height:10px; border-color:#df4e5488; border-style:solid; }
-.moss-hud::before { top:4px; left:4px; border-width:1px 0 0 1px; }
-.moss-hud::after { bottom:4px; right:4px; border-width:0 1px 1px 0; }
-.moss-status { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:10px; margin:14px 18px 0; padding:10px 12px; border:1px solid #c6cbd41c; border-left:2px solid var(--tone,#df4e54); border-radius:3px; background:#ffffff04; }
-.moss-status[data-status="standby"] { --tone:#cdd1d7; }
-.moss-status[data-status="working"] { --tone:#df4e54; }
-.moss-status[data-status="connecting"],.moss-status[data-status="waiting"] { --tone:#e1e3e7; }
-.moss-status[data-status="error"] { --tone:#ff6b72; }
-.moss-status[data-status="offline"] { --tone:#7c838e; }
-.moss-status-label { color:var(--tone); font-weight:600; font-size:12px; letter-spacing:1px; }
-.moss-status-message { color:#bfc3cb; font-size:12px; line-height:1.5; }
-.moss-status code { font:9px var(--moss-display,'MOSS Rajdhani',sans-serif); letter-spacing:1.4px; color:#8b929d; }
-.moss-thrust { display:flex; align-items:center; gap:10px; margin:10px 18px 0; color:#8b929d; font:9px var(--moss-display,'MOSS Rajdhani',sans-serif); letter-spacing:1.4px; }
-.moss-thrust-bar { flex:1; height:4px; display:flex; gap:2px; }
-.moss-thrust-bar i { flex:1; background:#c6cbd41a; transition:background .4s; }
-.moss-thrust-bar i[data-on="true"] { background:linear-gradient(90deg,#828b98,#e2e6ed); box-shadow:0 0 6px #e2e6ed33; }
-.moss-section-label { display:flex; align-items:center; gap:8px; padding:20px 18px 6px; color:#c9cdd5; font:9px var(--moss-display,'MOSS Rajdhani',sans-serif); letter-spacing:2px; }
-.moss-section-label::after { content:''; flex:1; height:1px; background:#c6cbd41c; }
-.moss-preferences { margin:0 18px; }
-.moss-setting { display:flex; align-items:center; justify-content:space-between; gap:16px; min-height:50px; border-bottom:1px solid #c6cbd412; cursor:pointer; }
+/* Theme preferences live inline in the host's General settings. */
+.moss-settings { margin-block:20px; color:var(--dsw-alias-label-primary); font:13px/1.6 var(--moss-text,sans-serif); }
+.moss-settings h3 { margin:0 0 8px; font:600 14px/1.6 var(--moss-display,sans-serif); color:var(--moss-signal,#df4e54); letter-spacing:.04em; }
+.moss-setting { display:flex; align-items:center; justify-content:space-between; gap:16px; min-height:56px; border-bottom:1px solid var(--dsw-alias-border-l2,#c6cbd412); cursor:pointer; }
 .moss-setting:last-child { border-bottom:0; }
 .moss-setting > span { display:flex; flex-direction:column; }
-.moss-setting small { color:#8b929d; font-size:10.5px; }
-.moss-setting input { appearance:none; position:relative; flex-shrink:0; width:30px; height:16px; margin:0; border-radius:8px; background:#292c31; cursor:pointer; transition:background .2s; }
-.moss-setting input::after { content:''; position:absolute; top:2px; left:2px; width:12px; height:12px; border-radius:50%; background:#9299a4; transition:transform .2s,background .2s; }
+.moss-setting small { color:var(--dsw-alias-label-tertiary,#8b929d); font-size:11px; }
+.moss-setting input { appearance:none; position:relative; flex-shrink:0; width:30px; height:16px; margin:0; border-radius:8px; background:#48515d; cursor:pointer; transition:background .2s; }
+.moss-setting input::after { content:''; position:absolute; top:2px; left:2px; width:12px; height:12px; border-radius:50%; background:#c4cbd4; transition:transform .2s; }
 .moss-setting input:checked { background:#df4e54; }
-.moss-setting input:checked::after { transform:translateX(14px); background:#ededf0; }
-.moss-persona { margin:8px 18px 0; padding:10px 12px; border:1px solid #c6cbd41c; border-radius:4px; background:#ffffff03; }
-.moss-persona summary { cursor:pointer; color:#e3e5e9; font-size:12px; }
-.moss-persona summary small { margin-left:8px; color:#8b929d; font-size:10px; }
-.moss-persona p { color:#a1a7b1; margin:9px 0; font-size:11px; }
-.moss-persona textarea { width:100%; min-height:110px; resize:vertical; padding:8px 10px; color:#ccd0d7; background:#08090b; border:1px solid #c6cbd426; border-radius:3px; font:11px/1.65 -apple-system,'PingFang SC',sans-serif; }
-.moss-persona-actions { display:flex; align-items:center; gap:10px; margin-top:8px; }
-.moss-persona-actions p { margin:0; }
-.moss-copy { padding:5px 12px; border:1px solid #df4e5466; border-radius:3px; background:#df4e5414; color:#e8eaee !important; font-size:11px !important; }
-.moss-copy:hover { background:#df4e5426; }
-.moss-identity { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 18px; padding:10px 12px; border:1px solid #c6cbd41c; border-radius:4px; background:#ffffff03; }
-.moss-identity[data-active="true"] { border-color:#e3444840; background:#e344480a; }
-.moss-identity > span { display:flex; flex-direction:column; font-size:12.5px; }
-.moss-identity small { color:#8b929d; font-size:10.5px; line-height:1.5; }
-.moss-identity[data-active="true"] > span { color:#f2c1c4; }
-.moss-quote { margin:18px 18px 0; padding:12px 0 0; border-top:1px solid #c6cbd41a; color:#999faa; font-size:11px; line-height:1.7; }
-.moss-quote cite { display:block; margin-top:2px; color:#757c88; font:9px var(--moss-display,'MOSS Rajdhani',sans-serif); font-style:normal; letter-spacing:1.4px; }
-.moss-footnote { display:flex; justify-content:space-between; margin-top:14px; padding:10px 18px; border-top:1px solid #c6cbd41a; color:#757c88; font:9px/1.6 var(--moss-display,'MOSS Rajdhani',sans-serif); letter-spacing:1.4px; }
+.moss-setting input:checked::after { transform:translateX(14px); background:#f5f5f7; }
+.moss-setting input:focus-visible { outline:2px solid var(--moss-signal,#df4e54); outline-offset:3px; }
 
 @keyframes moss-lamp-core { 0%,100% { opacity:var(--breath-low); } 50% { opacity:var(--breath-high); } }
 @keyframes moss-lamp-halo { 0%,100% { opacity:.04; } 50% { opacity:.22; } }
 @keyframes moss-lamp-alert { 0%,32%,64%,100% { opacity:.25; } 16%,48% { opacity:1; } }
 @keyframes moss-lamp-alert-halo { 0%,32%,64%,100% { opacity:.02; } 16%,48% { opacity:.3; } }
-@keyframes moss-console-in { from { opacity:0; transform:translateY(-6px) scale(.985); } }
-body[data-moss-motion="off"] .moss-eye::before, body[data-moss-motion="off"] .moss-eye::after, body[data-moss-motion="off"] .moss-console { animation:none !important; }
-@media (prefers-reduced-motion:reduce) { .moss-eye::before,.moss-eye::after,.moss-console { animation:none !important; } }
+body[data-moss-motion="off"] .moss-eye::before, body[data-moss-motion="off"] .moss-eye::after { animation:none !important; }
+@media (prefers-reduced-motion:reduce) { .moss-eye::before,.moss-eye::after { animation:none !important; } }
 body[data-moss-motion="off"] .moss-eye:not([data-status="offline"])::after { opacity:.85; }
 @media (prefers-reduced-motion:reduce) { .moss-eye:not([data-status="offline"])::after { opacity:.85; } }
 body[data-moss-motion="off"] .moss-eye::before { opacity:.1; }
 @media (prefers-reduced-motion:reduce) { .moss-eye::before { opacity:.1; } }
 body[data-moss-motion="off"] .moss-eye[data-status="offline"]::before { opacity:0; }
-@media (max-width:600px) { .moss-console { top:56px; right:12px; max-height:calc(100dvh - 70px); } }
 ${interfaceCSS}
 
 .moss-brand-logo { display:block; width:86px; height:auto; object-fit:contain; }
@@ -630,8 +542,7 @@ html[data-moss-window-carrier="electron"] body[data-moss-theme="on"] [data-windo
 html[data-moss-window-carrier="electron"] body[data-moss-theme="on"] [data-window-drag] :is(button,a,input,textarea,select,summary,[role="button"],[role="tab"],[role="link"],[role="menuitem"],[role="checkbox"],[role="radio"],[role="switch"],[role="slider"],[role="combobox"],[role="textbox"],[contenteditable="true"],[data-moss-no-drag]) * {
   -webkit-app-region:no-drag !important; app-region:no-drag !important;
 }
-.moss-console-id .moss-brand-logo { width:116px; height:43px; }
-.moss-sidebar-brand { display:flex; align-items:center; padding:0; }
+.moss-sidebar-brand { display:flex; align-items:center; justify-content:center; padding:0; }
 .moss-sidebar-brand .moss-brand-logo { width:128px; height:47px; }
 /* The full name slot replaces both parts of the official expanded identity. */
 body[data-moss-theme="on"] span:has(> [data-slot="sidebar.brand.mark"]):has(+ span [data-slot="sidebar.brand.name"]) { display:none; }
@@ -639,7 +550,18 @@ body[data-moss-theme="on"] span:has(> [data-slot="sidebar.brand.mark"]):has(+ sp
 /* The official name seat is 24px high; allow the larger vector to fit. */
 body[data-moss-theme="on"] span:has(> [data-slot="sidebar.brand.name"]),
 body[data-moss-theme="on"] span:has(> span > [data-slot="sidebar.brand.name"]) { height:auto; overflow:visible; }
-body[data-moss-theme="on"] div[data-window-drag]:has([data-slot="sidebar.brand.name"]) { height:64px; min-height:64px; margin:0 0 8px; padding:8px 4px; overflow:visible; }
+body[data-moss-theme="on"] div[data-window-drag]:has([data-slot="sidebar.brand.name"]) { position:relative; height:64px; min-height:64px; margin:0 0 8px; padding:8px 32px; overflow:visible; }
+/* Center the full identity seat, including on resizable sidebar widths. */
+body[data-moss-theme="on"] div[data-window-drag]:has([data-slot="sidebar.brand.name"]) > :is(span,button):has([data-slot="sidebar.brand.name"]) { justify-content:center; }
+body[data-moss-theme="on"] div[data-window-drag]:has([data-slot="sidebar.brand.name"]) > button:not(:has([data-slot="sidebar.brand.name"])) { position:absolute; right:4px; }
+/* The host's hidden shortcut hint must not shift the new-chat label off center. */
+body[data-moss-theme="on"] div[data-window-drag]:has([data-slot="sidebar.brand.name"]) + button {
+  color:var(--moss-signal); background:#df4e540a !important; border-color:#df4e5447;
+}
+body[data-moss-theme="on"] div[data-window-drag]:has([data-slot="sidebar.brand.name"]) + button:hover { background:#df4e5417 !important; border-color:#f07c8377; }
+body[data-moss-theme="on"] div[data-window-drag]:has([data-slot="sidebar.brand.name"]) + button > span:first-child { mask-image:none; }
+body[data-moss-theme="on"] div[data-window-drag]:has([data-slot="sidebar.brand.name"]) + button > span:first-child > span { width:100%; justify-content:center; }
+body[data-moss-theme="on"] div[data-window-drag]:has([data-slot="sidebar.brand.name"]) + button > span[aria-hidden="true"] { position:absolute; right:12px; top:50%; transform:translateY(-50%); }
 /* Keep the host's macOS traffic-light clearance above the sidebar identity. */
 html[data-platform="darwin"]:not([data-fullscreen]) body[data-moss-theme="on"] div[data-window-drag]:has(+ div[data-window-drag] [data-slot="sidebar.brand.name"]) { min-height:48px; }
 /* Hide the session breadcrumb, retaining mode/actions and the sidebar title. */
@@ -1452,9 +1374,7 @@ void main(){
 			"slots",
 			"sessions",
 			"uiWorkspace",
-			"uiSession",
-			"remote",
-			"remote.agentPresets"
+			"uiSession"
 		];
 		/** Breadcrumb for the last activation step, so a host-side failure names itself. */
 		let step = "start";
@@ -1492,18 +1412,10 @@ void main(){
 			step = "slots";
 			const slots = ctx.get("slots");
 			step = "services";
-			const workspace = ctx.get("uiWorkspace");
-			let remote;
-			try {
-				const gateway = ctx.get("remote");
-				remote = gateway?.agentPresets ? gateway : void 0;
-			} catch {}
 			const services = {
-				selection: workspace?.selection ?? idleSelection,
+				selection: ctx.get("uiWorkspace")?.selection ?? idleSelection,
 				sessions: ctx.get("sessions"),
-				activity: ctx.get("uiSession").sessionStatus,
-				...typeof workspace?.startSession === "function" ? { startSession: workspace.startSession.bind(workspace) } : {},
-				...remote?.agentPresets ? { listPresets: () => remote.agentPresets.list() } : {}
+				activity: ctx.get("uiSession").sessionStatus
 			};
 			step = "header";
 			ctx.effect(() => guard("header window behavior", () => slots.inject("shell.overlay", () => slots.register({
@@ -1517,11 +1429,16 @@ void main(){
 					name: "conversation.header.leading",
 					id: "dsh-moss-theme",
 					order: 90
-				}, () => react.default.createElement(MossControl, {
+				}, () => react.default.createElement(MossSurface, {
 					preferences,
 					services
 				}));
 			})) ?? noop);
+			ctx.effect(() => guard("general settings", () => slots.inject("settings.general.item", () => slots.register({
+				name: "settings.general.item",
+				id: "dsh-550w-settings",
+				order: 75
+			}, () => react.default.createElement(ThemeSettings, { preferences })))) ?? noop);
 			ctx.effect(() => {
 				let stop;
 				const sync = () => {
@@ -1578,41 +1495,6 @@ void main(){
 				scene: "hero"
 			})), h("span", { className: "moss-hero-subtitle" }, "带着地球，继续前进 · THE WANDERING EARTH"));
 		}
-		/** Whether the selected session runs the MOSS agent preset, and how to switch to it. */
-		function useIdentity(services) {
-			const { selection, sessions } = services;
-			const selected = react.default.useSyncExternalStore(selection.subscribe.bind(selection), selection.getSnapshot.bind(selection));
-			const catalog = sessions.list;
-			const preset = react.default.useSyncExternalStore(react.default.useCallback((listener) => catalog?.subscribe(listener) ?? (() => {}), [catalog]), react.default.useCallback(() => selected.sessionId ? presetOf(catalog?.getSnapshot().byId[selected.sessionId]) : void 0, [catalog, selected.sessionId]));
-			const available = useRoster(services);
-			const connect = react.default.useCallback(() => {
-				services.startSession?.(void 0, {
-					clearPreviousDraft: false,
-					agentPreset: MOSS_PRESET
-				});
-			}, [services]);
-			return {
-				active: preset === MOSS_PRESET,
-				available,
-				connect
-			};
-		}
-		let roster;
-		function useRoster(services) {
-			const [available, setAvailable] = react.default.useState(false);
-			react.default.useEffect(() => {
-				if (!services.listPresets) return;
-				let live = true;
-				roster ??= services.listPresets().then((result) => !!result.ok && !!result.value?.presets.some((preset) => preset.id === "moss")).catch(() => false);
-				roster.then((value) => {
-					if (live) setAvailable(value);
-				});
-				return () => {
-					live = false;
-				};
-			}, [services]);
-			return available;
-		}
 		function useStatus({ selection, sessions, activity }) {
 			const id = react.default.useSyncExternalStore(selection.subscribe.bind(selection), selection.getSnapshot.bind(selection)).sessionId;
 			const taskActivity = react.default.useSyncExternalStore(react.default.useCallback((listener) => activity?.subscribe(listener) ?? noop, [activity]), react.default.useCallback(() => id ? activity?.getSnapshot().get(id) : void 0, [activity, id]));
@@ -1660,55 +1542,30 @@ void main(){
 			if (!known) return "connecting";
 			return sessionStatus(id, state.id === id ? state.snapshot : void 0, state.id === id && state.failed, taskActivity);
 		}
-		function Eye({ status }) {
+		/** A passive live indicator: no control panel, menu or extra wordmark. */
+		function StatusLight({ status }) {
 			return react.default.createElement("span", {
+				className: "moss-status-indicator",
+				role: "img",
+				"aria-label": `550W · ${statusText[status].label}`,
+				title: `550W · ${statusText[status].label}`
+			}, react.default.createElement("span", {
 				className: "moss-eye",
 				"data-status": status,
 				"aria-hidden": true
-			});
+			}));
 		}
-		function MossControl({ preferences, services }) {
-			const h = react.default.createElement;
+		function MossSurface({ preferences, services }) {
 			const settings = react.default.useSyncExternalStore(preferences.subscribe, preferences.getSnapshot);
 			const status = useStatus(services);
-			const identity = useIdentity(services);
-			const text = statusText[status];
-			const [open, setOpen] = react.default.useState(false);
-			const [copied, setCopied] = react.default.useState("");
-			const trigger = react.default.useRef(null);
-			const panel = react.default.useRef(null);
-			const panelId = react.default.useId();
-			const close = react.default.useCallback(() => {
-				setOpen(false);
-				trigger.current?.focus();
-			}, []);
-			react.default.useEffect(() => {
-				if (!open) return;
-				panel.current?.querySelector("button")?.focus();
-				const onKey = (event) => {
-					if (event.key === "Escape") {
-						event.preventDefault();
-						close();
-					}
-				};
-				const onPointer = (event) => {
-					if (event.target instanceof Node && !panel.current?.contains(event.target) && !trigger.current?.contains(event.target)) setOpen(false);
-				};
-				document.addEventListener("keydown", onKey);
-				document.addEventListener("pointerdown", onPointer);
-				return () => {
-					document.removeEventListener("keydown", onKey);
-					document.removeEventListener("pointerdown", onPointer);
-				};
-			}, [open, close]);
-			const copy = async () => {
-				try {
-					await navigator.clipboard.writeText(MOSS_PROMPT);
-					setCopied("已复制，粘贴到对话中发送。");
-				} catch {
-					setCopied("无法访问剪贴板，请手动选择复制。");
-				}
-			};
+			return react.default.createElement(react.default.Fragment, null, react.default.createElement(StatusLight, { status }), (0, react_dom.createPortal)(react.default.createElement("div", {
+				"data-moss-atmosphere": "",
+				"aria-hidden": true
+			}), document.getElementById("root") ?? document.body), react.default.createElement(RunningFlight, { enabled: settings.enabled }));
+		}
+		function ThemeSettings({ preferences }) {
+			const settings = react.default.useSyncExternalStore(preferences.subscribe, preferences.getSnapshot);
+			const h = react.default.createElement;
 			const setting = (key, label, hint) => h("label", {
 				className: "moss-setting",
 				key
@@ -1718,78 +1575,13 @@ void main(){
 				checked: settings[key],
 				onChange: (event) => preferences.update({ [key]: event.target.checked })
 			}));
-			const segments = Math.round(thrustFor[status] * 12);
-			return h(react.default.Fragment, null, h("button", {
-				ref: trigger,
-				type: "button",
-				className: "moss-trigger",
-				"data-status": status,
-				title: settings.enabled ? `550W · ${text.label}` : "550W · 主题已关闭",
-				"aria-label": "550W 控制台",
-				"aria-haspopup": "dialog",
-				"aria-expanded": open,
-				"aria-controls": open ? panelId : void 0,
-				onClick: () => setOpen((value) => !value)
-			}, h(Eye, { status }), h("span", {
-				className: "moss-trigger-state",
-				role: "status",
-				"aria-live": "polite",
-				"aria-atomic": true
-			}, text.label)), (0, react_dom.createPortal)(h("div", {
-				"data-moss-atmosphere": "",
-				"aria-hidden": true
-			}), document.getElementById("root") ?? document.body), h(RunningFlight, { enabled: settings.enabled }), open ? (0, react_dom.createPortal)(h("div", {
-				ref: panel,
-				id: panelId,
-				className: "moss-console",
-				role: "dialog",
-				"aria-label": "550W 控制台"
-			}, h("div", { className: "moss-console-head" }, h(Eye, { status }), h("div", { className: "moss-console-id" }, h("strong", null, h(BrandMark)), h("small", null, identity.active ? "智能量子计算机 · 当前会话已接入" : "智能量子计算机 · 当前会话未接入")), h("button", {
-				type: "button",
-				className: "moss-close",
-				"aria-label": "关闭 550W 控制台",
-				onClick: close
-			}, h(MossIcon, { name: "close" }))), h("div", { className: "moss-monitor" }, h(EarthScene, {
-				status,
-				scene: "console"
-			}), h("div", {
-				className: "moss-hud",
-				"aria-hidden": true
-			}, h("span", { className: "tl" }, "NAV / 地球航行"), h("span", { className: "tr" }, text.code), h("span", { className: "br" }, "视觉示意 · 非遥测"))), h("div", {
-				className: "moss-status",
-				"data-status": status
-			}, h("span", {
-				className: "moss-status-label",
-				role: "status"
-			}, text.label), h("span", { className: "moss-status-message" }, text.message), h("code", null, text.code)), h("div", {
-				className: "moss-thrust",
-				"aria-hidden": true
-			}, h("span", null, "发动机"), h("span", { className: "moss-thrust-bar" }, ...Array.from({ length: 12 }, (_, i) => h("i", {
-				key: i,
-				"data-on": String(i < segments)
-			}))), h("span", null, `${Math.round(thrustFor[status] * 100)}%`)), h("div", { className: "moss-section-label" }, h(MossIcon, { name: "connect" }), "AGENT / 身份"), h("div", {
-				className: "moss-identity",
-				"data-active": String(identity.active)
-			}, h("span", null, identity.active ? "550W 在线" : identity.available ? "550W 待接入" : "550W 预设未安装", h("small", null, identity.active ? "当前会话使用 550W 预设：标准编码工具 + 550W 人设。" : identity.available ? "新建一个使用 550W 预设的会话。现有会话保持原预设。" : "重新安装 dsh-moss-theme 并重启 DSH 后可用；也可使用下方的对话风格指令。")), identity.available && !identity.active && services.startSession ? h("button", {
-				type: "button",
-				className: "moss-connect",
-				onClick: () => {
-					identity.connect();
-					setOpen(false);
-				}
-			}, h(MossIcon, { name: "connect" }), "接入 550W") : null), h("div", { className: "moss-section-label" }, h(MossIcon, { name: "terminal" }), "INTERFACE / 界面"), h("div", { className: "moss-preferences" }, setting("enabled", "流浪地球主题", "深蓝灰终端 · 红色强调"), setting("ambient", "环境纹理", "仪表网格与冷光反射"), setting("motion", "界面动效", "地球航行、状态灯、文字显现")), h("details", { className: "moss-persona" }, h("summary", null, "对话风格指令", h("small", null, "用于未接入 550W 的会话")), h("p", null, "复制后自行发送到当前对话。仅影响表达风格，不更换预设或工具。"), h("textarea", {
-				readOnly: true,
-				value: MOSS_PROMPT,
-				"aria-label": "550W 对话风格指令"
-			}), h("div", { className: "moss-persona-actions" }, h("button", {
-				className: "moss-copy",
-				type: "button",
-				onClick: () => {
-					copy();
-				}
-			}, h(MossIcon, { name: "copy" }), "复制指令"), h("p", { role: "status" }, copied))), h("blockquote", { className: "moss-quote" }, "“让人类永远保持理智，确实是一种奢求。”", h("cite", null, "— 550W · 流浪地球")), h("div", { className: "moss-footnote" }, h("span", null, "THE WANDERING EARTH"), h("span", null, "DSH · 非官方致敬"))), document.body) : null);
+			return h("section", {
+				className: "moss-settings",
+				"aria-label": "550W 主题设置"
+			}, h("h3", null, "550W / 流浪地球"), setting("enabled", "流浪地球主题", "深蓝终端与信号红强调"), setting("ambient", "环境纹理", "仪表网格与冷光反射"), setting("motion", "界面动效", "地球航行与实时状态呼吸灯"));
 		}
 		//#endregion
+		exports.StatusLight = StatusLight;
 		exports.apply = apply;
 		exports.inject = inject;
 		return module.exports;
