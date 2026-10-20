@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import QuartzCore
+import SceneKit
 
 struct Preferences: Decodable {
     var enabled = true
@@ -28,81 +29,215 @@ final class NoticePanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 }
-/// A quiet, text-free Wandering Earth signal. Geometry is drawn at native points,
-/// so the atmospheric wake stays soft even in the small desktop footprint.
-struct OrbitSignal: View {
-    let attention: Bool
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion)) { timeline in
-            Canvas { context, size in
-                let t = reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate
-                let cy = size.height / 2
-                let center = CGPoint(x: 33, y: cy)
-                let r: CGFloat = 10
-                let blue = Color(red: 0.64, green: 0.84, blue: 0.95)
-                let red = Color(red: 0.95, green: 0.39, blue: 0.43)
-                for (x, y, opacity) in [(12.0, 12.0, 0.3), (70, 10, 0.2), (102, 28, 0.25), (89, 33, 0.15)] {
-                    context.fill(Path(ellipseIn: CGRect(x: x, y: y, width: 1, height: 1)), with: .color(.white.opacity(opacity)))
-                }
-                // Two unclosed atmospheric contours flow from the globe's limb.
-                for band in 0..<3 {
-                    let offset = CGFloat(band) * 1.6
-                    let wave = CGFloat(sin(t * 1.3 + Double(band))) * 1.4
-                    for side: CGFloat in [-1, 1] {
-                        var wake = Path()
-                        wake.move(to: CGPoint(x: 35, y: cy + side * (r + offset)))
-                        wake.addCurve(to: CGPoint(x: 104 - CGFloat(band) * 9, y: cy + side * (2.5 + offset) + wave),
-                                      control1: CGPoint(x: 55, y: cy + side * (r + offset)),
-                                      control2: CGPoint(x: 61, y: cy + side * (2 + offset) - wave))
-                        context.stroke(wake, with: .linearGradient(Gradient(colors: [blue.opacity(0.32 - Double(band) * 0.06), blue.opacity(0)]), startPoint: center, endPoint: CGPoint(x: 106, y: cy)), lineWidth: band == 0 ? 1.1 : 0.6)
-                    }
-                }
-                context.fill(Path(ellipseIn: CGRect(x: 17, y: cy - 16, width: 32, height: 32)), with: .radialGradient(Gradient(colors: [blue.opacity(0.24), blue.opacity(0)]), center: center, startRadius: 7, endRadius: 16))
-                let globe = CGRect(x: center.x - r, y: cy - r, width: r * 2, height: r * 2)
-                context.fill(Path(ellipseIn: globe), with: .radialGradient(Gradient(colors: [Color(red: 0.77, green: 0.9, blue: 0.98), Color(red: 0.27, green: 0.52, blue: 0.68), Color(red: 0.1, green: 0.23, blue: 0.35)]), center: CGPoint(x: 29, y: cy - 5), startRadius: 0, endRadius: 23))
-                var surface = context
-                surface.clip(to: Path(ellipseIn: globe))
-                // Project drifting ice/cloud fragments onto the visible hemisphere.
-                for patch in 0..<9 {
-                    let longitude = t * 0.65 + Double(patch) * 2.4
-                    let facing = cos(longitude)
-                    if facing > 0 {
-                        let x = center.x + CGFloat(sin(longitude)) * r * 0.88
-                        let y = cy + CGFloat(sin(Double(patch) * 1.7)) * 6
-                        surface.fill(Path(ellipseIn: CGRect(x: x - CGFloat(facing) * 3, y: y - 1.2, width: CGFloat(facing) * 6, height: 3.3)), with: .color(.white.opacity(0.34)))
-                    }
-                }
-                context.stroke(Path(ellipseIn: globe.insetBy(dx: -0.8, dy: -0.8)), with: .color(blue.opacity(0.55)), lineWidth: 0.7)
-                if attention {
-                    // A small drifting moon and red halo mark a choice or error.
-                    let moon = CGPoint(x: 79 + CGFloat(sin(t * 0.6)) * 2, y: cy - 2 + CGFloat(sin(t * 0.8)) * 2)
-                    let pulse = reduceMotion ? 0.25 : 0.18 + (sin(t * 2.2) + 1) * 0.08
-                    context.fill(Path(ellipseIn: CGRect(x: moon.x - 10, y: moon.y - 10, width: 20, height: 20)), with: .radialGradient(Gradient(colors: [red.opacity(pulse), red.opacity(0)]), center: moon, startRadius: 2, endRadius: 10))
-                    context.fill(Path(ellipseIn: CGRect(x: moon.x - 3.5, y: moon.y - 3.5, width: 7, height: 7)), with: .linearGradient(Gradient(colors: [Color(white: 0.86), Color(white: 0.3)]), startPoint: CGPoint(x: moon.x - 3, y: moon.y - 3), endPoint: CGPoint(x: moon.x + 3, y: moon.y + 3)))
-                    var orbit = Path()
-                    orbit.addArc(center: moon, radius: 6, startAngle: .degrees(t * 24), endAngle: .degrees(t * 24 + 110), clockwise: false)
-                    context.stroke(orbit, with: .color(red.opacity(0.55)), lineWidth: 0.8)
-                }
+/// Local surface maps and a normal field derived from lunar elevation data. No network requests,
+/// timer-driven texture allocations or bitmap scaling on each animation frame.
+enum PlanetAssets {
+    static let earth = image("earth-day")
+    static let clouds = image("earth-clouds")
+    static let moon = image("moon-color")
+    static let moonNormal = normals(image("moon-height"))
+    static func image(_ name: String) -> NSImage? {
+        guard let url = Bundle.main.url(forResource: name, withExtension: "jpg", subdirectory: "textures") else { return nil }
+        return NSImage(contentsOf: url)
+    }
+    static func bitmap(_ pixels: [UInt8], width: Int, height: Int) -> NSImage {
+        let data = Data(pixels) as CFData
+        let provider = CGDataProvider(data: data)!
+        let cg = CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue), provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent)!
+        return NSImage(cgImage: cg, size: NSSize(width: width, height: height))
+    }
+    static func normals(_ image: NSImage?) -> NSImage? {
+        guard let cg = image?.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+        let width = cg.width, height = cg.height
+        var elevation = [UInt8](repeating: 0, count: width * height * 4)
+        let drawn = elevation.withUnsafeMutableBytes { buffer -> Bool in
+            guard let context = CGContext(data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+            context.draw(cg, in: CGRect(x: 0, y: 0, width: width, height: height))
+            return true
+        }
+        guard drawn else { return nil }
+        var result = [UInt8](repeating: 255, count: elevation.count)
+        func sample(_ x: Int, _ y: Int) -> Double {
+            Double(elevation[(max(0, min(height - 1, y)) * width + (x + width) % width) * 4]) / 255
+        }
+        func byte(_ n: Double) -> UInt8 { UInt8(max(0, min(255, n * 255))) }
+        for y in 0..<height {
+            for x in 0..<width {
+                let out = (y * width + x) * 4
+                let nx = (sample(x - 1, y) - sample(x + 1, y)) * 4
+                let ny = (sample(x, y - 1) - sample(x, y + 1)) * 4
+                let length = sqrt(nx * nx + ny * ny + 1)
+                result[out] = byte(nx / length * 0.5 + 0.5)
+                result[out + 1] = byte(ny / length * 0.5 + 0.5)
+                result[out + 2] = byte(1 / length * 0.5 + 0.5)
             }
-        }.accessibilityHidden(true)
+        }
+        return bitmap(result, width: width, height: height)
+    }
+}
+final class PassivePlanetView: SCNView {
+    override var isOpaque: Bool { false }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+final class PlanetRenderer {
+    let scene = SCNScene()
+    let surface = SCNNode()
+    let clouds = SCNNode()
+    private var moving: Bool?
+    private let lunar: Bool
+    init(lunar: Bool) {
+        self.lunar = lunar
+        scene.background.contents = NSColor.clear
+        let camera = SCNNode()
+        camera.camera = SCNCamera()
+        camera.camera!.usesOrthographicProjection = true
+        camera.camera!.orthographicScale = 1.45
+        camera.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(camera)
+        let ambient = SCNNode()
+        ambient.light = SCNLight(); ambient.light!.type = .ambient
+        ambient.light!.color = lunar ? NSColor(white: 0.20, alpha: 1) : NSColor(red: 0.72, green: 0.84, blue: 0.94, alpha: 1)
+        ambient.light!.intensity = lunar ? 230 : 460
+        scene.rootNode.addChildNode(ambient)
+        let key = SCNNode()
+        key.light = SCNLight(); key.light!.type = .directional
+        key.light!.color = lunar ? NSColor(red: 1, green: 0.16, blue: 0.20, alpha: 1) : NSColor(red: 0.90, green: 0.97, blue: 1, alpha: 1)
+        key.light!.intensity = lunar ? 1000 : 840
+        key.eulerAngles = SCNVector3(-0.35, lunar ? 0.95 : -0.5, 0)
+        scene.rootNode.addChildNode(key)
+        let tilt = SCNNode()
+        tilt.eulerAngles.z = lunar ? -0.14 : 0.18
+        scene.rootNode.addChildNode(tilt)
+        let sphere = SCNSphere(radius: 1)
+        sphere.segmentCount = 96
+        let material = SCNMaterial()
+        material.lightingModel = .lambert
+        material.isDoubleSided = false
+        material.diffuse.contents = lunar ? (PlanetAssets.moon as Any? ?? NSColor.darkGray) : (PlanetAssets.earth as Any? ?? NSColor(red: 0.5, green: 0.75, blue: 0.87, alpha: 1))
+        material.diffuse.wrapS = .repeat
+        material.diffuse.minificationFilter = .linear
+        material.diffuse.magnificationFilter = .linear
+        if lunar {
+            material.normal.contents = PlanetAssets.moonNormal
+            material.normal.intensity = 1.15
+            material.shaderModifiers = [.surface: """
+            #pragma body
+            float value = dot(_surface.diffuse.rgb, vec3(0.21, 0.72, 0.07));
+            _surface.diffuse.rgb = vec3(0.10 + value * 0.40);
+            """]
+            material.emission.contents = NSColor(red: 0.014, green: 0.006, blue: 0.008, alpha: 1)
+        } else {
+            // Recolor the real coastlines into an airy, monochrome ice palette.
+            material.shaderModifiers = [.surface: """
+            #pragma body
+            vec3 map = _surface.diffuse.rgb;
+            float value = dot(map, vec3(0.21, 0.72, 0.07));
+            float land = max(smoothstep(-0.03, 0.10, map.g - map.b), smoothstep(0.48, 0.85, value));
+            _surface.diffuse.rgb = mix(vec3(0.34, 0.60, 0.76), vec3(0.68, 0.83, 0.91), land) * (0.90 + value * 0.18);
+            _surface.emission.rgb = vec3(0.018, 0.035, 0.05);
+            """]
+        }
+        sphere.firstMaterial = material
+        surface.geometry = sphere
+        surface.eulerAngles.y = lunar ? -0.35 : 0.85
+        tilt.addChildNode(surface)
+        if !lunar {
+            let shell = SCNSphere(radius: 1.008); shell.segmentCount = 96
+            let cloud = SCNMaterial()
+            cloud.lightingModel = .lambert
+            cloud.diffuse.contents = PlanetAssets.clouds
+            cloud.shaderModifiers = [.fragment: """
+            #pragma transparent
+            #pragma body
+            float cover = _surface.diffuse.r;
+            float opacity = smoothstep(0.06, 0.90, cover) * 0.44;
+            vec3 light = clamp(_output.color.rgb / max(cover, 0.001), 0.0, 1.0);
+            _output.color = vec4(light * vec3(0.91, 0.97, 1.0) * opacity, opacity);
+            """]
+            cloud.writesToDepthBuffer = false
+            shell.firstMaterial = cloud
+            clouds.geometry = shell
+            clouds.renderingOrder = 10
+            tilt.addChildNode(clouds)
+        }
+        // Thin Fresnel scattering follows the sphere's actual curved silhouette.
+        let atmosphere = SCNSphere(radius: lunar ? 1.012 : 1.035)
+        atmosphere.segmentCount = 96
+        let haze = SCNMaterial()
+        haze.lightingModel = .constant
+        haze.blendMode = .alpha
+        haze.writesToDepthBuffer = false
+        haze.shaderModifiers = [.fragment: """
+        #pragma transparent
+        #pragma body
+        float rim = pow(1.0 - clamp(abs(dot(normalize(_surface.normal), normalize(_surface.view))), 0.0, 1.0), 3.0);
+        float opacity = rim * \(lunar ? "0.22" : "0.34");
+        _output.color = vec4(vec3(\(lunar ? "0.84, 0.035, 0.065" : "0.48, 0.78, 1.0")) * opacity, opacity);
+        """]
+        atmosphere.firstMaterial = haze
+        let atmosphereNode = SCNNode(geometry: atmosphere)
+        atmosphereNode.renderingOrder = 20
+        tilt.addChildNode(atmosphereNode)
+    }
+    func setMotion(_ enabled: Bool) {
+        guard moving != enabled else { return }
+        moving = enabled
+        surface.removeAllActions(); clouds.removeAllActions()
+        guard enabled else { return }
+        surface.runAction(.repeatForever(.rotateBy(x: 0, y: .pi * 2, z: 0, duration: lunar ? 24 : 16)))
+        if !lunar { clouds.runAction(.repeatForever(.rotateBy(x: 0, y: .pi * 2, z: 0, duration: 19))) }
+    }
+}
+struct PlanetScene: NSViewRepresentable {
+    let lunar: Bool
+    let reduceMotion: Bool
+    func makeCoordinator() -> PlanetRenderer { PlanetRenderer(lunar: lunar) }
+    func makeNSView(context: Context) -> PassivePlanetView {
+        let view = PassivePlanetView(frame: .zero, options: [SCNView.Option.preferredRenderingAPI.rawValue: SCNRenderingAPI.metal.rawValue])
+        view.backgroundColor = .clear
+        view.scene = context.coordinator.scene
+        view.antialiasingMode = .multisampling4X
+        view.preferredFramesPerSecond = 30
+        view.autoenablesDefaultLighting = false
+        return view
+    }
+    func updateNSView(_ view: PassivePlanetView, context: Context) {
+        context.coordinator.setMotion(!reduceMotion)
+        view.rendersContinuously = !reduceMotion
+        view.isPlaying = !reduceMotion
+        view.needsDisplay = true
+    }
+    static func dismantleNSView(_ view: PassivePlanetView, coordinator: PlanetRenderer) {
+        coordinator.setMotion(false)
+        view.isPlaying = false; view.rendersContinuously = false; view.scene = nil
+    }
+}
+struct PlanetSignal: View {
+    let lunar: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var breathing = false
+    var tint: Color { lunar ? Color(red: 0.9, green: 0.15, blue: 0.21) : Color(red: 0.55, green: 0.81, blue: 1) }
+    var body: some View {
+        ZStack {
+            Circle().fill(RadialGradient(colors: [tint.opacity(lunar ? 0.19 : 0.13), tint.opacity(0)], center: .center, startRadius: 12, endRadius: 24))
+                .opacity(reduceMotion || !lunar ? 1 : (breathing ? 0.68 : 1))
+                .animation(reduceMotion || !lunar ? nil : .easeInOut(duration: 1.8).repeatForever(autoreverses: true), value: breathing)
+            PlanetScene(lunar: lunar, reduceMotion: reduceMotion).allowsHitTesting(false)
+        }
+        .frame(width: 48, height: 48)
+        .onAppear { breathing = true }
+        .accessibilityHidden(true)
     }
 }
 struct NoticeCard: View {
     let notice: Notice
-    let island: Bool
     let open: () -> Void
     var label: String { notice.kind == "complete" ? "任务完成" : (notice.kind == "error" ? "执行异常" : "需要选择") }
     var body: some View {
         Button(action: open) {
-            OrbitSignal(attention: notice.kind != "complete")
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .contentShape(Capsule())
+            PlanetSignal(lunar: notice.kind != "complete").contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .background(island ? Color.black.opacity(0.94) : Color(red: 0.035, green: 0.06, blue: 0.085).opacity(0.9))
-        .clipShape(Capsule())
-        .padding(1)
         .accessibilityLabel("\(label)，\(notice.title)")
         .accessibilityHint(notice.sessionId.isEmpty ? "关闭测试提醒" : "打开任务")
         .help("\(label) · \(notice.title)")
@@ -122,7 +257,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         panel.isReleasedWhenClosed = false
         panel.backgroundColor = .clear
         panel.isOpaque = false
-        panel.hasShadow = true
+        panel.hasShadow = false
         panel.hidesOnDeactivate = false
         panel.isFloatingPanel = true
         panel.title = "DSH 桌面提醒"
@@ -170,8 +305,8 @@ final class Controller: NSObject, NSApplicationDelegate {
     @objc func reposition() {
         guard let screen = screen else { return }
         let island = preferences.position == "island"
-        let width: CGFloat = min(124, screen.visibleFrame.width - 32)
-        let height: CGFloat = 40
+        let width: CGFloat = min(48, screen.visibleFrame.width - 32)
+        let height: CGFloat = 48
         let visible = screen.visibleFrame
         var x = visible.maxX - width - 22
         var y = visible.maxY - height - 22
@@ -211,7 +346,7 @@ final class Controller: NSObject, NSApplicationDelegate {
         let appearing = !panel.isVisible || displayedID != notice.id
         if appearing { expiresAt = Date().addingTimeInterval(max(3, min(30, preferences.duration))) }
         displayedID = notice.id
-        panel.contentView = NSHostingView(rootView: NoticeCard(notice: notice, island: preferences.position == "island", open: { self.open(notice) }).id(notice.id))
+        panel.contentView = NSHostingView(rootView: NoticeCard(notice: notice, open: { self.open(notice) }).id(notice.id))
         reposition()
         let destination = panel.frame
         if appearing && !reduced {

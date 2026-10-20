@@ -37,7 +37,18 @@ var NativeNotices = class {
 		this.onStatus();
 		try {
 			const source = await readFile(fileURLToPath(new URL("../native/DSHNotices.swift", import.meta.url)));
-			const hash = createHash("sha256").update(source).update(process.arch).digest("hex").slice(0, 20);
+			const textures = await Promise.all([
+				"earth-day.jpg",
+				"earth-clouds.jpg",
+				"moon-color.jpg",
+				"moon-height.jpg"
+			].map(async (name) => ({
+				name,
+				data: await readFile(fileURLToPath(new URL(`../native/textures/${name}`, import.meta.url)))
+			})));
+			const digest = createHash("sha256").update(source).update(process.arch);
+			for (const texture of textures) digest.update(texture.name).update(texture.data);
+			const hash = digest.digest("hex").slice(0, 20);
 			const app = join(homedir(), ".dsh", "cache", "desktop-notify", hash, "DSH Notices.app");
 			const bin = join(app, "Contents", "MacOS", "DSHNotices");
 			try {
@@ -47,6 +58,12 @@ var NativeNotices = class {
 					recursive: true,
 					mode: 448
 				});
+				const resources = join(app, "Contents", "Resources", "textures");
+				await mkdir(resources, {
+					recursive: true,
+					mode: 448
+				});
+				for (const texture of textures) await writeFile(join(resources, texture.name), texture.data);
 				const temporary = `${bin}.${process.pid}`;
 				await exec("/usr/bin/xcrun", [
 					"swiftc",
@@ -57,6 +74,8 @@ var NativeNotices = class {
 					"AppKit",
 					"-framework",
 					"SwiftUI",
+					"-framework",
+					"SceneKit",
 					fileURLToPath(new URL("../native/DSHNotices.swift", import.meta.url)),
 					"-o",
 					temporary

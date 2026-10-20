@@ -1,0 +1,22 @@
+Earth surface and cloud imagery
+
+NASA Visible Earth / NASA Goddard Space Flight Center, The Blue Marble.
+https://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57730/land_ocean_ice_2048.png
+https://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57747/cloud_combined_2048.jpg
+
+The local JPEG reductions are shared with this repository's 550W theme.
+The native material maps the surface to an icy-blue palette; cloud cover is a
+separate translucent sphere. Images are bundled locally with no network loads.
+NASA does not endorse this project.
+
+Lunar color and elevation maps
+
+NASA's Scientific Visualization Studio, CGI Moon Kit (Ernie Wright).
+LRO Camera (LROC) and Lunar Orbiter Laser Altimeter (LOLA) datasets.
+https://svs.gsfc.nasa.gov/4720/
+https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004720/lroc_color_poles_1k.jpg
+https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004720/ldem_3_8bit.jpg
+
+Images are bundled locally. A lunar normal map is calculated once from the
+elevation map; the native lighting supplies the theme's charcoal/red palette.
+NASA does not endorse this project. Shaders and application code are MIT.

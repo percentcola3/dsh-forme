@@ -97,9 +97,9 @@ Definitions are grouped by canonical project directory in `~/.dsh/quick-prompts.
 
 ### Desktop task alerts
 
-Open **桌面提醒** in the bottom-left account menu or in General settings. Choose left, right, top or island placement, then save. Alerts use server-side task events and a native macOS panel, so DSH can remain in the background. A quiet 124×40pt Earth animation marks completion; a small moon and red glow mark a decision or error. All alerts disappear after the configured duration without resolving pending requests. First use requires Xcode Command Line Tools. See the [plugin guide](plugins/dsh-desktop-notify/README.md).
+Open **桌面提醒** in the bottom-left account menu or in General settings. Choose left, right, top or island placement, then save. Alerts use server-side task events and a native macOS panel, so DSH can remain in the background. A single planet on a transparent 48×48pt canvas marks each alert: a softly lit pale-blue rotating Earth for completion, or a charcoal Moon with red side lighting for a decision or error. All alerts disappear after the configured duration without resolving pending requests. First use requires Xcode Command Line Tools. See the [plugin guide](plugins/dsh-desktop-notify/README.md).
 
-![Desktop notification settings](assets/desktop-notify-settings.png)
+![Planet task alerts](assets/desktop-notify-native.png)
 
 ### 550W console theme
 

@@ -103,7 +103,7 @@ export function NotifySettings({ close }: { close(): void }): React.ReactPortal 
         toggle('completion', '任务完成', '仅正常结束时提醒，取消和中断不会显示为完成。'),
         toggle('decisions', '需要选择或审批', '轻动画提示后自动收起，问题和审批仍在任务内等你处理。异常也会提醒。'),
         toggle('sound', '提示音', '每条新提醒播放一次轻提示音。'),
-        h('p', { className: 'dn-note' }, '小型地球动画表示完成，月球与红色微光表示需要关注。无文字提醒，到时自动消失；点击动画返回任务。'),
+        h('p', { className: 'dn-note' }, '完成时显示淡蓝色自转地球，需要审批或选择时切换为黑红月球。仅显示星球，到时自动消失；点击返回任务。'),
         h('div', { className: 'dn-status', role: 'status' }, busy ? '正在保存或准备原生提醒，首次编译可能需要片刻…' : state?.native.status === 'ready' ? '原生提醒已就绪 · 覆盖所有会话 · 前后台均有效' : state?.native.status === 'unavailable' ? state.native.error : '首次保存或测试会准备原生提醒，无需系统通知权限。'),
         error && h('div', { className: 'dn-error', role: 'alert' }, error),
         !!state?.recent.length && h('details', { className: 'dn-recent' }, h('summary', null, '最近提醒'), h('ol', null, ...state.recent.map((notice, i) => h('li', { key: `${notice.id}:${i}` }, h('span', { className: 'dn-pill', 'data-kind': notice.kind }, notice.kind === 'complete' ? '完成' : notice.kind === 'error' ? '异常' : '待选择'), h('span', null, notice.title), h('time', null, new Date(notice.at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }))))))

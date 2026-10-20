@@ -90,9 +90,9 @@ dsh plugin --profile web add 'git+ssh://git@github.com/percentcola3/dsh-forme.gi
 
 ## 桌面任务提醒
 
-点击左下角账号菜单里的「桌面提醒」或设置中的「通用」，选择左侧、右侧、顶部或灵动岛，保存后生效。服务端监听所有普通会话；DSH 在后台或最小化时仍可显示原生悬浮窗，不抢焦点。提醒缩为 124×40pt 的无文案地球动画，需要选择或异常时增加月球与红色微光。所有提醒均按配置时长自动消失，未处理的问题和审批仍在任务里等待。首次使用需要 Xcode Command Line Tools；自定义桌面位置目前支持 macOS。详见[插件说明](plugins/dsh-desktop-notify/README.md)。
+点击左下角账号菜单里的「桌面提醒」或设置中的「通用」，选择左侧、右侧、顶部或灵动岛，保存后生效。服务端监听所有普通会话；DSH 在后台或最小化时仍可显示原生悬浮窗，不抢焦点。提醒只在 48×48pt 透明画布内展示一颗星球：完成时是淡蓝色自转地球，需要审批、选择或异常时切换为黑红月球。所有提醒均按配置时长自动消失，未处理的问题和审批仍在任务里等待。首次使用需要 Xcode Command Line Tools；自定义桌面位置目前支持 macOS。详见[插件说明](plugins/dsh-desktop-notify/README.md)。
 
-![桌面提醒配置](assets/desktop-notify-settings.png)
+![完成时为地球，待审批时为月球](assets/desktop-notify-native.png)
 
 ## 550W 流浪地球主题
 
