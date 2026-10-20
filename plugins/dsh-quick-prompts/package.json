@@ -1,7 +1,7 @@
 {
   "name": "dsh-quick-prompts",
   "version": "0.1.0",
-  "description": "Saved shortcuts that launch native background subagents with a floating task panel for DeepSeek Harness.",
+  "description": "Saved shortcuts that launch native background subagents with task cards alongside the conversation for DeepSeek Harness.",
   "type": "module",
   "main": "./lib/index.js",
   "exports": {

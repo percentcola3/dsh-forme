@@ -13,7 +13,7 @@ Tested with **DeepSeek Harness Desktop 0.2.0-rc.2 on macOS**. The plugins extend
 | [`dsh-git-plus`](plugins/dsh-git-plus) | A Changes tab, side-by-side diffs, branch selection, AI commit messages, and commit/push requests sent to the current agent. |
 | [`dsh-file-preview`](plugins/dsh-file-preview) | A Files tab with the official file tree and Markdown/code previews; insert file and code-selection references into your draft. |
 | [`dsh-moss-theme`](plugins/dsh-moss-theme) | Wandering Earth inspired dark console, minimal status light, live session status, and a local theme toggle. |
-| [`dsh-quick-prompts`](plugins/dsh-quick-prompts) | Saved shortcuts launch native background subagents; a floating panel shows progress and results. |
+| [`dsh-quick-prompts`](plugins/dsh-quick-prompts) | Saved shortcuts launch native background subagents; a conversation task column shows progress and results. |
 | [`dsh-desktop-notify`](plugins/dsh-desktop-notify) | Native macOS task completion, approval, and question alerts with left, right, top, and island placement. |
 
 The root bundle installs these **five plugins**. Experimental task workspaces and a standalone terminal are outside this bundle. Quick Prompts passes both instructions and commands to background subagents.
@@ -89,7 +89,7 @@ Click **+** above the composer, enter a name and task content, then save. Click 
 
 All shortcuts launch **native background subagents** using the main Agent’s model, directory, preset and permissions, with fresh context. Both natural-language instructions and saved commands go through the AI. Legacy shortcut names and original content are preserved; the old three modes and model overrides no longer apply.
 
-A compact card window at the upper right scrolls independently. Cards show status, elapsed time and a two-line result preview; expand a card for tools and the full text. Tasks can run concurrently while you keep using the main composer; results do not automatically send messages to the main Agent. Collapse the panel without stopping tasks, use **停止** to interrupt one task, or **完整记录** to open its native session and handle pending interactions. Failed, blocked and interrupted runs are never presented as successful.
+Task cards occupy their own column beside the conversation. Messages and the composer shrink together when it opens and regain their width when it closes. Cards scroll independently and show status, elapsed time and two-line result previews; expand a card for tools and the full text. Narrow conversation areas stack the task list below the main conversation. Tasks can run concurrently while you keep using the main composer; results do not automatically send messages to the main Agent. Collapse the task column without stopping tasks, use **停止** to interrupt one task, or **完整记录** to open its native session and handle pending interactions. Failed, blocked and interrupted runs are never presented as successful.
 
 Definitions live in `~/.dsh/quick-prompts.json`. Labels show up to five characters; hover for the full name. The panel survives page refresh and session changes; its in-memory run list resets when DSH restarts. Persisted child sessions remain in DSH’s native subagent list. Requires the native `spawn` provider; verified on Desktop **0.2.1-rc.2**. See the [plugin guide](plugins/dsh-quick-prompts/README.md).
 

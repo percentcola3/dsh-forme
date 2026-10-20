@@ -181,22 +181,32 @@ window.__ModuleLoader__.load({
 .dqp-backdrop{position:fixed;inset:0;z-index:11020;display:grid;place-items:center;padding:20px;background:#040a12a8;backdrop-filter:blur(6px)}
 .dqp-dialog{width:440px;max-width:100%;max-height:calc(100vh - 40px);overflow:auto;box-sizing:border-box;padding:24px;border:1px solid var(--dsw-alias-border-l2,#899bb433);border-radius:16px;background:var(--dsw-alias-bg-layer-3,#152333);color:var(--dsw-alias-label-primary,#e1eaf3);box-shadow:0 20px 70px #0007;display:flex;flex-direction:column;gap:18px;font:13px/1.6 var(--moss-text,system-ui)}
 .dqp-dialog h3{margin:0;font-size:17px}.dqp-dialog label{display:flex;flex-direction:column;gap:7px}.dqp-dialog :is(input,textarea){width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--dsw-alias-border-l2,#899bb433);border-radius:8px;background:var(--dsw-alias-bg-layer-2,#101b29);color:inherit;font:inherit}.dqp-dialog textarea{min-height:170px;resize:vertical;line-height:1.7}.dqp-dialog small{color:var(--dsw-alias-label-tertiary,#8ea4b8)}.dqp-dialog footer{display:flex;gap:8px;justify-content:flex-end}.dqp-dialog button{padding:8px 15px;border:1px solid var(--dsw-alias-border-l2,#899bb433);border-radius:8px;background:var(--dsw-alias-bg-layer-2,#101b29);color:inherit;cursor:pointer;font:inherit}.dqp-dialog .dqp-save{background:#c7dce9;color:#14202c;border-color:transparent}.dqp-dialog .dqp-delete{margin-right:auto;color:#ef9398}.dqp-dialog button:disabled{opacity:.5;cursor:default}.dqp-dialog [role=alert]{color:#ef9398;margin:0}
-.dqp-float{
-  position:fixed;z-index:10015;right:18px;top:calc(var(--moss-chrome-height,36px) + 66px);
-  width:min(320px,calc(100vw - 28px));max-height:min(380px,48vh,calc(100vh - var(--moss-chrome-height,36px) - 210px));
-  display:flex;flex-direction:column;overflow:hidden;box-sizing:border-box;
-  border:1px solid #93adc333;border-radius:12px;background:linear-gradient(145deg,#172838f5,#101d2bf7);
-  backdrop-filter:blur(20px);color:#dce7ef;box-shadow:0 12px 36px #0005;
-  font:12px/1.6 var(--moss-text,system-ui);pointer-events:auto;
+/* One grid owns the host's message scroller (including its sticky composer)
+   and our task seat. No fixed layer or reserved body padding is involved. */
+.dqp-dock-seat{display:none}
+[data-conversation-content]:has(> .dqp-dock-seat > .dqp-dock){
+  display:grid;grid-template-columns:minmax(0,1fr) clamp(250px,26%,320px);grid-template-rows:minmax(0,1fr);
+  --dsh-chat-content-width:min(var(--dsh-chat-user-width,920px),calc(100% - 48px));
+  --dsh-composer-card-max-width:calc(var(--dsh-chat-content-width) + 32px);
 }
-.dqp-float-head{display:flex;align-items:center;gap:9px;min-height:42px;box-sizing:border-box;padding:8px 12px;border-bottom:1px solid #b9d3e416;flex:none}
-.dqp-float-head strong{font-size:12px;font-weight:600}
-.dqp-float-count{font-size:10px;color:#8ca7ba}
-.dqp-float button{cursor:pointer;font:inherit;color:inherit}
-.dqp-float-head button{display:grid;place-items:center;margin-left:auto;width:24px;height:24px;padding:0;border:0;border-radius:5px;background:transparent;color:#9eb6c9}
-.dqp-float-head button:hover{background:#adc9db12;color:#e2eff7}
-.dqp-float-body{overflow:auto;padding:8px;min-height:0;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#839eb644 transparent;scrollbar-gutter:stable}
-.dqp-float-empty{padding:18px 8px;text-align:center;color:#8faabd;font-size:11px}
+[data-conversation-content]:has(> .dqp-dock-seat > .dqp-dock)>[data-conversation-scroll]{grid-column:1;grid-row:1;min-width:0;overflow-x:hidden}
+[data-conversation-content]:has(> .dqp-dock-seat > .dqp-dock)>[data-width-handle]{display:none}
+.dqp-dock-seat:has(> .dqp-dock){
+  grid-column:2;grid-row:1;display:flex;min-width:0;min-height:0;overflow:hidden;
+  border-left:1px solid var(--dsw-alias-border-l3,#9db8ca22);
+  background:color-mix(in srgb,var(--dsw-alias-bg-base,#101c29) 92%,#9ab9d1 8%);
+}
+.dqp-dock{display:flex;flex:1;flex-direction:column;min-width:0;min-height:0;overflow:hidden;box-sizing:border-box;color:var(--dsw-alias-label-primary,#dce7ef);font:12px/1.6 var(--moss-text,system-ui)}
+[data-conversation-content][data-dqp-layout=stacked]:has(> .dqp-dock-seat > .dqp-dock){grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(0,min(220px,35%))}
+[data-dqp-layout=stacked]>.dqp-dock-seat:has(> .dqp-dock){grid-column:1;grid-row:2;border-left:0;border-top:1px solid var(--dsw-alias-border-l3,#9db8ca22)}
+.dqp-dock-head{display:flex;align-items:center;gap:9px;min-height:42px;box-sizing:border-box;padding:8px 12px;border-bottom:1px solid #b9d3e416;flex:none}
+.dqp-dock-head strong{font-size:12px;font-weight:600}
+.dqp-dock-count{font-size:10px;color:#8ca7ba}
+.dqp-dock button{cursor:pointer;font:inherit;color:inherit}
+.dqp-dock-head button{display:grid;place-items:center;margin-left:auto;width:24px;height:24px;padding:0;border:0;border-radius:5px;background:transparent;color:#9eb6c9}
+.dqp-dock-head button:hover{background:#adc9db12;color:#e2eff7}
+.dqp-dock-body{flex:1;overflow:auto;padding:8px;min-height:0;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#839eb644 transparent;scrollbar-gutter:stable}
+.dqp-dock-empty{padding:18px 8px;text-align:center;color:#8faabd;font-size:11px}
 .dqp-run-card{padding:10px;margin-bottom:7px;border:1px solid #a1b7cc1b;border-radius:8px;background:#8faec207}
 .dqp-run-card:last-child{margin-bottom:0}
 .dqp-run-heading{display:flex;gap:7px;align-items:center}
@@ -223,12 +233,83 @@ window.__ModuleLoader__.load({
 .dqp-dot[data-status=running],.dqp-dot[data-status=starting]{background:#b2d8ef;box-shadow:0 0 8px #98c7e188;animation:dqp-breathe 1.7s ease-in-out infinite}
 .dqp-dot[data-status=completed]{background:#84c9b4}
 .dqp-dot[data-status=failed],.dqp-dot[data-status=waiting]{background:#e97780}
-.dqp-float-collapsed{position:fixed;right:18px;top:calc(var(--moss-chrome-height,36px) + 66px);z-index:10015;display:flex;align-items:center;gap:7px;border:1px solid #9db8ca33;border-radius:8px;padding:7px 10px;background:#142334ed;color:#c0d6e7;box-shadow:0 6px 24px #0004;font:11px var(--moss-text,system-ui);cursor:pointer}
-.dqp-float-error{margin:0 0 8px;padding:8px;border:1px solid #ed8c9626;border-radius:6px;color:#f2a2a5;font-size:11px;overflow-wrap:anywhere}
-.dqp-dialog :is(button,input,textarea):focus-visible,.dqp-bar button:focus-visible,.dqp-float button:focus-visible,.dqp-float-body:focus-visible,.dqp-run-output:focus-visible,.dqp-float-collapsed:focus-visible{outline:2px solid #a3c8e1;outline-offset:2px}
+.dqp-dock-error{margin:0 0 8px;padding:8px;border:1px solid #ed8c9626;border-radius:6px;color:#f2a2a5;font-size:11px;overflow-wrap:anywhere}
+.dqp-dialog :is(button,input,textarea):focus-visible,.dqp-bar button:focus-visible,.dqp-dock button:focus-visible,.dqp-dock-body:focus-visible,.dqp-run-output:focus-visible{outline:2px solid #a3c8e1;outline-offset:2px}
 @keyframes dqp-breathe{50%{opacity:.35;box-shadow:0 0 3px #98c7e144}}@media(prefers-reduced-motion:reduce){.dqp-dot{animation:none!important}}body[data-moss-motion=off] .dqp-dot{animation:none}
-@media(max-width:600px){.dqp-float{right:10px;top:80px;max-height:min(360px,48vh)}.dqp-panel-trigger{font-size:10px!important}.dqp-float-collapsed{right:10px;top:85px}}
+@media(max-width:600px){.dqp-panel-trigger{font-size:10px!important}}
 `;
+		//#endregion
+		//#region src/client/task-dock.ts
+		/** Add only our portal seat. The host keeps ownership of its chat/composer tree. */
+		function installTaskDock(root, onSeat) {
+			const seat = root.ownerDocument.createElement("div");
+			seat.className = "dqp-dock-seat";
+			let content;
+			let previousLayout = null;
+			let publishedLayout;
+			let frame;
+			let stopped = false;
+			const measure = () => {
+				if (!content) return;
+				const next = content.clientWidth >= 820 ? "columns" : "stacked";
+				if (content.getAttribute("data-dqp-layout") !== next) content.setAttribute("data-dqp-layout", next);
+				publishedLayout = next;
+			};
+			const resize = new ResizeObserver(measure);
+			const release = () => {
+				resize.disconnect();
+				if (content && content.getAttribute("data-dqp-layout") === publishedLayout) {
+					if (previousLayout === null) content.removeAttribute("data-dqp-layout");
+					else content.setAttribute("data-dqp-layout", previousLayout);
+				}
+				seat.remove();
+				content = void 0;
+				publishedLayout = void 0;
+			};
+			const sync = () => {
+				frame = void 0;
+				if (stopped) return;
+				const candidates = Array.from(root.querySelectorAll("[data-conversation-content]")).filter((node) => !node.closest("[data-sidebar-right-panel],[data-sidebar-chat],[hidden],[aria-hidden=\"true\"]") && node.getClientRects().length > 0);
+				const next = candidates.find((node) => node.closest("[data-slot=\"main.conversation\"]")) ?? candidates[0];
+				if (next === content && seat.parentElement === content) {
+					measure();
+					return;
+				}
+				release();
+				if (!next) {
+					onSeat(null);
+					return;
+				}
+				content = next;
+				previousLayout = content.getAttribute("data-dqp-layout");
+				content.appendChild(seat);
+				resize.observe(content);
+				measure();
+				onSeat(seat);
+			};
+			const schedule = () => {
+				if (!stopped && frame === void 0) frame = requestAnimationFrame(sync);
+			};
+			const mutations = new MutationObserver(schedule);
+			mutations.observe(root, {
+				childList: true,
+				subtree: true,
+				attributes: true,
+				attributeFilter: [
+					"hidden",
+					"aria-hidden",
+					"data-conversation-session",
+					"class"
+				]
+			});
+			sync();
+			return () => {
+				stopped = true;
+				mutations.disconnect();
+				if (frame !== void 0) cancelAnimationFrame(frame);
+				release();
+			};
+		}
 		//#endregion
 		//#region src/client/index.ts
 		const inject = ["slots", "uiWorkspace"];
@@ -390,7 +471,7 @@ window.__ModuleLoader__.load({
 					...draft,
 					text: event.target.value
 				})
-			})), h("small", null, "沿用主 Agent 的模型、工作目录与权限。结果和执行进度显示在右侧悬浮面板，不占用主对话输入框。"), error && h("p", { role: "alert" }, error), h("footer", null, draft.id && h("button", {
+			})), h("small", null, "沿用主 Agent 的模型、工作目录与权限。结果和执行进度显示在对话右侧任务栏，主对话可继续使用。"), error && h("p", { role: "alert" }, error), h("footer", null, draft.id && h("button", {
 				type: "button",
 				className: "dqp-delete",
 				disabled: saving,
@@ -459,6 +540,8 @@ window.__ModuleLoader__.load({
 		function TaskPanel({ ctx, tasks }) {
 			const state = react.default.useSyncExternalStore(tasks.subscribe, tasks.getSnapshot);
 			const [now, setNow] = react.default.useState(Date.now);
+			const [seat, setSeat] = react.default.useState(null);
+			react.default.useLayoutEffect(() => installTaskDock(document.body, setSeat), []);
 			const count = state.runs.filter((run) => active(run.status)).length;
 			react.default.useEffect(() => {
 				if (!state.open || !count) return;
@@ -466,21 +549,13 @@ window.__ModuleLoader__.load({
 				const timer = setInterval(() => setNow(Date.now()), 1e3);
 				return () => clearInterval(timer);
 			}, [state.open, count]);
-			if (!state.open) return state.runs.length ? (0, react_dom.createPortal)(h("button", {
-				type: "button",
-				className: "dqp-float-collapsed",
-				"aria-label": "展开后台快捷任务",
-				onClick: () => tasks.show()
-			}, h("i", {
-				className: "dqp-dot",
-				"data-status": count ? "running" : "stopped"
-			}), "后台任务", count ? ` · ${count}` : ""), document.body) : null;
+			if (!state.open || !seat) return null;
 			const runs = [...state.runs].sort((a, b) => Number(active(b.status)) - Number(active(a.status)) || b.startedAt - a.startedAt).slice(0, 20);
 			return (0, react_dom.createPortal)(h("aside", {
-				className: "dqp-float",
+				className: "dqp-dock",
 				"aria-label": "后台快捷任务"
-			}, h("header", { className: "dqp-float-head" }, h("strong", null, "快捷任务"), h("span", {
-				className: "dqp-float-count",
+			}, h("header", { className: "dqp-dock-head" }, h("strong", null, "快捷任务"), h("span", {
+				className: "dqp-dock-count",
 				role: "status"
 			}, count ? `${count} 个执行中` : `${runs.length} 条记录`), h("button", {
 				type: "button",
@@ -495,20 +570,20 @@ window.__ModuleLoader__.load({
 				strokeWidth: 1.6,
 				"aria-hidden": true
 			}, h("path", { d: "M5 12h14" })))), h("div", {
-				className: "dqp-float-body",
+				className: "dqp-dock-body",
 				role: "region",
 				"aria-label": "快捷任务列表",
 				tabIndex: 0
 			}, (state.error || state.syncError) && h("p", {
 				role: "alert",
-				className: "dqp-float-error"
-			}, state.error || state.syncError), !runs.length && h("div", { className: "dqp-float-empty" }, "点击快捷指令，在后台执行任务。"), ...runs.map((run) => h(RunCard, {
+				className: "dqp-dock-error"
+			}, state.error || state.syncError), !runs.length && h("div", { className: "dqp-dock-empty" }, "点击快捷指令，在后台执行任务。"), ...runs.map((run) => h(RunCard, {
 				key: run.id,
 				ctx,
 				tasks,
 				run,
 				now
-			})))), document.body);
+			})))), seat);
 		}
 		function RunCard({ ctx, tasks, run, now }) {
 			const [expanded, setExpanded] = react.default.useState(false);

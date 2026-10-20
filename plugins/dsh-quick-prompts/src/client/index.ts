@@ -5,6 +5,7 @@ import { taskRequest, createTasks, openRun, type TaskStore, type Prompt } from '
 import { shortName, currentSessionId } from './logic.ts'
 import { active, statusLabels, type TaskRun } from '../types.ts'
 import { styles } from './styles.ts'
+import { installTaskDock } from './task-dock.ts'
 export const inject = ['slots', 'uiWorkspace']
 const h = React.createElement
 type Draft = Omit<Prompt, 'id'> & { id?: string }
@@ -61,7 +62,7 @@ export function QuickPrompts({ ctx, tasks, sessionId }: { ctx: Context; tasks: T
       h('small', null, '后台子 Agent · 主对话继续运行'),
       h('label', null, '名称', h('input', { ref: nameInput, value: draft.name, maxLength: 100, disabled: saving, placeholder: '例如：检查代码', onChange: (event: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, name: event.target.value }) }), h('small', null, '按钮最多显示 5 个字，悬停查看全名。')),
       h('label', null, '任务内容', h('textarea', { value: draft.text, maxLength: 32000, disabled: saving, placeholder: '描述要交给子 Agent 的任务，也可以填写需要 AI 执行的命令…', onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => setDraft({ ...draft, text: event.target.value }) })),
-      h('small', null, '沿用主 Agent 的模型、工作目录与权限。结果和执行进度显示在右侧悬浮面板，不占用主对话输入框。'),
+      h('small', null, '沿用主 Agent 的模型、工作目录与权限。结果和执行进度显示在对话右侧任务栏，主对话可继续使用。'),
       error && h('p', { role: 'alert' }, error),
       h('footer', null, draft.id && h('button', { type: 'button', className: 'dqp-delete', disabled: saving, onClick: () => { void save('delete') } }, '删除'), h('button', { type: 'button', disabled: saving, onClick: close }, '取消'), h('button', { type: 'submit', className: 'dqp-save', disabled: saving || !draft.name.trim() || !draft.text.trim() }, saving ? '保存中…' : '保存')))), document.body) : null
   const running = state.runs.filter(run => active(run.status)).length
@@ -88,6 +89,8 @@ function elapsed(run: TaskRun, now: number): string { const seconds = Math.max(0
 export function TaskPanel({ ctx, tasks }: { ctx: Context; tasks: TaskStore }): React.ReactPortal | null {
   const state = React.useSyncExternalStore(tasks.subscribe, tasks.getSnapshot)
   const [now, setNow] = React.useState(Date.now)
+  const [seat, setSeat] = React.useState<HTMLElement | null>(null)
+  React.useLayoutEffect(() => installTaskDock(document.body, setSeat), [])
   const count = state.runs.filter(run => active(run.status)).length
   React.useEffect(() => {
     if (!state.open || !count) return
@@ -95,20 +98,18 @@ export function TaskPanel({ ctx, tasks }: { ctx: Context; tasks: TaskStore }): R
     const timer = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
   }, [state.open, count])
-  if (!state.open) return state.runs.length ? createPortal(
-    h('button', { type: 'button', className: 'dqp-float-collapsed', 'aria-label': '展开后台快捷任务', onClick: () => tasks.show() },
-      h('i', { className: 'dqp-dot', 'data-status': count ? 'running' : 'stopped' }), '后台任务', count ? ` · ${count}` : ''), document.body) : null
+  if (!state.open || !seat) return null
   const runs = [...state.runs].sort((a, b) => Number(active(b.status)) - Number(active(a.status)) || b.startedAt - a.startedAt).slice(0, 20)
-  return createPortal(h('aside', { className: 'dqp-float', 'aria-label': '后台快捷任务' },
-    h('header', { className: 'dqp-float-head' },
+  return createPortal(h('aside', { className: 'dqp-dock', 'aria-label': '后台快捷任务' },
+    h('header', { className: 'dqp-dock-head' },
       h('strong', null, '快捷任务'),
-      h('span', { className: 'dqp-float-count', role: 'status' }, count ? `${count} 个执行中` : `${runs.length} 条记录`),
+      h('span', { className: 'dqp-dock-count', role: 'status' }, count ? `${count} 个执行中` : `${runs.length} 条记录`),
       h('button', { type: 'button', 'aria-label': '收起后台任务面板', onClick: () => tasks.show(false) },
         h('svg', { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, 'aria-hidden': true }, h('path', { d: 'M5 12h14' })))),
-    h('div', { className: 'dqp-float-body', role: 'region', 'aria-label': '快捷任务列表', tabIndex: 0 },
-      (state.error || state.syncError) && h('p', { role: 'alert', className: 'dqp-float-error' }, state.error || state.syncError),
-      !runs.length && h('div', { className: 'dqp-float-empty' }, '点击快捷指令，在后台执行任务。'),
-      ...runs.map(run => h(RunCard, { key: run.id, ctx, tasks, run, now })))), document.body)
+    h('div', { className: 'dqp-dock-body', role: 'region', 'aria-label': '快捷任务列表', tabIndex: 0 },
+      (state.error || state.syncError) && h('p', { role: 'alert', className: 'dqp-dock-error' }, state.error || state.syncError),
+      !runs.length && h('div', { className: 'dqp-dock-empty' }, '点击快捷指令，在后台执行任务。'),
+      ...runs.map(run => h(RunCard, { key: run.id, ctx, tasks, run, now })))), seat)
 }
 function RunCard({ ctx, tasks, run, now }: { ctx: Context; tasks: TaskStore; run: TaskRun; now: number }): React.ReactElement {
   const [expanded, setExpanded] = React.useState(false)
