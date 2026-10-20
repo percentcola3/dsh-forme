@@ -6,6 +6,7 @@ import { apply } from '../src/client/index.ts'
 import type { Context } from '@deepseek-ai/cordis'
 import type { SessionActivity, SessionSnapshot } from '../src/client/state.ts'
 import { MossIcon, type IconName } from '../src/client/icons.ts'
+import { DepartmentIcon } from '../src/client/department-art.ts'
 import { bootCSS, installBootBrand } from '../src/boot-brand.ts'
 
 function store<T>(initial: T) {
@@ -146,8 +147,12 @@ function Preview() {
     mounted && renderSlot('shell.overlay'),
     startup && h(StartupPreview, { onDone: finishStartup }),
     h('aside', { className: 'fixture-sidebar' }, h('div', { className: 'fixture-brand' }, mounted ? renderSlot('sidebar.brand.name') : 'DSH'),
-      h('button', { className: 'fixture-new' }, h(MossIcon, { name: 'plus' }), '新建任务'), h('div', { className: 'fixture-label' }, '工作空间 / WORKSPACES'),
-      h('div', { className: 'fixture-project' }, h(MossIcon, { name: 'folder' }), 'dsh-forme'),
+      h('button', { className: 'fixture-new' }, h(MossIcon, { name: 'plus' }), '新建任务'),
+      h('nav', { className: 'fixture-panels', 'aria-label': '全局面板' },
+        h('button', { type: 'button', onClick: () => setDetails(value => !value) }, h(DepartmentIcon, { name: 'gabon' }), '插件'),
+        h('button', { type: 'button', onClick: () => setSettings(value => !value) }, h(DepartmentIcon, { name: 'flight' }), '自动化任务')),
+      h('div', { className: 'fixture-label' }, '工作空间 / WORKSPACES'),
+      h('div', { className: 'fixture-project', role: 'treeitem', 'data-row-key': 'workspace:preview', 'aria-expanded': true }, h('span', null, h(MossIcon, { name: 'folder' })), 'dsh-forme'),
       h('div', { role: 'tree', 'aria-label': '示例任务列表' }, ...['550W 界面主题', '项目结构分析', '构建与验证'].map(label => h('button', { key: label, className: 'fixture-task', role: 'treeitem', 'aria-selected': selectedTask === label, onClick: () => setSelectedTask(label) }, h(MossIcon, { name: 'chat' }), label))),
       h('div', { className: 'fixture-side-bottom' }, h(MossIcon, { name: 'orbit' }), '本地工作空间', h('small', null, '领航员终端 · LOCAL WORKSPACE'))),
     h('main', { 'data-conversation-scroll': '' }, h('header', { 'data-window-drag': '' }, h('div', { 'data-conversation-header-leading': '' }, mounted && renderSlot('conversation.header.leading')), h('div', { className: 'fixture-session-title', 'data-slot': 'conversation.session.header' }, h('nav', { 'aria-label': '会话层级' }, h('strong', null, '550W 界面主题'))), h('nav', { role: 'tablist', 'aria-label': '工作视图' }, h('button', { role: 'tab', 'aria-selected': true }, h(MossIcon, { name: 'chat' }), '对话'), h('button', { role: 'tab', 'aria-selected': false }, h(MossIcon, { name: 'folder' }), '文件'), h('button', { role: 'tab', 'aria-selected': false }, h(MossIcon, { name: 'changes' }), '变更'))),

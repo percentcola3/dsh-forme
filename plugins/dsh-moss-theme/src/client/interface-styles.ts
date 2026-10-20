@@ -1,4 +1,5 @@
 import { iconURL } from './icons.ts'
+import { departmentURL } from './department-art.ts'
 
 const theme = 'body[data-moss-theme="on"]'
 // User content/text are host factories (no slot wrapper). The final span is
@@ -18,13 +19,14 @@ ${theme} {
   --dsw-alias-interactive-bg-hover-solid:#213347;
   --dsw-focus-ring-color:#d75b62;
 }
-/* Theme only the workspace folder seat. The native hover chevron and actions
+/* The UEG polar globe/laurel badge occupies only the workspace folder seat.
+   The native hover chevron and actions
    keep their layout and behavior; currentColor retains the active red state. */
 ${theme} [role="treeitem"][data-row-key^="workspace:"] > span:first-child { position:relative; }
 ${theme} [role="treeitem"][data-row-key^="workspace:"] > span:first-child > svg { visibility:hidden; }
 ${theme} [role="treeitem"][data-row-key^="workspace:"] > span:first-child::before {
   content:''; position:absolute; width:18px; height:18px; inset:50% auto auto 50%; transform:translate(-50%,-50%);
-  background:currentColor; mask:${iconURL('planet')} center/contain no-repeat; pointer-events:none;
+  background:currentColor; mask:${departmentURL('ueg')} center/contain no-repeat; pointer-events:none;
 }
 /* Select, hover and keyboard focus have distinct, consistent affordances. */
 ${theme} :is([role="treeitem"],[role="option"])[aria-selected="true"],
@@ -81,6 +83,7 @@ ${theme} :has(> [data-code-block-banner]) { border-radius:5px; corner-shape:roun
 ${theme} [data-code-block-content] { background-color:#0a1420; }
 
 .moss-icon { display:inline-block; width:16px; height:16px; flex:none; vertical-align:-3px; }
+.moss-department-icon { display:block; flex:none; }
 @media (prefers-reduced-motion:reduce) {
   ${theme} :is(header[data-window-drag],[data-turn-tail],[data-code-block-banner]) button svg { transition:none; }
 }
