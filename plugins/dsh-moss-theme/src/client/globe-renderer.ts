@@ -12,12 +12,14 @@ export type SceneLayout = {
   /** Wake length in Earth radii at full thrust. */
   tail: number
   stars: number
+  /** Visual rotation period, independent of the wake and engine animation. */
+  rotationSeconds: number
 }
 
 export const scenes = {
-  hero: { earth: [.95, .02, .62], thrust: [-.996, -.09], tail: 5.5, stars: 1 },
-  console: { earth: [.72, 0, .6], thrust: [-.995, -.1], tail: 4.5, stars: 1 },
-  loading: { earth: [1.08, 0, .62], anchor: 'left', thrust: [.999, -.04], tail: 15, stars: .55 },
+  hero: { earth: [.95, .02, .62], thrust: [-.996, -.09], tail: 5.5, stars: 1, rotationSeconds: 40 },
+  console: { earth: [.72, 0, .6], thrust: [-.995, -.1], tail: 4.5, stars: 1, rotationSeconds: 32 },
+  loading: { earth: [1.08, 0, .62], anchor: 'left', thrust: [.999, -.04], tail: 15, stars: .55, rotationSeconds: 18 },
 } satisfies Record<string, SceneLayout>
 export type SceneName = keyof typeof scenes
 
@@ -30,6 +32,7 @@ varying vec2 uv;
 uniform sampler2D surfaceMap;
 uniform sampler2D cloudMap;
 uniform float time;
+uniform float rotation;
 uniform float activity;
 uniform float aspect;
 uniform float pixel;
@@ -154,7 +157,7 @@ void main(){
     vec3 n=vec3(rel/max(r,1e-4)*lc,sqrt(max(0.,1.-lc*lc)));
     float c=cos(.4),sn=sin(.4);
     vec3 a=vec3(n.x*c+n.y*sn,-n.x*sn+n.y*c,n.z);
-    vec2 map=vec2(fract(atan(a.x,a.z)/(2.*PI)+.62+time/180.),acos(clamp(a.y,-1.,1.))/PI);
+    vec2 map=vec2(fract(atan(a.x,a.z)/(2.*PI)+.62+rotation),acos(clamp(a.y,-1.,1.))/PI);
     vec3 land=texture2D(surfaceMap,map).rgb;
     float cloud=texture2D(cloudMap,vec2(fract(map.x+time*.0005),map.y)).r;
     float water=smoothstep(.04,.18,land.b-land.r);
@@ -229,6 +232,7 @@ export function mountEarth(canvas: HTMLCanvasElement, textures: Textures): () =>
   let ready = false
   let last = 0
   let clock = 0
+  let rotation = 0
   let thrust = Number.NaN
   const reduced = matchMedia('(prefers-reduced-motion: reduce)')
   const moving = () => document.body.dataset.mossMotion !== 'off' && !reduced.matches
@@ -291,7 +295,7 @@ export function mountEarth(canvas: HTMLCanvasElement, textures: Textures): () =>
       gl.uniform1i(gl.getUniformLocation(program, unit === 0 ? 'surfaceMap' : 'cloudMap'), unit)
     })
     const u = (name: string) => gl.getUniformLocation(program, name)
-    const loc = { time: u('time'), activity: u('activity'), aspect: u('aspect'), pixel: u('pixel'), stars: u('starAmount'), tail: u('tailLength'), earth: u('earth'), thrust: u('thrust') }
+    const loc = { time: u('time'), rotation: u('rotation'), activity: u('activity'), aspect: u('aspect'), pixel: u('pixel'), stars: u('starAmount'), tail: u('tailLength'), earth: u('earth'), thrust: u('thrust') }
     draw = (dt: number) => {
       const cssWidth = canvas.clientWidth, cssHeight = canvas.clientHeight
       if (!cssWidth || !cssHeight) return
@@ -300,6 +304,9 @@ export function mountEarth(canvas: HTMLCanvasElement, textures: Textures): () =>
       const width = Math.round(cssWidth * scale), height = Math.round(cssHeight * scale)
       if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height }
       const layout: SceneLayout = scenes[(canvas.dataset.scene as SceneName) ?? 'hero'] ?? scenes.hero
+      // Advance geography and clouds around the tilted axis without speeding
+      // up the atmospheric wake. Keep a continuous phase across status changes.
+      rotation = (rotation + dt / layout.rotationSeconds) % 1
       const aspect = width / height
       const target = Math.max(0, Math.min(1, Number(canvas.dataset.thrust ?? .4) || 0))
       // Engines throttle smoothly between session states instead of snapping.
@@ -307,6 +314,7 @@ export function mountEarth(canvas: HTMLCanvasElement, textures: Textures): () =>
       const [ex, ey, er] = layout.earth
       gl.viewport(0, 0, width, height)
       gl.uniform1f(loc.time, clock)
+      gl.uniform1f(loc.rotation, rotation)
       gl.uniform1f(loc.activity, thrust)
       gl.uniform1f(loc.aspect, aspect)
       gl.uniform1f(loc.pixel, 2 / height)

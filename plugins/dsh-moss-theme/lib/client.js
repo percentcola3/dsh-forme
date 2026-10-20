@@ -878,6 +878,7 @@ body[data-moss-motion="off"] .moss-scene-canvas { transition:none; }
 			let ready = false;
 			let last = 0;
 			let clock = 0;
+			let rotation = 0;
 			let thrust = NaN;
 			const reduced = matchMedia("(prefers-reduced-motion: reduce)");
 			const moving = () => document.body.dataset.mossMotion !== "off" && !reduced.matches;
@@ -984,6 +985,7 @@ body[data-moss-motion="off"] .moss-scene-canvas { transition:none; }
 				const u = (name) => gl.getUniformLocation(program, name);
 				const loc = {
 					time: u("time"),
+					rotation: u("rotation"),
 					activity: u("activity"),
 					aspect: u("aspect"),
 					pixel: u("pixel"),
@@ -1003,12 +1005,14 @@ body[data-moss-motion="off"] .moss-scene-canvas { transition:none; }
 						canvas.height = height;
 					}
 					const layout = scenes[canvas.dataset.scene ?? "hero"] ?? scenes.hero;
+					rotation = (rotation + dt / layout.rotationSeconds) % 1;
 					const aspect = width / height;
 					const target = Math.max(0, Math.min(1, Number(canvas.dataset.thrust ?? .4) || 0));
 					thrust = Number.isNaN(thrust) || !moving() ? target : thrust + (target - thrust) * Math.min(1, dt * 1.6);
 					const [ex, ey, er] = layout.earth;
 					gl.viewport(0, 0, width, height);
 					gl.uniform1f(loc.time, clock);
+					gl.uniform1f(loc.rotation, rotation);
 					gl.uniform1f(loc.activity, thrust);
 					gl.uniform1f(loc.aspect, aspect);
 					gl.uniform1f(loc.pixel, 2 / height);
@@ -1045,7 +1049,8 @@ body[data-moss-motion="off"] .moss-scene-canvas { transition:none; }
 					],
 					thrust: [-.996, -.09],
 					tail: 5.5,
-					stars: 1
+					stars: 1,
+					rotationSeconds: 40
 				},
 				console: {
 					earth: [
@@ -1055,7 +1060,8 @@ body[data-moss-motion="off"] .moss-scene-canvas { transition:none; }
 					],
 					thrust: [-.995, -.1],
 					tail: 4.5,
-					stars: 1
+					stars: 1,
+					rotationSeconds: 32
 				},
 				loading: {
 					earth: [
@@ -1066,7 +1072,8 @@ body[data-moss-motion="off"] .moss-scene-canvas { transition:none; }
 					anchor: "left",
 					thrust: [.999, -.04],
 					tail: 15,
-					stars: .55
+					stars: .55,
+					rotationSeconds: 18
 				}
 			};
 			vertex = `attribute vec2 position; varying vec2 uv;
@@ -1077,6 +1084,7 @@ varying vec2 uv;
 uniform sampler2D surfaceMap;
 uniform sampler2D cloudMap;
 uniform float time;
+uniform float rotation;
 uniform float activity;
 uniform float aspect;
 uniform float pixel;
@@ -1201,7 +1209,7 @@ void main(){
     vec3 n=vec3(rel/max(r,1e-4)*lc,sqrt(max(0.,1.-lc*lc)));
     float c=cos(.4),sn=sin(.4);
     vec3 a=vec3(n.x*c+n.y*sn,-n.x*sn+n.y*c,n.z);
-    vec2 map=vec2(fract(atan(a.x,a.z)/(2.*PI)+.62+time/180.),acos(clamp(a.y,-1.,1.))/PI);
+    vec2 map=vec2(fract(atan(a.x,a.z)/(2.*PI)+.62+rotation),acos(clamp(a.y,-1.,1.))/PI);
     vec3 land=texture2D(surfaceMap,map).rgb;
     float cloud=texture2D(cloudMap,vec2(fract(map.x+time*.0005),map.y)).r;
     float water=smoothstep(.04,.18,land.b-land.r);

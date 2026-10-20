@@ -50,6 +50,7 @@ test('scene rendering pauses when hidden or motion is disabled and releases GPU 
     runFrame(160)
     const runningTime = uniforms.get('time')
     assert.ok(runningTime > 0, 'plasma and rotation advance on successive frames')
+    assert.ok(Math.abs(uniforms.get('rotation') - runningTime / 18) < 1e-8, 'the small loading globe rotates visibly without accelerating the wake clock')
     assert.equal(uniforms.get('activity'), .4)
     const [earthX] = uniforms.get('earth')
     assert.ok(earthX < -1.5 && earthX > -3, 'the loading strip anchors Earth to its left edge')
@@ -59,12 +60,15 @@ test('scene rendering pauses when hidden or motion is disabled and releases GPU 
     assert.ok(ramp > .4 && ramp < 1, 'engines throttle up smoothly instead of snapping')
     for (let t = 300; t < 4000; t += 100) runFrame(t)
     assert.ok(uniforms.get('activity') > .99, 'processing reaches full thrust')
+    assert.ok(Math.abs(uniforms.get('rotation') - uniforms.get('time') / 18) < 1e-8, 'changing engine activity must not reset or accelerate the globe')
     const cruisingTime = uniforms.get('time')
+    const cruisingRotation = uniforms.get('rotation')
     doc.body.dataset.mossMotion = 'off'
     observers[0].callback()
     runFrame(4100)
     assert.equal(frames.size, 0, 'reduced motion must not leave an animation loop')
     assert.equal(uniforms.get('time'), cruisingTime, 'turning motion off freezes the gas field as well as the globe')
+    assert.equal(uniforms.get('rotation'), cruisingRotation, 'motion settings freeze the surface as well as the tail')
     delete doc.body.dataset.mossMotion
     observers[0].callback()
     doc.hidden = true; listeners.get('visibilitychange')()
