@@ -13,10 +13,10 @@ Tested with **DeepSeek Harness Desktop 0.2.0-rc.2 on macOS**. The plugins extend
 | [`dsh-git-plus`](plugins/dsh-git-plus) | A Changes tab, side-by-side diffs, branch selection, AI commit messages, and commit/push requests sent to the current agent. |
 | [`dsh-file-preview`](plugins/dsh-file-preview) | A Files tab with the official file tree and Markdown/code previews; insert file and code-selection references into your draft. |
 | [`dsh-moss-theme`](plugins/dsh-moss-theme) | Wandering Earth inspired dark console, minimal status light, live session status, and a local theme toggle. |
-| [`dsh-quick-prompts`](plugins/dsh-quick-prompts) | Saved shortcuts above the composer: send a prompt, launch an independent agent, or execute a shell command. |
+| [`dsh-quick-prompts`](plugins/dsh-quick-prompts) | Saved shortcuts launch native background subagents; a floating panel shows progress and results. |
 | [`dsh-desktop-notify`](plugins/dsh-desktop-notify) | Native macOS task completion, approval, and question alerts with left, right, top, and island placement. |
 
-The root bundle installs these **five plugins**. Experimental task workspaces and a standalone terminal are outside this bundle. Shell commands remain available inside Quick Prompts.
+The root bundle installs these **five plugins**. Experimental task workspaces and a standalone terminal are outside this bundle. Quick Prompts passes both instructions and commands to background subagents.
 
 ## Install
 
@@ -85,17 +85,13 @@ References preserve the existing draft and do not automatically send a message. 
 
 ### Save and run shortcuts
 
-Click **+** above the composer, enter a name, select an execution mode, and save. Click a shortcut to run it; use its pencil button or right-click to edit it.
+Click **+** above the composer, enter a name and task content, then save. Click a shortcut to run it; use its pencil button or right-click to edit it.
 
-| Mode | Behavior | Example |
-| --- | --- | --- |
-| **当前对话 / Current chat** | Sends the saved text using the current model and conversation context; leaves your draft intact. | `Review the current changes. Explain any regression risks before editing files.` |
-| **独立 Agent / Independent agent** | Creates a new conversation in the same directory without copying chat history. Choose a model and reasoning level, or use the default. | `Inspect this project and draft a concise onboarding guide. Do not modify source files.` |
-| **终端命令 / Shell command** | Runs the saved command directly in the working directory through `/bin/zsh`; shows output and exit code. | `pwd` or `npm test` |
+All shortcuts launch **native background subagents** using the main Agent’s model, directory, preset and permissions, with fresh context. Both natural-language instructions and saved commands go through the AI. Legacy shortcut names and original content are preserved; the old three modes and model overrides no longer apply.
 
-For independent agents, **查看结果/审批** opens the result conversation; its task control can stop the run. Shell output has a **停止命令** control. Shell shortcuts support one active command per directory and foreground, non-interactive commands; they do not provide terminal input. The commands you use must already be installed on the DSH host.
+The right floating panel shows status, elapsed time, tools and results. Tasks can run concurrently while you keep using the main composer; results do not automatically send messages to the main Agent. Collapse the panel without stopping tasks, use **停止** to interrupt one task, or **完整记录** to open its native session and handle pending interactions. Failed, blocked and interrupted runs are never presented as successful.
 
-Shortcut definitions are saved in `~/.dsh/quick-prompts.json`. Button labels show up to five characters; hover to see the full name. Recent independent-agent result links are stored locally in the client.
+Definitions live in `~/.dsh/quick-prompts.json`. Labels show up to five characters; hover for the full name. The panel survives page refresh and session changes; its in-memory run list resets when DSH restarts. Persisted child sessions remain in DSH’s native subagent list. Requires the native `spawn` provider; verified on Desktop **0.2.1-rc.2**. See the [plugin guide](plugins/dsh-quick-prompts/README.md).
 
 ### Desktop task alerts
 

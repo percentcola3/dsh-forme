@@ -1,39 +1,50 @@
 import type { Context } from '@deepseek-ai/cordis'
-export type Selection = {provider:string;model:string;reasoningEffort?:string}
-export type Prompt = {id:string;name:string;text:string;mode?:'chat'|'agent'|'shell';selection?:Selection}
-export type Catalog = {groups:{id:string;name:string;models:{id:string;name:string;reasoning?:{efforts:{id:string;name:string}[]}}[]}[]}
-type Result = {ok:boolean;error?:{message:string}}
-type Face = {subscribe(callback:()=>void):()=>void;rename(name:string):Promise<Result>;cancel():Promise<Result>;getSnapshot():{running:boolean;awaitingFirstTurn:boolean;lastAgentError?:string;promptError?:unknown}}
-export type SessionReference = {ready:Promise<void>;binding:{session:Face};release():void}
-export type Sessions = {create(options:{cwd:string}):Promise<string>;retain(id:string,options:{source:string}):SessionReference;scope(id:string):Context|undefined;binding(id:string):{session:Face}|undefined}
-export const sessionsFor = (ctx:Pick<Context,'get'>) => ctx.get('sessions') as Sessions
-export const openSession = (ctx:Pick<Context,'get'>,id:string) => (ctx.get('uiWorkspace') as {openSession(id:string):void}).openSession(id)
-export const modelsFor = (ctx:Pick<Context,'get'>) => ctx.get('modelDirectories') as {directoryFor(id:string):{load():Promise<Catalog>;select(value:Selection):Promise<void>}}|undefined
-export async function taskRequest(action:string, value:Record<string,unknown> = {}) {
-  const res = await fetch('/dsh-quick-prompts',{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({action,...value})})
-  const body = await res.json()
-  if(!res.ok) throw new Error(body.error ?? '快捷任务操作失败。')
-  return body
+import { active, type TaskRun } from '../types.ts'
+export type { Prompt, TaskRun } from '../types.ts'
+export async function taskRequest(action: string, body: Record<string, unknown> = {}): Promise<any> {
+  const res = await fetch('/dsh-quick-prompts', { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, ...body }) })
+  const value = await res.json()
+  if (!res.ok) throw new Error(value.error ?? '快捷任务操作失败。')
+  return value
 }
-export async function startAgent(ctx:Pick<Context,'get'>, cwd:string, item:Prompt, created:(id:string)=>void):Promise<string> {
-  const sessions=sessionsFor(ctx)
-  const id=await sessions.create({cwd})
-  created(id) // Keep the created session inspectable even if configuration fails.
-  const reference=sessions.retain(id,{source:'quickPromptSend'})
-  try {
-    await reference.ready
-    const binding=sessions.binding(id)
-    if(!binding)throw new Error('独立会话尚未就绪。')
-    const renamed=await binding.session.rename(`快捷任务 · ${item.name}`)
-    if(!renamed.ok)throw new Error(renamed.error?.message ?? '会话命名失败')
-    if(item.selection) {
-      const models=modelsFor(ctx)
-      if(!models)throw new Error('模型选择服务不可用。')
-      await models.directoryFor(id).select(item.selection)
-    }
-    const conversation=sessions.scope(id)?.get('conversation') as {send(text:string):Promise<void>}|undefined
-    if(!conversation)throw new Error('独立会话暂不可用。')
-    await conversation.send(item.text)
-    return id
-  } finally { reference.release() }
+export function openRun(ctx: Pick<Context, 'get'>, run: TaskRun): void {
+  const workspace = ctx.get('uiWorkspace') as { openSession(address: { kind: 'subagent'; parentSessionId: string; childSessionId: string; mode: 'continuable' }): void }
+  workspace.openSession({ kind: 'subagent', parentSessionId: run.parentId, childSessionId: run.childId, mode: 'continuable' })
 }
+export function createTasks(request: typeof taskRequest = taskRequest) {
+  let current = { runs: [] as TaskRun[], open: false, error: '', syncError: '' }
+  const listeners = new Set<() => void>()
+  const starting = new Map<string, Promise<void>>()
+  let polling = false
+  let mutation = 0
+  const publish = (patch: Partial<typeof current>) => { current = { ...current, ...patch }; for (const listener of listeners) listener() }
+  return {
+    getSnapshot: () => current,
+    subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener) } },
+    show(open = true) { publish({ open }) },
+    async refresh() {
+      if (polling) return
+      polling = true
+      const revision = mutation
+      try { const { runs } = await request('runs'); if (revision === mutation) publish({ runs, syncError: '' }) }
+      catch { publish({ syncError: '任务状态同步失败，正在重连；当前显示可能已过期。' }) }
+      finally { polling = false }
+    },
+    start(sessionId: string, promptId: string): Promise<void> {
+      const key = `${sessionId}:${promptId}`
+      if (starting.has(key)) return starting.get(key)!
+      const operation = request('start', { sessionId, id: promptId, requestId: crypto.randomUUID() }).then(({ run }) => {
+        mutation++
+        publish({ runs: [run, ...current.runs.filter(item => item.id !== run.id)] })
+      }).catch(error => { publish({ error: error instanceof Error ? error.message : String(error) }) }).finally(() => { starting.delete(key); publish({}) })
+      starting.set(key, operation); publish({ open: true, error: '' })
+      return operation
+    },
+    async stop(runId: string) {
+      try { const { runs } = await request('stop', { runId }); mutation++; publish({ runs, error: '' }) }
+      catch (error) { publish({ error: error instanceof Error ? error.message : String(error) }) }
+    },
+    busy(sessionId: string | undefined, promptId: string) { return !!sessionId && (starting.has(`${sessionId}:${promptId}`) || current.runs.some(run => run.parentId === sessionId && run.promptId === promptId && active(run.status))) },
+  }
+}
+export type TaskStore = ReturnType<typeof createTasks>
