@@ -39,7 +39,7 @@ export async function apply(ctx: Context, _config: unknown = {}, internals: { di
       void native.prepare().then(async () => {
         if (disposed || active.get(notice.id) !== entry || !allowed(notice.kind)) return
         await native.show(notice, preferences)
-        if (notice.kind !== 'decision') entry.timer = setTimeout(() => active.delete(notice.id), (preferences.duration + 2) * 1000)
+        entry.timer = setTimeout(() => active.delete(notice.id), (preferences.duration + 2) * 1000)
       }).catch(error => console.warn('dsh-desktop-notify:', error instanceof Error ? error.message : String(error)))
     }, notice.kind === 'decision' ? 200 : 400)
   }

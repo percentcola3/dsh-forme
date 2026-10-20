@@ -4,6 +4,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { defaults, positions, type Preferences } from '../preferences.ts'
 import { styles } from './styles.ts'
 import type { Notice } from '../monitor.ts'
+import { installAccountMenu } from './account-menu.ts'
 export const inject = ['slots', 'uiWorkspace']
 type Response = { preferences: Preferences; native: { status: string; error: string; platform: string }; recent: (Notice & { at: number })[] }
 const labels = { left: '屏幕左侧', right: '屏幕右侧', top: '屏幕顶部', island: '灵动岛' }
@@ -20,7 +21,7 @@ export function Bell(): React.ReactElement {
 export function apply(ctx: Context): void {
   const slots = ctx.get('slots') as { inject(name: string, callback: () => () => void): () => void; register(options: { name: string; id: string; order: number }, render: (props: { wide?: boolean }) => React.ReactElement): () => void }
   ctx.effect(() => { const style = document.createElement('style'); style.textContent = styles; document.head.appendChild(style); return () => style.remove() })
-  ctx.effect(() => slots.inject('sidebar.footer.action', () => slots.register({ name: 'sidebar.footer.action', id: 'dsh-desktop-notify', order: 30 }, props => h(NotifyEntry, { compact: props.wide === false }))))
+  ctx.effect(() => slots.inject('shell.overlay', () => slots.register({ name: 'shell.overlay', id: 'dsh-desktop-notify-menu', order: 70 }, () => h(AccountNotifyEntry))))
   ctx.effect(() => slots.inject('settings.general.item', () => slots.register({ name: 'settings.general.item', id: 'dsh-desktop-notify', order: 70 }, () => h(NotifyEntry, { settings: true }))))
   ctx.effect(() => {
     let live = true; let polling = false
@@ -38,6 +39,11 @@ export function apply(ctx: Context): void {
     window.addEventListener('focus', poll); document.addEventListener('visibilitychange', poll)
     return () => { live = false; clearInterval(timer); window.removeEventListener('focus', poll); document.removeEventListener('visibilitychange', poll) }
   })
+}
+export function AccountNotifyEntry(): React.ReactElement | null {
+  const [open, setOpen] = React.useState(false)
+  React.useEffect(() => installAccountMenu(document, () => setOpen(true)), [])
+  return open ? h(NotifySettings, { close: () => setOpen(false) }) : null
 }
 export function NotifyEntry({ compact = false, settings = false }: { compact?: boolean; settings?: boolean }): React.ReactElement {
   const [open, setOpen] = React.useState(false)
@@ -93,11 +99,11 @@ export function NotifySettings({ close }: { close(): void }): React.ReactPortal 
         h('div', { className: 'dn-label' }, '提醒位置 / PLACEMENT'),
         h('div', { className: 'dn-positions', role: 'group', 'aria-label': '提醒位置' }, ...positions.map(position => h('button', { type: 'button', key: position, disabled: busy || !state, 'aria-pressed': value.position === position, onClick: () => patch({ position }) }, h('span', { className: 'dn-monitor', 'data-position': position, 'aria-hidden': true }), labels[position]))),
         h('div', { className: 'dn-options' }, h('label', null, '显示器', h('select', { 'aria-label': '显示器', value: value.display, disabled: busy || !state, onChange: (event: React.ChangeEvent<HTMLSelectElement>) => patch({ display: event.target.value as Preferences['display'] }) }, h('option', { value: 'main' }, '主显示器'), h('option', { value: 'pointer' }, '鼠标所在显示器'))),
-          h('label', null, '完成提醒时长', h('select', { 'aria-label': '完成提醒时长', value: value.duration, disabled: busy || !state, onChange: (event: React.ChangeEvent<HTMLSelectElement>) => patch({ duration: Number(event.target.value) }) }, ...[4, 8, 12, 20, 30].map(seconds => h('option', { value: seconds, key: seconds }, `${seconds} 秒`))))),
+          h('label', null, '自动收起时长', h('select', { 'aria-label': '自动收起时长', value: value.duration, disabled: busy || !state, onChange: (event: React.ChangeEvent<HTMLSelectElement>) => patch({ duration: Number(event.target.value) }) }, ...[...new Set([3, 5, 8, 12, 20, 30, value.duration])].sort((a, b) => a - b).map(seconds => h('option', { value: seconds, key: seconds }, `${seconds} 秒`))))),
         toggle('completion', '任务完成', '仅正常结束时提醒，取消和中断不会显示为完成。'),
-        toggle('decisions', '需要选择或审批', '持续显示到处理或关闭；已处理请求自动收起。异常也会提醒。'),
+        toggle('decisions', '需要选择或审批', '轻动画提示后自动收起，问题和审批仍在任务内等你处理。异常也会提醒。'),
         toggle('sound', '提示音', '每条新提醒播放一次轻提示音。'),
-        h('p', { className: 'dn-note' }, '紧凑胶囊仅显示状态与任务名。点击返回任务，悬停暂停收起。'),
+        h('p', { className: 'dn-note' }, '小型地球动画表示完成，月球与红色微光表示需要关注。无文字提醒，到时自动消失；点击动画返回任务。'),
         h('div', { className: 'dn-status', role: 'status' }, busy ? '正在保存或准备原生提醒，首次编译可能需要片刻…' : state?.native.status === 'ready' ? '原生提醒已就绪 · 覆盖所有会话 · 前后台均有效' : state?.native.status === 'unavailable' ? state.native.error : '首次保存或测试会准备原生提醒，无需系统通知权限。'),
         error && h('div', { className: 'dn-error', role: 'alert' }, error),
         !!state?.recent.length && h('details', { className: 'dn-recent' }, h('summary', null, '最近提醒'), h('ol', null, ...state.recent.map((notice, i) => h('li', { key: `${notice.id}:${i}` }, h('span', { className: 'dn-pill', 'data-kind': notice.kind }, notice.kind === 'complete' ? '完成' : notice.kind === 'error' ? '异常' : '待选择'), h('span', null, notice.title), h('time', null, new Date(notice.at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }))))))

@@ -57,5 +57,5 @@ test('preferences reject wrong types, preserve all positions and bound durations
   assert.deepEqual(parsePreferences(null), defaults)
   for (const position of ['left', 'right', 'top', 'island']) assert.equal(parsePreferences({ position }).position, position)
   assert.equal(parsePreferences({ position: 'offscreen', enabled: 'false', duration: Infinity }).enabled, true)
-  assert.equal(parsePreferences({ duration: 0 }).duration, 4); assert.equal(parsePreferences({ duration: 9000 }).duration, 30)
+  assert.equal(parsePreferences({ duration: 0 }).duration, 3); assert.equal(parsePreferences({ duration: 9000 }).duration, 30)
 })

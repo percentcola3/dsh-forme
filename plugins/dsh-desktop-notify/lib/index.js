@@ -290,7 +290,7 @@ const defaults = {
 	sound: false,
 	position: "right",
 	display: "main",
-	duration: 8
+	duration: 5
 };
 function parsePreferences(value) {
 	const data = value && typeof value === "object" ? value : {};
@@ -301,7 +301,7 @@ function parsePreferences(value) {
 		sound: typeof data.sound === "boolean" ? data.sound : defaults.sound,
 		position: positions.includes(data.position) ? data.position : defaults.position,
 		display: data.display === "pointer" ? "pointer" : "main",
-		duration: typeof data.duration === "number" && Number.isFinite(data.duration) ? Math.min(30, Math.max(4, Math.round(data.duration))) : defaults.duration
+		duration: typeof data.duration === "number" && Number.isFinite(data.duration) ? Math.min(30, Math.max(3, Math.round(data.duration))) : defaults.duration
 	};
 }
 //#endregion
@@ -359,7 +359,7 @@ async function apply(ctx, _config = {}, internals = {}) {
 			native.prepare().then(async () => {
 				if (disposed || active.get(notice.id) !== entry || !allowed(notice.kind)) return;
 				await native.show(notice, preferences);
-				if (notice.kind !== "decision") entry.timer = setTimeout(() => active.delete(notice.id), (preferences.duration + 2) * 1e3);
+				entry.timer = setTimeout(() => active.delete(notice.id), (preferences.duration + 2) * 1e3);
 			}).catch((error) => console.warn("dsh-desktop-notify:", error instanceof Error ? error.message : String(error)));
 		}, notice.kind === "decision" ? 200 : 400);
 	};
