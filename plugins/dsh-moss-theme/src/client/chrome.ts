@@ -1,4 +1,5 @@
 import React from 'react'
+import { createPortal } from 'react-dom'
 import { BrandMark } from './brand.ts'
 import { MossIcon } from './icons.ts'
 import { windowDriver, type WindowCarrier } from './window-driver.ts'
@@ -33,7 +34,9 @@ export function WindowChrome({ preferences }: { preferences: PreferenceStore }):
     ? run(async () => { await driver.window.toggleMaximize(); setMaximized(await driver.window.isMaximized()) })
     : run(() => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen())
   if (!settings.enabled) return null
-  return h('div', { className: 'moss-titlebar', 'data-window-drag': '', 'data-carrier': driver.kind, 'aria-label': '550W 窗口栏',
+  // Electron clips native drag regions to ancestor bounds, even for a fixed
+  // element. Keep the strip outside the host's overflow-hidden app frame.
+  return createPortal(h('div', { className: 'moss-titlebar', 'data-window-drag': '', 'data-carrier': driver.kind, 'aria-label': '550W 窗口栏',
     onMouseDown: (event: React.MouseEvent) => {
       if (driver.kind !== 'tauri' || event.button !== 0 || (event.target as Element).closest('button')) return
       event.preventDefault()
@@ -48,5 +51,5 @@ export function WindowChrome({ preferences }: { preferences: PreferenceStore }):
       h('button', { type: 'button', 'aria-label': '最小化窗口', title: '最小化', onClick: () => { void run(() => driver.window.minimize()) } }, h(MossIcon, { name: 'minimize' })),
       h('button', { type: 'button', 'aria-label': maximized ? '还原窗口' : '最大化窗口', title: maximized ? '还原' : '最大化', onClick: () => { void zoom() } }, h(MossIcon, { name: maximized ? 'restore' : 'maximize' })))
       : driver.kind === 'browser' && typeof document.documentElement.requestFullscreen === 'function' ? h('div', { className: 'moss-window-actions' },
-        h('button', { type: 'button', 'aria-label': fullscreen ? '退出全屏' : '全屏显示', title: fullscreen ? '退出全屏' : '浏览器全屏', onClick: () => { void zoom() } }, h(MossIcon, { name: fullscreen ? 'restore' : 'maximize' }))) : null)
+        h('button', { type: 'button', 'aria-label': fullscreen ? '退出全屏' : '全屏显示', title: fullscreen ? '退出全屏' : '浏览器全屏', onClick: () => { void zoom() } }, h(MossIcon, { name: fullscreen ? 'restore' : 'maximize' }))) : null), document.body)
 }

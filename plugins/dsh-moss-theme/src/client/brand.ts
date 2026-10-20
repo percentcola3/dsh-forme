@@ -7,7 +7,5 @@ export function BrandMark({ className = '' }: { className?: string }): React.Rea
 
 export function SidebarBrand(): React.ReactElement {
   return React.createElement('span', { className: 'moss-sidebar-brand' },
-    React.createElement(BrandMark),
-    React.createElement('span', { className: 'moss-sidebar-brand-caption' }, '智能量子计算机',
-      React.createElement('small', null, 'INTELLIGENT QUANTUM COMPUTER')))
+    React.createElement(BrandMark))
 }
