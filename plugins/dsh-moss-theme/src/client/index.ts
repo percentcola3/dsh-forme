@@ -76,7 +76,7 @@ function activate(ctx: Context): void {
     ...remote?.agentPresets ? { listPresets: () => remote.agentPresets!.list() } : {},
   }
   step = 'header'
-  ctx.effect(() => guard('window chrome slot', () => slots.inject('shell.overlay', () => slots.register(
+  ctx.effect(() => guard('header window behavior', () => slots.inject('shell.overlay', () => slots.register(
     { name: 'shell.overlay', id: 'dsh-550w-window', order: 90 },
     () => React.createElement(WindowChrome, { preferences }),
   ))) ?? noop)
@@ -244,9 +244,9 @@ function MossControl({ preferences, services }: { preferences: PreferenceStore; 
   const segments = Math.round(thrustFor[status] * 12)
   return h(React.Fragment, null,
     h('button', { ref: trigger, type: 'button', className: 'moss-trigger', 'data-status': status, title: settings.enabled ? `550W · ${text.label}` : '550W · 主题已关闭', 'aria-label': '550W 控制台', 'aria-haspopup': 'dialog', 'aria-expanded': open, 'aria-controls': open ? panelId : undefined, onClick: () => setOpen(value => !value) },
-      h(Eye, { status }), h('span', { className: 'moss-wordmark' }, h(BrandMark)),
+      h(Eye, { status }),
       h('span', { className: 'moss-trigger-state', role: 'status', 'aria-live': 'polite', 'aria-atomic': true }, text.label)),
-    createPortal(h('div', { 'data-moss-atmosphere': '', 'aria-hidden': true }), document.body),
+    createPortal(h('div', { 'data-moss-atmosphere': '', 'aria-hidden': true }), document.getElementById('root') ?? document.body),
     h(RunningFlight, { enabled: settings.enabled }),
     open ? createPortal(h('div', { ref: panel, id: panelId, className: 'moss-console', role: 'dialog', 'aria-label': '550W 控制台' },
       h('div', { className: 'moss-console-head' },

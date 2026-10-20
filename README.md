@@ -87,13 +87,13 @@ References preserve the existing draft and do not automatically send a message. 
 
 Click **+** above the composer, enter a name and task content, then save. Click a shortcut to run it; use its pencil button or right-click to edit it.
 
-All shortcuts launch **native background subagents** using the main Agent’s model, directory, preset and permissions, with fresh context. Both natural-language instructions and saved commands go through the AI. Legacy shortcut names and original content are preserved; the old three modes and model overrides no longer apply.
+All shortcuts launch **native background subagents** using the main Agent’s model, preset and permissions, with fresh context and the current project directory explicitly set. Both natural-language instructions and saved commands go through the AI. Legacy shortcut names and original content are preserved; the old three modes and model overrides no longer apply.
 
-Only running tasks appear as cards beside the conversation. Each card shows live AI text and returned tool output, with automatic following at the bottom. There is no surrounding panel frame, heading, history list, task metadata or detail controls. Completed, stopped and failed tasks disappear, restoring the message and composer width when no cards remain. Narrow conversation areas stack cards below the main conversation.
+Only running tasks appear as cards beside the conversation. Each card shows live AI text and returned tool output, with automatic following at the bottom. There is no surrounding panel frame or history list. Each card has a small task label, an interrupt action and a close action that stops and removes only that task. Completed, stopped and failed tasks disappear, restoring the message and composer width when no cards remain. Narrow conversation areas stack cards below the main conversation.
 
-Use **后台任务 N** above the composer to hide or show current cards. DSH’s native subagent list provides full records, stop controls and pending interactions. Task results do not automatically send messages to the main Agent. Startup, execution and synchronization errors appear above the composer.
+Use **后台任务 N** above the composer to hide or show current cards. Shortcuts and runs are isolated by project; a shortcut can launch several independent instances. DSH’s native subagent list provides full records and pending interactions. Task results do not automatically send messages to the main Agent. Startup, execution and synchronization errors appear above the composer.
 
-Definitions live in `~/.dsh/quick-prompts.json`. Labels show up to five characters; hover for the full name. Page refresh and session changes do not restart tasks. In-memory tracking resets when DSH restarts; persisted child sessions remain in DSH’s native subagent list. Requires the native `spawn` provider; verified on Desktop **0.2.1-rc.2**. See the [plugin guide](plugins/dsh-quick-prompts/README.md).
+Definitions are grouped by canonical project directory in `~/.dsh/quick-prompts.projects.json`. The legacy global file is kept as a backup; **导入旧指令** assigns its shortcuts to one project, once. Labels show up to five characters; hover for the full name. Page refresh and session changes do not restart tasks. In-memory tracking resets when DSH restarts; persisted child sessions remain in DSH’s native subagent list. Requires the native `spawn` provider; verified on Desktop **0.2.1-rc.2**. See the [plugin guide](plugins/dsh-quick-prompts/README.md).
 
 ### Desktop task alerts
 
@@ -103,9 +103,9 @@ Open **桌面提醒** at the bottom of the sidebar or in General settings. Choos
 
 ### 550W console theme
 
-The theme uses a midnight-blue terminal palette with red accents, an animated pale-blue Earth with a flowing atmospheric wake, and transmission-style AI replies. The hand-drawn 550W wordmark appears in the sidebar, console, and host startup screen. A dedicated title bar provides desktop dragging; the official Electron app retains its native minimize/zoom controls, Tauri carriers use their window bridge, and browsers offer fullscreen.
+The theme uses a midnight-blue terminal palette with red accents, an animated pale-blue Earth with a flowing atmospheric wake, and transmission-style AI replies. The hand-drawn 550W wordmark appears in the sidebar, console, and host startup screen. The main interface keeps only the sidebar wordmark. Existing header space provides native dragging and double-click zoom without an extra title bar; Electron retains system window controls and Tauri uses its window bridge.
 
-Open **550W** in the conversation header for theme, texture, and motion settings. The breathing light follows the selected session: standby, connecting, working, waiting for interaction, error, or unavailable. The running indicator reads DSH's own elapsed time. Settings are local, reduced-motion preferences are respected, and bundled imagery/fonts work offline.
+Click the **breathing light** in the conversation header for theme, texture, and motion settings. The breathing light follows the selected session: standby, connecting, working, waiting for interaction, error, or unavailable. The running indicator reads DSH's own elapsed time. Settings are local, reduced-motion preferences are respected, and bundled imagery/fonts work offline.
 
 **接入 550W** opens a new conversation with the included 550W agent preset; existing conversations keep their preset. An optional copyable style instruction is also available. Disabling the theme restores DSH's colors and branding; disabling the plugin removes its controls. For compatibility, the package remains `dsh-moss-theme` and the preset ID remains `moss`. See the [plugin guide](plugins/dsh-moss-theme/README.md) for installation, preview, and validation details. Startup branding, sidebar identity, dragging and native window actions were checked on macOS Desktop **0.2.1-rc.2**; simulated states and cleanup have automated coverage.
 

@@ -4,6 +4,11 @@ import { TaskManager } from '../src/task-manager.ts'
 import { createTasks, openRun, ongoingRuns } from '../src/client/tasks.ts'
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no }); return { promise, resolve, reject } }
 const tick = () => new Promise(resolve => setImmediate(resolve))
+async function readyTasks(request) {
+  const tasks = createTasks(async (action, body) => action === 'list' ? { projectId: 'project', cwd: '/code/project', prompts: [] } : { projectId: 'project', ...await request(action, body) })
+  await tasks.select('main')
+  return tasks
+}
 function fixture({ delayed = false } = {}) {
   const admissions = [], stops = [], disposed = []
   const runtime = {
@@ -38,7 +43,7 @@ test('native child uses exact live parent and caller delivery, preserves text, r
 test('repeated clicks are idempotent; different shortcuts run concurrently and stop targets only one child', async () => {
   const f = fixture(); const first = f.manager.start(f.parent, f.prompt, 'one')
   assert.equal(f.manager.start(f.parent, f.prompt, 'one').id, first.id)
-  assert.equal(f.manager.start(f.parent, f.prompt, 'two').id, first.id)
+  assert.equal(f.manager.start(f.parent, f.prompt, 'one').id, first.id)
   const second = f.manager.start(f.parent, { ...f.prompt, id: 'q' }, 'three')
   assert.throws(() => f.manager.start(f.parent, { ...f.prompt, id: 'q' }, 'one'), /编号/)
   await tick(); f.manager.stop(first.id)
@@ -102,21 +107,21 @@ test('client store deduplicates submission, keeps main selection untouched and r
   const pending = deferred(); const calls = []
   const run = { id: 'r', parentId: 'main', childId: 'child', promptId: 'p', status: 'running' }
   const request = async (action, body) => { calls.push([action, body]); return action === 'start' ? pending.promise : { runs: [run] } }
-  const tasks = createTasks(request)
+  const tasks = await readyTasks(request)
   const first = tasks.start('main', 'p'); const second = tasks.start('main', 'p')
   assert.equal(first, second); assert.equal(tasks.getSnapshot().open, true); assert.equal(tasks.busy('main', 'p'), true)
   pending.resolve({ run }); await first; assert.equal(calls.length, 1)
-  const restored = createTasks(request); await restored.refresh()
+  const restored = await readyTasks(request); await restored.refresh()
   assert.equal(restored.getSnapshot().runs[0].id, 'r'); assert.equal(calls.filter(call => call[0] === 'start').length, 1)
   const navigation = []; openRun({ get: () => ({ openSession: address => navigation.push(address) }) }, run)
   assert.deepEqual(navigation, [{ kind: 'subagent', parentSessionId: 'main', childSessionId: 'child', mode: 'continuable' }])
 })
 test('stale polling cannot overwrite a newly started task; network and startup errors remain visible', async () => {
   const polling = deferred()
-  const tasks = createTasks(async action => action === 'runs' ? polling.promise : { run: { id: 'new' } })
+  const tasks = await readyTasks(async action => action === 'runs' ? polling.promise : { run: { id: 'new' } })
   const refresh = tasks.refresh(); await tasks.start('main', 'p'); polling.resolve({ runs: [] }); await refresh
   assert.equal(tasks.getSnapshot().runs[0].id, 'new')
-  const failed = createTasks(async () => { throw new Error('parent offline') })
+  const failed = await readyTasks(async () => { throw new Error('parent offline') })
   await failed.start('main', 'p'); assert.match(failed.getSnapshot().error, /parent offline/)
   await failed.refresh(); assert.match(failed.getSnapshot().syncError, /同步失败/)
   assert.equal(failed.busy('main', 'p'), false)
@@ -168,15 +173,71 @@ test('native assistant frames are visible before settlement, tool text joins onc
 })
 test('a newly failed task surfaces an error outside its removed card; old failures do not reappear', async () => {
   let runs = [{ id: 'new', name: '检查', status: 'running' }, { id: 'old', name: '旧任务', status: 'failed', error: 'old failure' }]
-  const tasks = createTasks(async () => ({ runs })); await tasks.refresh()
+  const tasks = await readyTasks(async () => ({ runs })); await tasks.refresh()
   assert.equal(tasks.getSnapshot().error, '')
   runs = [{ ...runs[0], status: 'failed', error: 'model unavailable' }, runs[1]]; await tasks.refresh()
   assert.match(tasks.getSnapshot().error, /检查：model unavailable/)
   assert.equal(ongoingRuns(tasks.getSnapshot().runs).length, 0)
 })
 test('a startup failure already present in the admission response still shows an error', async () => {
-  const tasks = createTasks(async () => ({ run: { id: 'failed', name: '检查', status: 'failed', error: 'spawn unavailable' } }))
+  const tasks = await readyTasks(async () => ({ run: { id: 'failed', name: '检查', status: 'failed', error: 'spawn unavailable' } }))
   await tasks.start('main', 'p')
   assert.match(tasks.getSnapshot().error, /检查：spawn unavailable/)
   assert.equal(ongoingRuns(tasks.getSnapshot().runs).length, 0)
+})
+
+test('same shortcut supports independent instances; project-scoped stop/close cannot affect another project', async () => {
+  const f = fixture({ delayed: true })
+  const a = { id: 'A', cwd: '/code/A' }, b = { id: 'B', cwd: '/code/B' }
+  const first = f.manager.start(f.parent, f.prompt, 'one', a)
+  const second = f.manager.start(f.parent, f.prompt, 'two', a)
+  const other = f.manager.start({ ...f.parent, id: 'other' }, f.prompt, 'three', b)
+  assert.notEqual(first.id, second.id)
+  assert.equal(f.admissions[0].spec.request.cwd, a.cwd)
+  assert.equal(f.admissions[2].spec.request.cwd, b.cwd)
+  assert.equal(f.manager.list(a.id).length, 2)
+  assert.throws(() => f.manager.stop(other.id, a.id), /不属于当前项目/)
+  assert.throws(() => f.manager.close(other.id, a.id), /不属于当前项目/)
+  f.manager.close(first.id, a.id)
+  assert.equal(f.manager.list(a.id).length, 1)
+  assert.equal(f.admissions[0].spec.signal.aborted, true)
+  assert.equal(f.admissions[1].spec.signal.aborted, false)
+  assert.equal(f.admissions[2].spec.signal.aborted, false)
+  for (const item of f.admissions) item.admission.resolve(item.receipt)
+  await tick()
+  assert.deepEqual(f.stops.map(item => item[0]), [first.childId])
+  assert.equal(f.manager.list(b.id)[0].id, other.id)
+  await f.manager.dispose()
+})
+test('project switches discard late list, start, poll, save, close and error responses', async () => {
+  for (const action of ['list', 'start', 'runs', 'save', 'close', 'error']) {
+    const late = deferred()
+    let hold = false
+    const tasks = createTasks(async (type, body) => {
+      if (body.sessionId === 'A' && hold && (type === action || action === 'error' && type === 'start')) return late.promise
+      if (type === 'list') return { projectId: body.sessionId, cwd: `/code/${body.sessionId}`, prompts: [{ id: body.sessionId, name: body.sessionId, text: body.sessionId }], legacyAvailable: false }
+      return { projectId: body.sessionId, runs: [] }
+    })
+    if (action !== 'list') await tasks.select('A')
+    hold = true
+    const operation = action === 'list' ? tasks.select('A') : action === 'start' || action === 'error' ? tasks.start('A', 'A') : action === 'runs' ? tasks.refresh() : action === 'save' ? tasks.save('save', { name: 'A', text: 'A' }) : tasks.close('A')
+    await tasks.select('B')
+    if (action === 'error') late.reject(new Error('A failed'))
+    else late.resolve({ projectId: 'A', cwd: '/code/A', prompts: [{ id: 'A' }], runs: [{ id: 'A' }], run: { id: 'A' } })
+    await operation
+    assert.equal(tasks.getSnapshot().projectId, 'B', action)
+    assert.deepEqual(tasks.getSnapshot().prompts.map(item => item.id), ['B'], action)
+    assert.deepEqual(tasks.getSnapshot().runs, [], action)
+    assert.equal(tasks.getSnapshot().error, '', action)
+  }
+})
+test('overlapping controls on different cards never resurrect a closed task', async () => {
+  const stop = deferred(), close = deferred()
+  const runs = [{ id: 'A', status: 'running' }, { id: 'B', status: 'running' }]
+  const tasks = await readyTasks(async action => action === 'stop' ? stop.promise : action === 'close' ? close.promise : { runs })
+  await tasks.refresh()
+  const stopping = tasks.stop('A'), closing = tasks.close('B')
+  close.resolve({ runs: [runs[0]] }); await closing
+  stop.resolve({ runs: [{ ...runs[0], status: 'stopping' }, runs[1]] }); await stopping
+  assert.deepEqual(tasks.getSnapshot().runs.map(run => [run.id, run.status]), [['A', 'stopping']])
 })

@@ -2,6 +2,7 @@ export type Prompt = { id: string; name: string; text: string }
 export type RunStatus = 'starting' | 'running' | 'waiting' | 'stopping' | 'completed' | 'stopped' | 'failed'
 export type TaskRun = {
   id: string; requestId: string; promptId: string; name: string
+  projectId: string; cwd: string; dismissed?: boolean
   parentId: string; parentTitle: string; childId: string
   status: RunStatus; startedAt: number; updatedAt: number; endedAt?: number
   output: string; liveOutput?: string; progress: string; error?: string; steps: number

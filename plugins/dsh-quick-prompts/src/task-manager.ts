@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto'
 import { LiveOutput, type AssistantFrame } from './live-output.ts'
+import type { Project } from './project-prompts.ts'
 import { active, type Prompt, type TaskRun } from './types.ts'
 export type Parent = { id: string; session: { header: { id: string; cwd?: string }; snapshotEvents?(): { type: string; data: Record<string, any> }[] } }
 export type Receipt = { childId: string; result: Promise<{ output?: { type: string; text?: string }[]; stopReason: string; diagnostic?: unknown }>; dispose(): Promise<unknown> }
 export type Runtime = {
   getProvider(name: string): unknown
   resolveMaxDepth(config?: number): number | undefined
-  startActivation(spec: { provider: string; childId: string; label: string; request: { parent: Parent; prompt: { type: 'text'; text: string }[]; maxDepth?: number }; signal: AbortSignal; delivery: 'caller' }): Promise<Receipt>
+  startActivation(spec: { provider: string; childId: string; label: string; request: { parent: Parent; cwd: string; prompt: { type: 'text'; text: string }[]; maxDepth?: number }; signal: AbortSignal; delivery: 'caller' }): Promise<Receipt>
   interrupt(childId: string, authority: { kind: 'user'; parentSessionId: string }): void
 }
 type Entry = { run: TaskRun; controller: AbortController; receipt?: Receipt; admission?: Promise<void>; pending: Set<string>; parent: Parent; live: LiveOutput; settled?: boolean; turnActive?: boolean }
@@ -18,16 +19,14 @@ export class TaskManager {
   private runtime: Runtime
   private closed = false
   constructor(runtime: Runtime) { this.runtime = runtime }
-  list(): TaskRun[] { return [...this.entries.values()].map(entry => structuredClone(entry.run)).reverse() }
-  start(parent: Parent, prompt: Prompt, requestId: string): TaskRun {
+  list(projectId?: string): TaskRun[] { return [...this.entries.values()].filter(entry => !entry.run.dismissed && (!projectId || entry.run.projectId === projectId)).map(entry => structuredClone(entry.run)).reverse() }
+  start(parent: Parent, prompt: Prompt, requestId: string, project: Project = { id: parent.session.header.cwd ?? parent.id, cwd: parent.session.header.cwd ?? '' }): TaskRun {
     if (this.closed) throw new Error('快捷任务服务正在关闭。')
-    const previous = [...this.entries.values()].find(entry => entry.run.parentId === parent.id && entry.run.requestId === requestId)
+    const previous = [...this.entries.values()].find(entry => entry.run.projectId === project.id && entry.run.parentId === parent.id && entry.run.requestId === requestId)
     if (previous) {
       if (previous.run.promptId !== prompt.id) throw new Error('请求编号已用于其他任务。')
       return structuredClone(previous.run)
     }
-    const running = [...this.entries.values()].find(entry => entry.run.parentId === parent.id && entry.run.promptId === prompt.id && active(entry.run.status))
-    if (running) return structuredClone(running.run)
     if (!this.runtime.getProvider('spawn')) throw new Error('DSH 尚未加载原生 spawn 子 Agent，请检查子 Agent 插件。')
     const maxDepth = this.runtime.resolveMaxDepth()
     const finished = [...this.entries.values()].filter(entry => !active(entry.run.status))
@@ -40,7 +39,7 @@ export class TaskManager {
     const now = Date.now()
     const parentTitle = parent.session.snapshotEvents?.().findLast(event => event.type === 'session/title')?.data.title
     const entry: Entry = {
-      run: { id: randomUUID(), requestId, promptId: prompt.id, name: prompt.name, parentId: parent.id, parentTitle: typeof parentTitle === 'string' ? parentTitle.slice(0, 100) : parent.session.header.cwd?.split(/[\\/]/).at(-1) ?? '主会话', childId: randomUUID(), status: 'starting', startedAt: now, updatedAt: now, output: '', progress: '正在创建原生子 Agent…', steps: 0, tools: [] },
+      run: { id: randomUUID(), projectId: project.id, cwd: project.cwd, requestId, promptId: prompt.id, name: prompt.name, parentId: parent.id, parentTitle: typeof parentTitle === 'string' ? parentTitle.slice(0, 100) : parent.session.header.cwd?.split(/[\\/]/).at(-1) ?? '主会话', childId: randomUUID(), status: 'starting', startedAt: now, updatedAt: now, output: '', progress: '正在创建原生子 Agent…', steps: 0, tools: [] },
       controller: new AbortController(), pending: new Set(), parent, live: new LiveOutput(),
     }
     this.entries.set(entry.run.id, entry)
@@ -49,7 +48,7 @@ export class TaskManager {
   }
   private async launch(entry: Entry, prompt: Prompt, maxDepth: number | undefined): Promise<void> {
     try {
-      const receipt = await this.runtime.startActivation({ provider: 'spawn', childId: entry.run.childId, label: prompt.name, request: { parent: entry.parent, prompt: [{ type: 'text', text: CONTEXT }, { type: 'text', text: prompt.text }], ...maxDepth === undefined ? {} : { maxDepth } }, signal: entry.controller.signal, delivery: 'caller' })
+      const receipt = await this.runtime.startActivation({ provider: 'spawn', childId: entry.run.childId, label: prompt.name, request: { parent: entry.parent, cwd: entry.run.cwd, prompt: [{ type: 'text', text: CONTEXT }, { type: 'text', text: prompt.text }], ...maxDepth === undefined ? {} : { maxDepth } }, signal: entry.controller.signal, delivery: 'caller' })
       entry.receipt = receipt; entry.run.childId = receipt.childId
       // Observe the result before teardown can reject it. Admission stays separate
       // from execution so unloading can await late receipts and release only ours.
@@ -95,9 +94,13 @@ export class TaskManager {
     for (const tool of entry.run.tools) if (tool.state === 'running') tool.state = 'ended'
     entry.run.endedAt = Date.now(); entry.run.updatedAt = Date.now()
   }
-  stop(id: string): void {
+  close(id: string, projectId: string): void {
+    this.stop(id, projectId)
+    this.entries.get(id)!.run.dismissed = true
+  }
+  stop(id: string, projectId?: string): void {
     const entry = this.entries.get(id)
-    if (!entry) throw new Error('后台任务不存在。')
+    if (!entry || (projectId !== undefined && entry.run.projectId !== projectId)) throw new Error('后台任务不属于当前项目或已结束。')
     if (!active(entry.run.status) || entry.run.status === 'stopping') return
     if (entry.settled && entry.run.status === 'waiting' && !entry.turnActive) {
       entry.controller.abort(); this.finish(entry, 'aborted'); return

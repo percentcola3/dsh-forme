@@ -71,3 +71,43 @@ test('startup preference and host index injection preserve a disabled theme and 
   assert.deepEqual(rows.slice(1).map(row => row.kind), ['style', 'script'])
   assert.equal(rows[2].placement, 'body')
 })
+
+test('window behavior restores carrier attributes and listeners on unload', async () => {
+  const { installWindowRegions } = await import('../src/client/chrome.ts')
+  const attrs = new Map(), listeners = new Map()
+  const doc = {
+    documentElement: { getAttribute: key => attrs.get(key) ?? null, setAttribute: (key, value) => attrs.set(key, value), removeAttribute: key => attrs.delete(key) },
+    addEventListener: (key, listener) => listeners.set(key, listener), removeEventListener: key => listeners.delete(key),
+  }
+  const cleanup = installWindowRegions(doc, { kind: 'electron' })
+  assert.equal(attrs.get('data-moss-window-carrier'), 'electron')
+  assert.equal(listeners.size, 1)
+  cleanup(); assert.equal(attrs.size, 0); assert.equal(listeners.size, 0)
+})
+
+test('Tauri header gestures drag or toggle zoom while interactive controls keep their own clicks', async () => {
+  const { installWindowRegions } = await import('../src/client/chrome.ts')
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'Element')
+  class Target {
+    constructor(control = false, header = true) { this.control = control; this.header = header }
+    closest(selector) { return selector.startsWith('header') ? this.header : this.control }
+  }
+  const attrs = new Map(), listeners = new Map(), calls = []
+  const doc = {
+    documentElement: { getAttribute: key => attrs.get(key) ?? null, setAttribute: (key, value) => attrs.set(key, value), removeAttribute: key => attrs.delete(key) },
+    addEventListener: (key, listener) => listeners.set(key, listener), removeEventListener: key => listeners.delete(key),
+  }
+  let cleanup
+  try {
+    globalThis.Element = Target
+    cleanup = installWindowRegions(doc, { kind: 'tauri', window: { startDragging: async () => calls.push('drag'), toggleMaximize: async () => calls.push('zoom') } })
+    const send = (target, button = 0, detail = 1) => listeners.get('mousedown')({ target, button, detail, preventDefault() { calls.push('prevent') } })
+    send(new Target()); send(new Target(), 0, 2)
+    send(new Target(true)); send(new Target(false, false)); send(new Target(), 2)
+    assert.deepEqual(calls, ['prevent', 'drag', 'prevent', 'zoom'])
+  } finally {
+    cleanup?.()
+    if (original) Object.defineProperty(globalThis, 'Element', original)
+    else delete globalThis.Element
+  }
+})

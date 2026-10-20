@@ -1,6 +1,6 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, readFile, realpath, rename, writeFile } from "node:fs/promises";
+import { dirname, isAbsolute, join } from "node:path";
 import { homedir } from "node:os";
 //#region src/prompt-store.ts
 /** Serialize only configuration mutations; status requests never wait on disk. */
@@ -38,6 +38,78 @@ var PromptStore = class {
 		});
 		this.queue = result.catch(() => {});
 		return result;
+	}
+};
+//#endregion
+//#region src/project-prompts.ts
+async function projectOf(cwd) {
+	if (!cwd || !isAbsolute(cwd)) throw new Error("请先打开有项目目录的主会话。");
+	const path = await realpath(cwd);
+	return {
+		id: createHash("sha256").update(path).digest("hex"),
+		cwd: path
+	};
+}
+/** One atomic catalog, with independent prompt arrays keyed by canonical directory. */
+var ProjectPrompts = class {
+	catalog;
+	legacy;
+	constructor(directory) {
+		this.catalog = new PromptStore(join(directory, "quick-prompts.projects.json"));
+		this.legacy = new PromptStore(join(directory, "quick-prompts.json"));
+	}
+	async list(project) {
+		const records = await this.catalog.read();
+		return {
+			prompts: records.find((item) => item.id === project.id)?.prompts ?? [],
+			legacyAvailable: !records.some((item) => item.importedLegacy) && (await this.legacy.read()).length > 0
+		};
+	}
+	async change(project, action, body, validate) {
+		const legacy = action === "import" ? (await this.legacy.read()).map((item) => ({
+			id: randomUUID(),
+			...validate(item)
+		})) : [];
+		const records = await this.catalog.update((records) => {
+			let record = records.find((item) => item.id === project.id);
+			if (!record) {
+				record = {
+					...project,
+					prompts: []
+				};
+				records.push(record);
+			}
+			const items = record.prompts;
+			const index = items.findIndex((item) => item.id === body.id);
+			if (action === "import") {
+				if (records.some((item) => item.importedLegacy)) throw new Error("旧指令已导入其他项目。");
+				if (!legacy.length) throw new Error("没有可导入的旧指令。");
+				if (items.length + legacy.length > 100) throw new Error("每个项目最多保存 100 条快捷任务。");
+				items.push(...legacy);
+				record.importedLegacy = true;
+			} else if (action === "save") {
+				const value = validate(body);
+				if (body.id && index < 0) throw new Error("快捷任务不属于当前项目或已删除，请刷新。");
+				if (index >= 0) items[index] = {
+					id: body.id,
+					...value
+				};
+				else {
+					if (items.length >= 100) throw new Error("每个项目最多保存 100 条快捷任务。");
+					items.push({
+						id: randomUUID(),
+						...value
+					});
+				}
+			} else if (action === "delete") {
+				if (index < 0) throw new Error("快捷任务不属于当前项目或已删除。");
+				items.splice(index, 1);
+			} else throw new Error("未知操作。");
+		});
+		return {
+			prompts: records.find((item) => item.id === project.id).prompts,
+			legacyAvailable: !records.some((item) => item.importedLegacy) && (await this.legacy.read()).length > 0
+		};
 	}
 };
 //#endregion
@@ -105,18 +177,19 @@ var TaskManager = class {
 	constructor(runtime) {
 		this.runtime = runtime;
 	}
-	list() {
-		return [...this.entries.values()].map((entry) => structuredClone(entry.run)).reverse();
+	list(projectId) {
+		return [...this.entries.values()].filter((entry) => !entry.run.dismissed && (!projectId || entry.run.projectId === projectId)).map((entry) => structuredClone(entry.run)).reverse();
 	}
-	start(parent, prompt, requestId) {
+	start(parent, prompt, requestId, project = {
+		id: parent.session.header.cwd ?? parent.id,
+		cwd: parent.session.header.cwd ?? ""
+	}) {
 		if (this.closed) throw new Error("快捷任务服务正在关闭。");
-		const previous = [...this.entries.values()].find((entry) => entry.run.parentId === parent.id && entry.run.requestId === requestId);
+		const previous = [...this.entries.values()].find((entry) => entry.run.projectId === project.id && entry.run.parentId === parent.id && entry.run.requestId === requestId);
 		if (previous) {
 			if (previous.run.promptId !== prompt.id) throw new Error("请求编号已用于其他任务。");
 			return structuredClone(previous.run);
 		}
-		const running = [...this.entries.values()].find((entry) => entry.run.parentId === parent.id && entry.run.promptId === prompt.id && active(entry.run.status));
-		if (running) return structuredClone(running.run);
 		if (!this.runtime.getProvider("spawn")) throw new Error("DSH 尚未加载原生 spawn 子 Agent，请检查子 Agent 插件。");
 		const maxDepth = this.runtime.resolveMaxDepth();
 		const finished = [...this.entries.values()].filter((entry) => !active(entry.run.status));
@@ -131,6 +204,8 @@ var TaskManager = class {
 		const entry = {
 			run: {
 				id: randomUUID(),
+				projectId: project.id,
+				cwd: project.cwd,
 				requestId,
 				promptId: prompt.id,
 				name: prompt.name,
@@ -162,6 +237,7 @@ var TaskManager = class {
 				label: prompt.name,
 				request: {
 					parent: entry.parent,
+					cwd: entry.run.cwd,
 					prompt: [{
 						type: "text",
 						text: CONTEXT
@@ -233,9 +309,13 @@ var TaskManager = class {
 		entry.run.endedAt = Date.now();
 		entry.run.updatedAt = Date.now();
 	}
-	stop(id) {
+	close(id, projectId) {
+		this.stop(id, projectId);
+		this.entries.get(id).run.dismissed = true;
+	}
+	stop(id, projectId) {
 		const entry = this.entries.get(id);
-		if (!entry) throw new Error("后台任务不存在。");
+		if (!entry || projectId !== void 0 && entry.run.projectId !== projectId) throw new Error("后台任务不属于当前项目或已结束。");
 		if (!active(entry.run.status) || entry.run.status === "stopping") return;
 		if (entry.settled && entry.run.status === "waiting" && !entry.turnActive) {
 			entry.controller.abort();
@@ -379,11 +459,8 @@ function apply(ctx, _config = {}, internals = {}) {
 		}
 	}, { global: true });
 	ctx.effect(() => () => manager.dispose());
-	const store = new PromptStore(join(internals.directory ?? join(homedir(), ".dsh"), "quick-prompts.json"));
-	const prompts = async () => (await store.read()).map((item) => ({
-		id: item.id,
-		...validatePrompt(item)
-	}));
+	const store = new ProjectPrompts(internals.directory ?? join(homedir(), ".dsh"));
+	const sessions = ctx.get("sessions");
 	const server = ctx.get("webServer");
 	const send = (res, status, body) => {
 		res.statusCode = status;
@@ -417,53 +494,53 @@ function apply(ctx, _config = {}, internals = {}) {
 					chunks.push(chunk);
 				}
 				const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+				if (typeof body.sessionId !== "string" || !body.sessionId) throw new Error("请先打开有项目目录的主会话。");
+				const parent = agents.get(body.sessionId);
+				const session = parent?.session ?? sessions.list().find((item) => (item.id ?? item.header?.id) === body.sessionId);
+				const project = await projectOf(session && ("header" in session ? session.header?.cwd : session.cwd));
+				if (body.projectId !== void 0 && body.projectId !== project.id) throw new Error("项目已切换，请刷新后重试。");
+				const scope = {
+					projectId: project.id,
+					cwd: project.cwd
+				};
 				if (body.action === "runs") {
-					send(res, 200, { runs: manager.list() });
+					send(res, 200, {
+						...scope,
+						runs: manager.list(project.id)
+					});
 					return;
 				}
 				if (body.action === "start") {
-					if (typeof body.sessionId !== "string" || !body.sessionId || typeof body.requestId !== "string" || !body.requestId || body.requestId.length > 100) throw new Error("请先打开主会话，再启动快捷任务。");
-					const prompt = (await prompts()).find((item) => item.id === body.id);
-					if (!prompt) throw new Error("快捷任务已删除，请刷新。");
-					const parent = agents.get(body.sessionId);
+					if (typeof body.requestId !== "string" || !body.requestId || body.requestId.length > 100) throw new Error("任务请求编号无效。");
+					const prompt = (await store.list(project)).prompts.find((item) => item.id === body.id);
+					if (!prompt) throw new Error("快捷任务不属于当前项目或已删除，请刷新。");
 					if (!parent) throw new Error("主会话尚未就绪，请先打开会话，连接就绪后重试。");
-					send(res, 202, { run: manager.start(parent, prompt, body.requestId) });
+					send(res, 202, {
+						...scope,
+						run: manager.start(parent, prompt, body.requestId, project)
+					});
 					return;
 				}
-				if (body.action === "stop") {
-					manager.stop(body.runId);
-					send(res, 200, { runs: manager.list() });
+				if (body.action === "stop" || body.action === "close") {
+					if (body.action === "close") manager.close(body.runId, project.id);
+					else manager.stop(body.runId, project.id);
+					send(res, 200, {
+						...scope,
+						runs: manager.list(project.id)
+					});
 					return;
 				}
 				if (body.action === "list") {
-					send(res, 200, { prompts: await prompts() });
+					send(res, 200, {
+						...scope,
+						...await store.list(project)
+					});
 					return;
 				}
-				const items = await store.update((items) => {
-					const index = items.findIndex((item) => item.id === body.id);
-					if (body.action === "save") {
-						const value = validatePrompt(body);
-						if (body.id && index < 0) throw new Error("快捷任务已删除，请刷新。");
-						if (index >= 0) items[index] = {
-							id: body.id,
-							...value
-						};
-						else {
-							if (items.length >= 100) throw new Error("最多保存 100 条快捷任务。");
-							items.push({
-								id: randomUUID(),
-								...value
-							});
-						}
-					} else if (body.action === "delete") {
-						if (index < 0) throw new Error("快捷任务不存在。");
-						items.splice(index, 1);
-					} else throw new Error("未知操作。");
+				send(res, 200, {
+					...scope,
+					...await store.change(project, body.action, body, validatePrompt)
 				});
-				send(res, 200, { prompts: items.map((item) => ({
-					id: item.id,
-					...validatePrompt(item)
-				})) });
 			} catch (error) {
 				send(res, 400, { error: error instanceof Error ? error.message : String(error) });
 			}

@@ -132,6 +132,7 @@ body[data-moss-theme="on"] :is(pre,code) { font-family:var(--moss-mono); }
 /* Cool blue reflected light and a faint instrument grid. */
 body[data-moss-theme="on"] [data-moss-atmosphere] {
   position:fixed; inset:0; z-index:9990; pointer-events:none;
+  -webkit-app-region:initial !important; app-region:initial !important;
   background:
     radial-gradient(ellipse at 82% 0%,#6b9ccc10,transparent 60%),
     repeating-linear-gradient(90deg,transparent 0 119px,#92b6d306 119px 120px),

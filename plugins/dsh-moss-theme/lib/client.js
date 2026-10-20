@@ -413,6 +413,7 @@ body[data-moss-theme="on"] :is(pre,code) { font-family:var(--moss-mono); }
 /* Cool blue reflected light and a faint instrument grid. */
 body[data-moss-theme="on"] [data-moss-atmosphere] {
   position:fixed; inset:0; z-index:9990; pointer-events:none;
+  -webkit-app-region:initial !important; app-region:initial !important;
   background:
     radial-gradient(ellipse at 82% 0%,#6b9ccc10,transparent 60%),
     repeating-linear-gradient(90deg,transparent 0 119px,#92b6d306 119px 120px),
@@ -618,37 +619,17 @@ body[data-moss-motion="off"] .moss-eye[data-status="offline"]::before { opacity:
 ${interfaceCSS}
 
 .moss-brand-logo { display:block; width:86px; height:auto; object-fit:contain; }
-body[data-moss-theme="on"] { --moss-chrome-height:36px; }
-/* Official macOS traffic lights start at 18px and have a 14px diameter. */
-html[data-platform="darwin"] body[data-moss-theme="on"]:has(.moss-titlebar[data-carrier="electron"]) { --moss-chrome-height:50px; }
-html[data-platform="darwin"][data-fullscreen] body[data-moss-theme="on"]:has(.moss-titlebar[data-carrier="electron"]) { --moss-chrome-height:36px; }
-.moss-titlebar {
-  position:fixed; top:0; left:0; right:0; z-index:10020; height:var(--moss-chrome-height,36px); box-sizing:border-box;
-  display:flex; align-items:center; gap:18px; padding:0 12px;
-  background:linear-gradient(#112031,#0b1623); border-bottom:1px solid #ffffff17;
-  color:#b2b6be; font:500 9px/1 var(--moss-display,sans-serif); letter-spacing:.16em;
-  -webkit-app-region:drag; app-region:drag; pointer-events:auto; user-select:none;
+/* Existing host headers own window movement; no extra title bar or logo. */
+html[data-moss-window-carrier="electron"] body[data-moss-theme="on"] :is(header[data-window-drag],div[data-window-drag]:has([data-slot="sidebar.brand.name"]),div[data-window-drag]:has(+ div[data-window-drag] [data-slot="sidebar.brand.name"])) {
+  -webkit-app-region:drag !important; app-region:drag !important; user-select:none;
 }
-/* A dedicated strip frees the full app width for native dragging. */
-body[data-moss-theme="on"]:has(.moss-titlebar) { padding-top:var(--moss-chrome-height); box-sizing:border-box; }
-body[data-moss-theme="on"]:has(.moss-titlebar) > #root { height:100%; min-height:0; margin-top:0; }
-.moss-titlebar-brand { display:flex; align-items:center; gap:12px; pointer-events:none; }
-.moss-titlebar-brand .moss-brand-logo { width:49px; height:20px; }
-.moss-titlebar-center { position:absolute; left:50%; transform:translateX(-50%); pointer-events:none; color:#838a96; }
-.moss-window-actions { display:flex; align-self:stretch; margin-left:auto; -webkit-app-region:no-drag; app-region:no-drag; }
-.moss-window-actions button { display:flex; align-items:center; justify-content:center; width:38px; border:0; border-left:1px solid #ffffff08; border-radius:0; background:transparent; color:#bfc5ce; -webkit-app-region:no-drag; app-region:no-drag; cursor:pointer; }
-.moss-window-actions button:hover { background:#ffffff0c; color:#fff; }
-.moss-window-actions button:focus-visible { outline:1px solid #e34448; outline-offset:-4px; }
-.moss-window-actions .moss-icon { width:13px; height:13px; }
-.moss-titlebar-error { margin-left:auto; font:10px/1.4 var(--moss-text,sans-serif); letter-spacing:0; color:#f3a5ab; -webkit-app-region:no-drag; }
-/* Native Electron captions stay native: the theme does not counterfeit their APIs. */
-html[data-platform="darwin"] .moss-titlebar[data-carrier="electron"] { padding-left:88px; }
-html[data-platform="win32"] .moss-titlebar[data-carrier="electron"] { padding-right:146px; }
-html[data-fullscreen] .moss-titlebar[data-carrier="electron"] { padding-left:12px; padding-right:12px; }
-/* The host deliberately marks body portals no-drag; opt in only this strip. */
-html body[data-moss-theme="on"] > .moss-titlebar[data-carrier="electron"] { -webkit-app-region:drag !important; app-region:drag !important; }
-.moss-titlebar button { -webkit-app-region:no-drag !important; app-region:no-drag !important; }
-.moss-wordmark .moss-brand-logo { width:62px; height:23px; }
+html[data-moss-window-carrier="electron"] body[data-moss-theme="on"] header[data-window-drag] :not(:is(button,a,input,textarea,select,summary,[role="button"],[role="tab"],[role="link"],[role="menuitem"],[role="checkbox"],[role="radio"],[role="switch"],[role="slider"],[role="combobox"],[role="textbox"],[contenteditable="true"],[data-moss-no-drag])) {
+  -webkit-app-region:drag !important; app-region:drag !important;
+}
+html[data-moss-window-carrier="electron"] body[data-moss-theme="on"] [data-window-drag] :is(button,a,input,textarea,select,summary,[role="button"],[role="tab"],[role="link"],[role="menuitem"],[role="checkbox"],[role="radio"],[role="switch"],[role="slider"],[role="combobox"],[role="textbox"],[contenteditable="true"],[data-moss-no-drag]),
+html[data-moss-window-carrier="electron"] body[data-moss-theme="on"] [data-window-drag] :is(button,a,input,textarea,select,summary,[role="button"],[role="tab"],[role="link"],[role="menuitem"],[role="checkbox"],[role="radio"],[role="switch"],[role="slider"],[role="combobox"],[role="textbox"],[contenteditable="true"],[data-moss-no-drag]) * {
+  -webkit-app-region:no-drag !important; app-region:no-drag !important;
+}
 .moss-console-id .moss-brand-logo { width:116px; height:43px; }
 .moss-sidebar-brand { display:flex; align-items:center; padding:0; }
 .moss-sidebar-brand .moss-brand-logo { width:128px; height:47px; }
@@ -659,13 +640,11 @@ body[data-moss-theme="on"] span:has(> [data-slot="sidebar.brand.mark"]):has(+ sp
 body[data-moss-theme="on"] span:has(> [data-slot="sidebar.brand.name"]),
 body[data-moss-theme="on"] span:has(> span > [data-slot="sidebar.brand.name"]) { height:auto; overflow:visible; }
 body[data-moss-theme="on"] div[data-window-drag]:has([data-slot="sidebar.brand.name"]) { height:64px; min-height:64px; margin:0 0 8px; padding:8px 4px; overflow:visible; }
-/* The native sidebar's traffic-light spacer is redundant below our own strip.
-   Keep its collapse button, aligned with the adjacent logo row. */
-body[data-moss-theme="on"] div[data-window-drag]:has(+ div[data-window-drag] [data-slot="sidebar.brand.name"]) { position:relative; height:0; min-height:0; margin:0; padding:0; overflow:visible; }
-body[data-moss-theme="on"] div[data-window-drag]:has(+ div[data-window-drag] [data-slot="sidebar.brand.name"]) > :is(button,span) { position:absolute; top:18px; right:0; z-index:1; }
+/* Keep the host's macOS traffic-light clearance above the sidebar identity. */
+html[data-platform="darwin"]:not([data-fullscreen]) body[data-moss-theme="on"] div[data-window-drag]:has(+ div[data-window-drag] [data-slot="sidebar.brand.name"]) { min-height:48px; }
 /* Hide the session breadcrumb, retaining mode/actions and the sidebar title. */
 body[data-moss-theme="on"] header [data-slot="conversation.session.header"] nav[aria-label] { display:none; }
-@media(max-width:600px) { .moss-titlebar-center,.moss-titlebar-brand > span { display:none; } .moss-titlebar { gap:8px; } }
+
 
 `;
 		//#endregion
@@ -1440,89 +1419,32 @@ void main(){
 		}
 		//#endregion
 		//#region src/client/chrome.ts
+		const region = "header[data-window-drag], div[data-window-drag]:has([data-slot=\"sidebar.brand.name\"]), div[data-window-drag]:has(+ div[data-window-drag] [data-slot=\"sidebar.brand.name\"])";
+		const interactive = "button,a,input,textarea,select,summary,[role=\"button\"],[role=\"tab\"],[role=\"link\"],[role=\"menuitem\"],[role=\"checkbox\"],[role=\"radio\"],[role=\"switch\"],[role=\"slider\"],[role=\"combobox\"],[role=\"textbox\"],[contenteditable=\"true\"],[data-moss-no-drag]";
+		/** Reuse the host header. Electron handles drag/double-click in its native region. */
+		function installWindowRegions(doc, driver) {
+			const previous = doc.documentElement.getAttribute("data-moss-window-carrier");
+			doc.documentElement.setAttribute("data-moss-window-carrier", driver.kind);
+			const down = (event) => {
+				if (driver.kind !== "tauri" || event.button !== 0 || !(event.target instanceof Element)) return;
+				if (!event.target.closest(region) || event.target.closest(interactive)) return;
+				event.preventDefault();
+				(event.detail === 2 ? driver.window.toggleMaximize() : driver.window.startDragging()).catch((error) => console.warn("550W: window operation unavailable", error));
+			};
+			doc.addEventListener("mousedown", down);
+			return () => {
+				doc.removeEventListener("mousedown", down);
+				if (previous === null) doc.documentElement.removeAttribute("data-moss-window-carrier");
+				else doc.documentElement.setAttribute("data-moss-window-carrier", previous);
+			};
+		}
 		function WindowChrome({ preferences }) {
 			const settings = react.default.useSyncExternalStore(preferences.subscribe, preferences.getSnapshot);
-			const [driver] = react.default.useState(() => windowDriver(window));
-			const [maximized, setMaximized] = react.default.useState(false);
-			const [fullscreen, setFullscreen] = react.default.useState(false);
-			const [error, setError] = react.default.useState("");
-			const h = react.default.createElement;
 			react.default.useEffect(() => {
-				if (driver.kind !== "tauri") return;
-				let live = true;
-				let stop;
-				const read = () => {
-					driver.window.isMaximized().then((value) => {
-						if (live) setMaximized(value);
-					}).catch(() => {});
-				};
-				read();
-				driver.window.onResized?.(read).then((unsubscribe) => {
-					if (live) stop = unsubscribe;
-					else unsubscribe();
-				}).catch(() => {});
-				return () => {
-					live = false;
-					stop?.();
-				};
-			}, [driver]);
-			react.default.useEffect(() => {
-				const read = () => setFullscreen(!!document.fullscreenElement);
-				document.addEventListener("fullscreenchange", read);
-				return () => document.removeEventListener("fullscreenchange", read);
-			}, []);
-			const run = async (action) => {
-				try {
-					await action();
-					setError("");
-				} catch {
-					setError("窗口操作不可用，请使用系统窗口按钮。");
-				}
-			};
-			const zoom = () => driver.kind === "tauri" ? run(async () => {
-				await driver.window.toggleMaximize();
-				setMaximized(await driver.window.isMaximized());
-			}) : run(() => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen());
-			if (!settings.enabled) return null;
-			return (0, react_dom.createPortal)(h("div", {
-				className: "moss-titlebar",
-				"data-window-drag": "",
-				"data-carrier": driver.kind,
-				"aria-label": "550W 窗口栏",
-				onMouseDown: (event) => {
-					if (driver.kind !== "tauri" || event.button !== 0 || event.target.closest("button")) return;
-					event.preventDefault();
-					if (event.detail === 2) zoom();
-					else run(() => driver.window.startDragging());
-				}
-			}, h("div", { className: "moss-titlebar-brand" }, h(BrandMark), h("span", null, "INTELLIGENT QUANTUM COMPUTER")), h("span", {
-				className: "moss-titlebar-center",
-				"aria-hidden": true
-			}, "550W / 领航员终端"), error && h("span", {
-				className: "moss-titlebar-error",
-				role: "status"
-			}, error), driver.kind === "tauri" ? h("div", { className: "moss-window-actions" }, h("button", {
-				type: "button",
-				"aria-label": "最小化窗口",
-				title: "最小化",
-				onClick: () => {
-					run(() => driver.window.minimize());
-				}
-			}, h(MossIcon, { name: "minimize" })), h("button", {
-				type: "button",
-				"aria-label": maximized ? "还原窗口" : "最大化窗口",
-				title: maximized ? "还原" : "最大化",
-				onClick: () => {
-					zoom();
-				}
-			}, h(MossIcon, { name: maximized ? "restore" : "maximize" }))) : driver.kind === "browser" && typeof document.documentElement.requestFullscreen === "function" ? h("div", { className: "moss-window-actions" }, h("button", {
-				type: "button",
-				"aria-label": fullscreen ? "退出全屏" : "全屏显示",
-				title: fullscreen ? "退出全屏" : "浏览器全屏",
-				onClick: () => {
-					zoom();
-				}
-			}, h(MossIcon, { name: fullscreen ? "restore" : "maximize" }))) : null), document.body);
+				if (!settings.enabled) return;
+				return installWindowRegions(document, windowDriver(window));
+			}, [settings.enabled]);
+			return null;
 		}
 		//#endregion
 		//#region src/client/index.ts
@@ -1584,7 +1506,7 @@ void main(){
 				...remote?.agentPresets ? { listPresets: () => remote.agentPresets.list() } : {}
 			};
 			step = "header";
-			ctx.effect(() => guard("window chrome slot", () => slots.inject("shell.overlay", () => slots.register({
+			ctx.effect(() => guard("header window behavior", () => slots.inject("shell.overlay", () => slots.register({
 				name: "shell.overlay",
 				id: "dsh-550w-window",
 				order: 90
@@ -1808,7 +1730,7 @@ void main(){
 				"aria-expanded": open,
 				"aria-controls": open ? panelId : void 0,
 				onClick: () => setOpen((value) => !value)
-			}, h(Eye, { status }), h("span", { className: "moss-wordmark" }, h(BrandMark)), h("span", {
+			}, h(Eye, { status }), h("span", {
 				className: "moss-trigger-state",
 				role: "status",
 				"aria-live": "polite",
@@ -1816,7 +1738,7 @@ void main(){
 			}, text.label)), (0, react_dom.createPortal)(h("div", {
 				"data-moss-atmosphere": "",
 				"aria-hidden": true
-			}), document.body), h(RunningFlight, { enabled: settings.enabled }), open ? (0, react_dom.createPortal)(h("div", {
+			}), document.getElementById("root") ?? document.body), h(RunningFlight, { enabled: settings.enabled }), open ? (0, react_dom.createPortal)(h("div", {
 				ref: panel,
 				id: panelId,
 				className: "moss-console",

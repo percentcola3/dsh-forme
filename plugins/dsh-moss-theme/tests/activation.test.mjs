@@ -56,7 +56,7 @@ test('activates the complete theme through Cordis remote service injection and d
     await fiber
     assert.deepEqual(errors, [], 'activation must succeed without falling back or swallowing an injection error')
     assert.equal(storage.has('dsh-moss-theme:boot-error'), false)
-    assert.equal(registrations.size, 5, 'header, window chrome, Earth hero and both sidebar brand slots must activate')
+    assert.equal(registrations.size, 5, 'header, window behavior, Earth hero and both sidebar brand slots must activate')
     const { services } = registrations.get('conversation.header.leading')().props
     assert.equal(await services.listPresets(), roster)
     assert.equal(services.selection.getSnapshot(), services.selection.getSnapshot(), 'idle snapshot must be stable for React')

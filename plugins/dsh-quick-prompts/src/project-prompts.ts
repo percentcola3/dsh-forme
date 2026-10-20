@@ -1,0 +1,49 @@
+import { createHash, randomUUID } from 'node:crypto'
+import { realpath } from 'node:fs/promises'
+import { isAbsolute, join } from 'node:path'
+import { PromptStore } from './prompt-store.ts'
+import type { Prompt } from './types.ts'
+export type Project = { id: string; cwd: string }
+type Record = { id: string; cwd: string; prompts: Prompt[]; importedLegacy?: boolean }
+export async function projectOf(cwd: string | undefined): Promise<Project> {
+  if (!cwd || !isAbsolute(cwd)) throw new Error('请先打开有项目目录的主会话。')
+  const path = await realpath(cwd)
+  return { id: createHash('sha256').update(path).digest('hex'), cwd: path }
+}
+/** One atomic catalog, with independent prompt arrays keyed by canonical directory. */
+export class ProjectPrompts {
+  private catalog: PromptStore<Record>
+  private legacy: PromptStore<Prompt>
+  constructor(directory: string) {
+    this.catalog = new PromptStore(join(directory, 'quick-prompts.projects.json'))
+    this.legacy = new PromptStore(join(directory, 'quick-prompts.json'))
+  }
+  async list(project: Project) {
+    const records = await this.catalog.read()
+    return { prompts: records.find(item => item.id === project.id)?.prompts ?? [], legacyAvailable: !records.some(item => item.importedLegacy) && (await this.legacy.read()).length > 0 }
+  }
+  async change(project: Project, action: string, body: { id?: string; name?: unknown; text?: unknown }, validate: (value: typeof body) => Omit<Prompt, 'id'>) {
+    const legacy = action === 'import' ? (await this.legacy.read()).map(item => ({ id: randomUUID(), ...validate(item) })) : []
+    const records = await this.catalog.update(records => {
+      let record = records.find(item => item.id === project.id)
+      if (!record) { record = { ...project, prompts: [] }; records.push(record) }
+      const items = record.prompts
+      const index = items.findIndex(item => item.id === body.id)
+      if (action === 'import') {
+        if (records.some(item => item.importedLegacy)) throw new Error('旧指令已导入其他项目。')
+        if (!legacy.length) throw new Error('没有可导入的旧指令。')
+        if (items.length + legacy.length > 100) throw new Error('每个项目最多保存 100 条快捷任务。')
+        items.push(...legacy); record.importedLegacy = true
+      } else if (action === 'save') {
+        const value = validate(body)
+        if (body.id && index < 0) throw new Error('快捷任务不属于当前项目或已删除，请刷新。')
+        if (index >= 0) items[index] = { id: body.id!, ...value }
+        else { if (items.length >= 100) throw new Error('每个项目最多保存 100 条快捷任务。'); items.push({ id: randomUUID(), ...value }) }
+      } else if (action === 'delete') {
+        if (index < 0) throw new Error('快捷任务不属于当前项目或已删除。')
+        items.splice(index, 1)
+      } else throw new Error('未知操作。')
+    })
+    return { prompts: records.find(item => item.id === project.id)!.prompts, legacyAvailable: !records.some(item => item.importedLegacy) && (await this.legacy.read()).length > 0 }
+  }
+}

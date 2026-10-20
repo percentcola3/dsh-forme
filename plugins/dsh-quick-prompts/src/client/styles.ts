@@ -34,6 +34,10 @@ export const styles = `
 [data-dqp-layout=stacked]>.dqp-dock-seat:has(> .dqp-dock){grid-column:1;grid-row:2}
 .dqp-dock-body{flex:1;overflow:auto;padding:12px 10px;min-height:0;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#839eb644 transparent;scrollbar-gutter:stable}
 .dqp-run-card{padding:13px;margin-bottom:10px;border:1px solid var(--dsw-alias-border-l3,#a1b7cc22);border-radius:10px;background:color-mix(in srgb,var(--dsw-alias-bg-base,#101c29) 93%,#9ab9d1 7%)}
+.dqp-run-actions{display:flex;align-items:center;gap:5px;margin:-5px -5px 8px 0;color:var(--dsw-alias-label-tertiary,#8ea4b8)}
+.dqp-run-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.dqp-run-actions button{appearance:none;border:0;background:transparent;color:inherit;font:inherit;font-size:11px;padding:3px 6px;border-radius:5px;cursor:pointer}
+.dqp-run-actions button:hover{background:#ffffff0d;color:#ed969c}.dqp-run-actions button:disabled{opacity:.45;cursor:default}.dqp-run-actions button:focus-visible{outline:1px solid #a3c8e1;outline-offset:1px}
 .dqp-run-card:last-child{margin-bottom:0}
 .dqp-live-output{margin:0;min-height:24px;max-height:min(340px,45vh);overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;font:12px/1.85 var(--moss-text,system-ui);color:var(--dsw-alias-label-secondary,#c1d3e1);white-space:pre-wrap;overflow-wrap:anywhere}
 .dqp-live-pending{display:flex;flex-direction:column;gap:8px;padding:3px 0;opacity:.5;animation:dqp-pending 1.8s ease-in-out infinite}

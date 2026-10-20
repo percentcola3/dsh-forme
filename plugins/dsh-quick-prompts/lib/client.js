@@ -52,9 +52,16 @@ window.__ModuleLoader__.load({
 			if (!res.ok) throw new Error(value.error ?? "快捷任务操作失败。");
 			return value;
 		}
-		const ongoingRuns = (runs) => runs.filter((run) => active(run.status)).sort((a, b) => b.startedAt - a.startedAt);
+		const ongoingRuns = (runs) => runs.filter((run) => !run.dismissed && active(run.status)).sort((a, b) => b.startedAt - a.startedAt);
+		const messageOf = (error) => error instanceof Error ? error.message : String(error);
 		function createTasks(request = taskRequest) {
 			let current = {
+				sessionId: void 0,
+				projectId: "",
+				cwd: "",
+				prompts: [],
+				legacyAvailable: false,
+				ready: false,
 				runs: [],
 				open: true,
 				error: "",
@@ -62,8 +69,8 @@ window.__ModuleLoader__.load({
 			};
 			const listeners = /* @__PURE__ */ new Set();
 			const starting = /* @__PURE__ */ new Map();
-			let polling = false;
-			let mutation = 0;
+			let epoch = 0, mutation = 0;
+			let polling;
 			const publish = (patch) => {
 				current = {
 					...current,
@@ -71,7 +78,24 @@ window.__ModuleLoader__.load({
 				};
 				for (const listener of listeners) listener();
 			};
-			return {
+			const scope = () => ({
+				sessionId: current.sessionId,
+				projectId: current.projectId
+			});
+			const load = async (generation) => {
+				if (!current.sessionId) return;
+				try {
+					const value = await request("list", { sessionId: current.sessionId });
+					if (generation === epoch) publish({
+						...value,
+						ready: true,
+						error: ""
+					});
+				} catch (error) {
+					if (generation === epoch) publish({ error: messageOf(error) });
+				}
+			};
+			const store = {
 				getSnapshot: () => current,
 				subscribe(listener) {
 					listeners.add(listener);
@@ -79,16 +103,39 @@ window.__ModuleLoader__.load({
 						listeners.delete(listener);
 					};
 				},
+				async select(sessionId) {
+					if (sessionId === current.sessionId) return;
+					const generation = ++epoch;
+					mutation++;
+					publish({
+						sessionId,
+						projectId: "",
+						cwd: "",
+						prompts: [],
+						runs: [],
+						legacyAvailable: false,
+						ready: false,
+						error: "",
+						syncError: "",
+						open: true
+					});
+					await load(generation);
+				},
 				show(open = true) {
 					publish({ open });
 				},
 				async refresh() {
-					if (polling) return;
-					polling = true;
+					const generation = epoch;
+					if (!current.sessionId || polling === generation) return;
+					polling = generation;
 					const revision = mutation;
 					try {
-						const { runs } = await request("runs");
-						if (revision === mutation) {
+						if (!current.ready) {
+							await load(generation);
+							return;
+						}
+						const { runs, projectId } = await request("runs", scope());
+						if (generation === epoch && revision === mutation && projectId === current.projectId) {
 							const failed = runs.find((run) => run.status === "failed" && current.runs.some((previous) => previous.id === run.id && active(previous.status)));
 							publish({
 								runs,
@@ -97,29 +144,42 @@ window.__ModuleLoader__.load({
 							});
 						}
 					} catch {
-						publish({ syncError: "任务状态同步失败，正在重连；当前显示可能已过期。" });
+						if (generation === epoch) publish({ syncError: "任务状态同步失败，正在重连；当前显示可能已过期。" });
 					} finally {
-						polling = false;
+						if (polling === generation) polling = void 0;
 					}
 				},
+				async save(action, draft = {}) {
+					if (!current.ready) throw new Error("项目尚未就绪，请稍后重试。");
+					const generation = epoch;
+					const value = await request(action, {
+						...draft,
+						...scope()
+					});
+					if (generation === epoch) publish(value);
+				},
 				start(sessionId, promptId) {
-					const key = `${sessionId}:${promptId}`;
+					if (sessionId !== current.sessionId || !current.ready) return Promise.resolve();
+					const key = `${epoch}:${promptId}`;
 					if (starting.has(key)) return starting.get(key);
+					const generation = epoch;
+					mutation++;
 					const operation = request("start", {
-						sessionId,
+						...scope(),
 						id: promptId,
 						requestId: crypto.randomUUID()
 					}).then(({ run }) => {
+						if (generation !== epoch) return;
 						mutation++;
 						publish({
 							runs: [run, ...current.runs.filter((item) => item.id !== run.id)],
 							...run.status === "failed" ? { error: `${run.name}：${run.error ?? "任务未能启动。"}` } : {}
 						});
 					}).catch((error) => {
-						publish({ error: error instanceof Error ? error.message : String(error) });
+						if (generation === epoch) publish({ error: messageOf(error) });
 					}).finally(() => {
 						starting.delete(key);
-						publish({});
+						if (generation === epoch) publish({});
 					});
 					starting.set(key, operation);
 					publish({
@@ -128,22 +188,37 @@ window.__ModuleLoader__.load({
 					});
 					return operation;
 				},
-				async stop(runId) {
+				async control(action, runId) {
+					const generation = epoch;
+					mutation++;
 					try {
-						const { runs } = await request("stop", { runId });
-						mutation++;
-						publish({
-							runs,
-							error: ""
+						const { runs } = await request(action, {
+							...scope(),
+							runId
 						});
+						if (generation === epoch) {
+							mutation++;
+							const updated = runs.find((run) => run.id === runId);
+							publish({
+								runs: updated ? current.runs.map((run) => run.id === runId ? updated : run) : current.runs.filter((run) => run.id !== runId),
+								error: ""
+							});
+						}
 					} catch (error) {
-						publish({ error: error instanceof Error ? error.message : String(error) });
+						if (generation === epoch) publish({ error: messageOf(error) });
 					}
 				},
+				stop(runId) {
+					return store.control("stop", runId);
+				},
+				close(runId) {
+					return store.control("close", runId);
+				},
 				busy(sessionId, promptId) {
-					return !!sessionId && (starting.has(`${sessionId}:${promptId}`) || current.runs.some((run) => run.parentId === sessionId && run.promptId === promptId && active(run.status)));
+					return sessionId === current.sessionId && starting.has(`${epoch}:${promptId}`);
 				}
 			};
+			return store;
 		}
 		//#endregion
 		//#region src/client/logic.ts
@@ -191,6 +266,10 @@ window.__ModuleLoader__.load({
 [data-dqp-layout=stacked]>.dqp-dock-seat:has(> .dqp-dock){grid-column:1;grid-row:2}
 .dqp-dock-body{flex:1;overflow:auto;padding:12px 10px;min-height:0;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#839eb644 transparent;scrollbar-gutter:stable}
 .dqp-run-card{padding:13px;margin-bottom:10px;border:1px solid var(--dsw-alias-border-l3,#a1b7cc22);border-radius:10px;background:color-mix(in srgb,var(--dsw-alias-bg-base,#101c29) 93%,#9ab9d1 7%)}
+.dqp-run-actions{display:flex;align-items:center;gap:5px;margin:-5px -5px 8px 0;color:var(--dsw-alias-label-tertiary,#8ea4b8)}
+.dqp-run-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.dqp-run-actions button{appearance:none;border:0;background:transparent;color:inherit;font:inherit;font-size:11px;padding:3px 6px;border-radius:5px;cursor:pointer}
+.dqp-run-actions button:hover{background:#ffffff0d;color:#ed969c}.dqp-run-actions button:disabled{opacity:.45;cursor:default}.dqp-run-actions button:focus-visible{outline:1px solid #a3c8e1;outline-offset:1px}
 .dqp-run-card:last-child{margin-bottom:0}
 .dqp-live-output{margin:0;min-height:24px;max-height:min(340px,45vh);overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;font:12px/1.85 var(--moss-text,system-ui);color:var(--dsw-alias-label-secondary,#c1d3e1);white-space:pre-wrap;overflow-wrap:anywhere}
 .dqp-live-pending{display:flex;flex-direction:column;gap:8px;padding:3px 0;opacity:.5;animation:dqp-pending 1.8s ease-in-out infinite}
@@ -302,12 +381,14 @@ window.__ModuleLoader__.load({
 			});
 			ctx.effect(() => {
 				const poll = () => {
-					tasks.refresh().catch(() => {});
+					tasks.select(currentSessionId(ctx)).then(() => tasks.refresh()).catch(() => {});
 				};
 				poll();
 				const timer = setInterval(poll, 400);
 				window.addEventListener("focus", poll);
+				const unsubscribe = ctx.get("uiWorkspace").selection.subscribe(poll);
 				return () => {
+					unsubscribe();
 					clearInterval(timer);
 					window.removeEventListener("focus", poll);
 				};
@@ -315,24 +396,14 @@ window.__ModuleLoader__.load({
 		}
 		function QuickPrompts({ ctx, tasks, sessionId }) {
 			const state = react.default.useSyncExternalStore(tasks.subscribe, tasks.getSnapshot);
-			const [items, setItems] = react.default.useState([]);
+			const selected = state.sessionId === sessionId;
+			const items = selected ? state.prompts : [];
 			const [draft, setDraft] = react.default.useState(null);
 			const [error, setError] = react.default.useState("");
 			const [saving, setSaving] = react.default.useState(false);
 			const submitting = react.default.useRef(false);
 			const nameInput = react.default.useRef(null);
 			const trigger = react.default.useRef(null);
-			react.default.useEffect(() => {
-				let live = true;
-				taskRequest("list").then(({ prompts }) => {
-					if (live) setItems(prompts);
-				}).catch((error) => {
-					if (live) setError(String(error.message));
-				});
-				return () => {
-					live = false;
-				};
-			}, []);
 			const close = () => {
 				if (submitting.current) return;
 				setDraft(null);
@@ -366,8 +437,7 @@ window.__ModuleLoader__.load({
 				setSaving(true);
 				setError("");
 				try {
-					const { prompts } = await taskRequest(action, draft);
-					setItems(prompts);
+					await tasks.save(action, draft);
 					setDraft(null);
 					trigger.current?.focus();
 				} catch (error) {
@@ -430,7 +500,7 @@ window.__ModuleLoader__.load({
 					...draft,
 					text: event.target.value
 				})
-			})), h("small", null, "沿用主 Agent 的模型、工作目录与权限。结果和执行进度显示在对话右侧任务栏，主对话可继续使用。"), error && h("p", { role: "alert" }, error), h("footer", null, draft.id && h("button", {
+			})), h("small", null, `使用当前项目目录：${state.cwd}。各任务独立运行，主对话可继续使用。`), error && h("p", { role: "alert" }, error), h("footer", null, draft.id && h("button", {
 				type: "button",
 				className: "dqp-delete",
 				disabled: saving,
@@ -446,8 +516,8 @@ window.__ModuleLoader__.load({
 				className: "dqp-save",
 				disabled: saving || !draft.name.trim() || !draft.text.trim()
 			}, saving ? "保存中…" : "保存")))), document.body) : null;
-			const running = ongoingRuns(state.runs).length;
-			const notice = error || state.error || state.syncError;
+			const running = selected ? ongoingRuns(state.runs).length : 0;
+			const notice = error || (selected ? state.error || state.syncError : "");
 			return h(react.default.Fragment, null, h("div", {
 				className: "dqp-bar",
 				role: "group",
@@ -456,14 +526,14 @@ window.__ModuleLoader__.load({
 				type: "button",
 				className: "dqp-add",
 				"aria-label": "新增快捷任务",
-				disabled: saving,
+				disabled: saving || !selected || !state.ready,
 				onClick: (event) => open(event)
 			}, "+"), h("div", { className: "dqp-items" }, ...items.map((item) => h("span", {
 				className: "dqp-task-chip",
 				key: item.id
 			}, h("button", {
 				type: "button",
-				disabled: !sessionId || tasks.busy(sessionId, item.id),
+				disabled: !selected || !state.ready || !sessionId || tasks.busy(sessionId, item.id),
 				title: `${item.name} · 后台子 Agent\n点击执行 · 右键编辑`,
 				onClick: () => start(item),
 				onContextMenu: (event) => {
@@ -483,7 +553,13 @@ window.__ModuleLoader__.load({
 				stroke: "currentColor",
 				strokeWidth: 1.8,
 				"aria-hidden": true
-			}, h("path", { d: "M15 5l4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15v5Z" })))))), running > 0 && h("button", {
+			}, h("path", { d: "M15 5l4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15v5Z" })))))), selected && state.legacyAvailable && h("button", {
+				type: "button",
+				title: "将旧版全局指令归入当前项目，仅可导入一次",
+				onClick: () => {
+					tasks.save("import").catch((error) => setError(String(error.message)));
+				}
+			}, "导入旧指令"), running > 0 && h("button", {
 				type: "button",
 				className: "dqp-panel-trigger",
 				"aria-expanded": state.open,
@@ -511,10 +587,20 @@ window.__ModuleLoader__.load({
 				tabIndex: 0
 			}, ...runs.map((run) => h(RunCard, {
 				key: run.id,
-				run
+				run,
+				tasks
 			})))), seat);
 		}
-		function RunCard({ run }) {
+		function RunCard({ run, tasks }) {
+			const [acting, setActing] = react.default.useState(false);
+			const control = async (action) => {
+				setActing(true);
+				try {
+					await tasks.control(action, run.id);
+				} finally {
+					setActing(false);
+				}
+			};
 			const output = run.liveOutput ?? run.output;
 			const viewport = react.default.useRef(null);
 			const follow = react.default.useRef(true);
@@ -527,7 +613,23 @@ window.__ModuleLoader__.load({
 				"data-run-id": run.id,
 				"aria-label": run.name,
 				title: run.name
-			}, output ? h("pre", {
+			}, h("div", { className: "dqp-run-actions" }, h("span", { className: "dqp-run-name" }, run.name), h("button", {
+				type: "button",
+				disabled: acting || run.status === "stopping",
+				title: "中断此任务",
+				"aria-label": `中断任务 ${run.name}`,
+				onClick: () => {
+					control("stop");
+				}
+			}, run.status === "stopping" ? "停止中" : "中断"), h("button", {
+				type: "button",
+				disabled: acting,
+				title: "停止并关闭此任务",
+				"aria-label": `停止并关闭任务 ${run.name}`,
+				onClick: () => {
+					control("close");
+				}
+			}, "×")), output ? h("pre", {
 				ref: viewport,
 				className: "dqp-live-output",
 				role: "log",
