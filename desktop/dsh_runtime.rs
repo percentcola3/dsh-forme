@@ -35,7 +35,7 @@ pub fn install(window: &WebviewWindow) -> tauri::Result<()> {
     let app = window.app_handle();
     app.manage(Service {
         child: Mutex::new(None),
-        status: Mutex::new(Status { phase: "starting".into(), message: "正在启动 DeepSeek…".into() }),
+        status: Mutex::new(Status { phase: "starting".into(), message: "正在启动 550W…".into() }),
         // WKWebView can still report about:blank immediately after creation.
         startup_url: Url::parse("tauri://localhost/index.html").expect("bundled startup URL"),
         origin: Mutex::new(None),
@@ -198,7 +198,7 @@ pub fn dsh_restart(window: WebviewWindow) -> Result<(), String> {
     }
     *child = None;
     drop(child);
-    show_status(app, "starting", "正在启动 DeepSeek…");
+    show_status(app, "starting", "正在启动 550W…");
     spawn_service(app)
 }
 

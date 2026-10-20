@@ -1,0 +1,36 @@
+Earth surface and cloud imagery
+
+NASA Visible Earth / NASA Goddard Space Flight Center, The Blue Marble.
+Source records and original imagery:
+https://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57730/land_ocean_ice_2048.png
+https://eoimages.gsfc.nasa.gov/images/imagerecords/57000/57747/cloud_combined_2048.jpg
+
+Local JPEG versions were resized for this interface. The source imagery is
+embedded in the client bundle; loading the theme makes no requests to NASA.
+NASA does not endorse this project.
+
+Scene shader (starfield, engine belt, atmospheric wake) and interface code: MIT, see LICENSE.
+
+Bundled typefaces (SIL Open Font License 1.1)
+
+Rajdhani, Latin Medium (500) and SemiBold (600), Indian Type Foundry.
+https://github.com/itfoundry/rajdhani
+Distributed via @fontsource/rajdhani; license in licenses/Rajdhani-OFL.txt.
+
+Noto Sans SC, Simplified Chinese Regular (400) and SemiBold (600), Adobe and Google.
+https://github.com/notofonts/noto-cjk
+Distributed via @fontsource/noto-sans-sc 5.3.1; license in licenses/NotoSansSC-OFL.txt.
+Noto Sans CJK and Source Han Sans are from the same open-source CJK font project.
+
+Webfonts are embedded locally in the client bundle. There are no runtime font
+CDN requests. This font pairing follows the film's interface design language;
+it does not reproduce a separately commissioned MOSS logo typeface.
+
+550W wordmark
+
+The local SVG is a hand-drawn interpretation of the thin red/white 550W mark
+from The Wandering Earth. Visual reference inspected:
+https://store.kde.org/p/1981712/
+https://images.pling.com/img/00/00/70/15/07/1981712/splash.png
+No image was copied into the SVG. This is an unofficial tribute, not official
+extracted artwork or an endorsement by the film's rights holders.

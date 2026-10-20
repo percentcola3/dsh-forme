@@ -1,6 +1,6 @@
 # dsh-forme
 
-为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 提供三个插件：Git 变更对比、文件预览与引用、自定义快捷任务。直接复用 DSH 的工作区、会话、模型及审批能力。
+为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 提供四个插件：Git 变更对比、文件预览与引用、自定义快捷任务，以及流浪地球 550W 主题。直接复用 DSH 的工作区、会话、模型及审批能力。
 
 [English](README.md)
 
@@ -12,9 +12,10 @@
 | --- | --- |
 | `dsh-git-plus` | Changes 标签页、左右 diff、分支切换、AI 生成提交说明，以及交给当前 Agent 的提交/推送操作。 |
 | `dsh-file-preview` | 文件标签页，使用官方文件树和 Markdown/代码预览，把文件或代码选区引用加入输入框。 |
+| [`dsh-moss-theme`](plugins/dsh-moss-theme) | 流浪地球主题、550W 状态灯、真实会话状态及可选对话风格指令。 |
 | `dsh-quick-prompts` | 在输入框上方保存快捷任务，支持当前对话、独立 Agent、Shell 命令三种模式。 |
 
-根安装包只启用这三个插件。任务工作区、独立终端等实验不包含在本次安装包中；快捷任务里的 Shell 命令仍可使用。
+根安装包只启用这四个插件。任务工作区、独立终端等实验不包含在本次安装包中；快捷任务里的 Shell 命令仍可使用。
 
 ## 安装到官方桌面端
 
@@ -26,7 +27,7 @@ cd dsh-forme
 npm run install:desktop
 ```
 
-脚本使用桌面应用自带的 pnpm 和 CLI，构建三个插件并补齐本地依赖链接，安装到 `~/.dsh/profiles/desktop`。完成后退出并重新打开 DSH，在「插件」中确认三个组件均为运行状态。此方式是本地链接安装，安装后请保留仓库目录。
+脚本使用桌面应用自带的 pnpm 和 CLI，构建四个插件并补齐本地依赖链接，安装到 `~/.dsh/profiles/desktop`。完成后退出并重新打开 DSH，在「插件」中确认四个组件均为运行状态。此方式是本地链接安装，安装后请保留仓库目录。
 
 如果应用没有安装在默认位置，可指定资源目录：
 
@@ -88,6 +89,14 @@ dsh plugin --profile web add 'git+ssh://git@github.com/percentcola3/dsh-forme.gi
 
 快捷任务保存在 `~/.dsh/quick-prompts.json`。按钮最多显示五个字符，悬停查看完整名称；最近的独立 Agent 结果链接保存在本机客户端。
 
+## 550W 流浪地球主题
+
+界面以深蓝灰和灰白为主，红色用于强调，搭配浅蓝地球、动态大气尾流和通讯终端式 AI 回复。侧栏、控制台及宿主启动页共用手绘的 550W 红白细线字标。顶部增加独立拖动区域；官方 Electron 桌面端保留原生最小化、缩放按钮，Tauri 外壳调用窗口接口，浏览器提供全屏按钮。
+
+点击对话顶部的 **550W** 打开控制台，分别开关主题、环境纹理和界面动效。呼吸灯读取当前会话的待命、连接、处理中、等待确认、异常与不可用状态；航行条直接使用 DSH 的任务计时。设置保存在本地，并遵循系统减少动态效果偏好；图片和字体内嵌，支持离线。
+
+「接入 550W」会创建使用 550W 预设的新会话；现有会话继续使用原预设。也可复制可选的对话风格指令。关闭主题恢复 DSH 配色和品牌；停用插件会移除全部控件。为兼容既有安装，包名保留 `dsh-moss-theme`，预设 ID 保留 `moss`。安装及开发预览见[主题插件说明](plugins/dsh-moss-theme/README.md)。已在本机 macOS DSH **0.2.1-rc.2** 检查冷启动字标、侧栏、顶部拖动和原生窗口操作，模拟状态及清理由自动化测试覆盖。
+
 ## 更新本地安装
 
 ```sh
@@ -117,7 +126,7 @@ pnpm -r exec tsc --noEmit
 pnpm -r run build
 ```
 
-Git 测试使用临时仓库，可通过 `DSH_TEST_GIT` 和 `DSH_TEST_GIT_EXEC_PATH` 指定便携 Git。源代码变更后请重新构建并提交三个插件的 `lib/` 产物；Host 变更需要重启 DSH。
+Git 测试使用临时仓库，可通过 `DSH_TEST_GIT` 和 `DSH_TEST_GIT_EXEC_PATH` 指定便携 Git。源代码变更后请重新构建并提交四个插件的 `lib/` 产物；Host 变更需要重启 DSH。
 
 2026-10-02 已通过 **37 项测试、类型检查与构建**。官方桌面端实测了 Git diff 与说明生成、文件及代码选区引用、当前对话与独立 Agent 的真实响应，以及退出码为 0 的 Shell 命令。该轮桌面验收未实际执行提交/推送。
 

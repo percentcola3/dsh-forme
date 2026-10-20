@@ -2,6 +2,7 @@ import { cpSync, mkdirSync, readFileSync, writeFileSync, symlinkSync, existsSync
 import { spawnSync } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { LOGO_SVG } from '../plugins/dsh-moss-theme/src/brand-art.ts'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const installed = realpathSync(process.env.PAKE_TEMPLATE || join(process.env.HOME, 'Library/pnpm/global/5/node_modules/pake-cli'))
@@ -49,11 +50,15 @@ cpSync(join(root, 'desktop/dsh_runtime.rs'), join(template, 'src-tauri/src/dsh_r
 const capabilityPath = join(template, 'src-tauri/capabilities/default.json')
 const capability = JSON.parse(readFileSync(capabilityPath, 'utf8'))
 capability.remote.urls = ['http://127.0.0.1:*']
+capability.permissions = [...new Set([...capability.permissions,
+  'core:window:allow-minimize', 'core:window:allow-toggle-maximize',
+  'core:window:allow-is-maximized', 'core:window:allow-start-dragging',
+])]
 writeFileSync(capabilityPath, JSON.stringify(capability, null, 2))
 const web = join(root, '.build/startup')
 mkdirSync(web, { recursive: true })
 cpSync(join(root, 'desktop/index.html'), join(web, 'index.html'))
-cpSync(join(root, 'assets/deepseek-harness.png'), join(web, 'icon.png'))
+writeFileSync(join(web, '550w.svg'), LOGO_SVG)
 const output = join(root, '.build/output')
 mkdirSync(output, { recursive: true })
 run(process.execPath, [join(template, 'dist/cli.js'), web,

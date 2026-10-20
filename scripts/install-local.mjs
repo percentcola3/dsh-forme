@@ -6,8 +6,11 @@ import { spawnSync } from 'node:child_process'
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const resources = process.env.DSH_APP_RESOURCES ?? '/Applications/DeepSeek Harness.app/Contents/Resources'
 const cli = join(resources, 'runtime/cli/bin/dsh')
-const pnpm = join(resources, 'runtime/pnpm/bin/pnpm.cjs')
-if (!existsSync(cli) || !existsSync(pnpm)) throw new Error('Install DeepSeek Harness Desktop first, or set DSH_APP_RESOURCES.')
+const pnpm = [
+  'runtime/pnpm/bin/pnpm.cjs',
+  'runtime/primary-runtime/dependencies/pnpm/bin/pnpm.cjs',
+].map(path => join(resources, path)).find(existsSync)
+if (!existsSync(cli) || !pnpm) throw new Error('Install DeepSeek Harness Desktop first, or set DSH_APP_RESOURCES.')
 const run = (bin, args, cwd) => {
   const result = spawnSync(bin, args, { cwd, stdio: 'inherit', env: process.env })
   if (result.error) throw result.error
