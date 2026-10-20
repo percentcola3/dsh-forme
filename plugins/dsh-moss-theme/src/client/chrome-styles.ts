@@ -19,7 +19,7 @@ body[data-moss-theme="on"] span:has(> [data-slot="sidebar.brand.mark"]):has(+ sp
 /* The official name seat is 24px high; allow the larger vector to fit. */
 body[data-moss-theme="on"] span:has(> [data-slot="sidebar.brand.name"]),
 body[data-moss-theme="on"] span:has(> span > [data-slot="sidebar.brand.name"]) { height:auto; overflow:visible; }
-body[data-moss-theme="on"] div[data-window-drag]:has([data-slot="sidebar.brand.name"]) { position:relative; height:64px; min-height:64px; margin:0 0 8px; padding:8px 32px; overflow:visible; }
+body[data-moss-theme="on"] div[data-window-drag]:has([data-slot="sidebar.brand.name"]) { position:relative; height:56px; min-height:56px; margin:-4px 0 8px; padding:4px 32px; overflow:visible; }
 /* Center the full identity seat, including on resizable sidebar widths. */
 body[data-moss-theme="on"] div[data-window-drag]:has([data-slot="sidebar.brand.name"]) > :is(span,button):has([data-slot="sidebar.brand.name"]) { justify-content:center; }
 body[data-moss-theme="on"] div[data-window-drag]:has([data-slot="sidebar.brand.name"]) > button:not(:has([data-slot="sidebar.brand.name"])) { position:absolute; right:4px; }

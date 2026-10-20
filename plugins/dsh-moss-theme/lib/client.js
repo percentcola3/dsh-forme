@@ -156,6 +156,7 @@ window.__ModuleLoader__.load({
 		//#endregion
 		//#region src/client/icons.ts
 		const paths = {
+			planet: "M18 12a6 6 0 1 1-12 0 6 6 0 0 1 12 0ZM11 6.2c-1.8 3.9-1.8 7.7 0 11.6M6.1 10.6C2.7 12.7 1 14.8 1.8 16.2c1.1 1.8 6.6.6 12.2-2.7S23.3 7.9 22.2 6.1c-.7-1.2-3.3-.9-6.3.3",
 			orbit: "M21 12a9 9 0 1 1-9-9m3 0h6v6M4 17 20 7M9 9l6 6",
 			terminal: "M3 7V3h18v4M3 17v4h18v-4M6 9l3 3-3 3m6 0h6",
 			connect: "M9 15 6 18m0 0H2m4 0v4M9 7l8 8M7 9l8-8 8 8-8 8zM2 8a14 14 0 0 1 14 14M2 13a9 9 0 0 1 9 9",
@@ -192,6 +193,14 @@ ${theme} {
   --dsw-alias-interactive-bg-active:#89b4d52b;
   --dsw-alias-interactive-bg-hover-solid:#213347;
   --dsw-focus-ring-color:#d75b62;
+}
+/* Theme only the workspace folder seat. The native hover chevron and actions
+   keep their layout and behavior; currentColor retains the active red state. */
+${theme} [role="treeitem"][data-row-key^="workspace:"] > span:first-child { position:relative; }
+${theme} [role="treeitem"][data-row-key^="workspace:"] > span:first-child > svg { visibility:hidden; }
+${theme} [role="treeitem"][data-row-key^="workspace:"] > span:first-child::before {
+  content:''; position:absolute; width:18px; height:18px; inset:50% auto auto 50%; transform:translate(-50%,-50%);
+  background:currentColor; mask:${iconURL("planet")} center/contain no-repeat; pointer-events:none;
 }
 /* Select, hover and keyboard focus have distinct, consistent affordances. */
 ${theme} :is([role="treeitem"],[role="option"])[aria-selected="true"],
@@ -550,7 +559,7 @@ body[data-moss-theme="on"] span:has(> [data-slot="sidebar.brand.mark"]):has(+ sp
 /* The official name seat is 24px high; allow the larger vector to fit. */
 body[data-moss-theme="on"] span:has(> [data-slot="sidebar.brand.name"]),
 body[data-moss-theme="on"] span:has(> span > [data-slot="sidebar.brand.name"]) { height:auto; overflow:visible; }
-body[data-moss-theme="on"] div[data-window-drag]:has([data-slot="sidebar.brand.name"]) { position:relative; height:64px; min-height:64px; margin:0 0 8px; padding:8px 32px; overflow:visible; }
+body[data-moss-theme="on"] div[data-window-drag]:has([data-slot="sidebar.brand.name"]) { position:relative; height:56px; min-height:56px; margin:-4px 0 8px; padding:4px 32px; overflow:visible; }
 /* Center the full identity seat, including on resizable sidebar widths. */
 body[data-moss-theme="on"] div[data-window-drag]:has([data-slot="sidebar.brand.name"]) > :is(span,button):has([data-slot="sidebar.brand.name"]) { justify-content:center; }
 body[data-moss-theme="on"] div[data-window-drag]:has([data-slot="sidebar.brand.name"]) > button:not(:has([data-slot="sidebar.brand.name"])) { position:absolute; right:4px; }

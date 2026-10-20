@@ -18,6 +18,14 @@ ${theme} {
   --dsw-alias-interactive-bg-hover-solid:#213347;
   --dsw-focus-ring-color:#d75b62;
 }
+/* Theme only the workspace folder seat. The native hover chevron and actions
+   keep their layout and behavior; currentColor retains the active red state. */
+${theme} [role="treeitem"][data-row-key^="workspace:"] > span:first-child { position:relative; }
+${theme} [role="treeitem"][data-row-key^="workspace:"] > span:first-child > svg { visibility:hidden; }
+${theme} [role="treeitem"][data-row-key^="workspace:"] > span:first-child::before {
+  content:''; position:absolute; width:18px; height:18px; inset:50% auto auto 50%; transform:translate(-50%,-50%);
+  background:currentColor; mask:${iconURL('planet')} center/contain no-repeat; pointer-events:none;
+}
 /* Select, hover and keyboard focus have distinct, consistent affordances. */
 ${theme} :is([role="treeitem"],[role="option"])[aria-selected="true"],
 ${theme} :is(button[aria-current="page"],button[aria-pressed="true"]) {

@@ -2,6 +2,7 @@ import React from 'react'
 
 // Original instrument glyphs: straight cuts, open corners and a shared 24-unit grid.
 const paths = {
+  planet: 'M18 12a6 6 0 1 1-12 0 6 6 0 0 1 12 0ZM11 6.2c-1.8 3.9-1.8 7.7 0 11.6M6.1 10.6C2.7 12.7 1 14.8 1.8 16.2c1.1 1.8 6.6.6 12.2-2.7S23.3 7.9 22.2 6.1c-.7-1.2-3.3-.9-6.3.3',
   orbit: 'M21 12a9 9 0 1 1-9-9m3 0h6v6M4 17 20 7M9 9l6 6',
   terminal: 'M3 7V3h18v4M3 17v4h18v-4M6 9l3 3-3 3m6 0h6',
   connect: 'M9 15 6 18m0 0H2m4 0v4M9 7l8 8M7 9l8-8 8 8-8 8zM2 8a14 14 0 0 1 14 14M2 13a9 9 0 0 1 9 9',
