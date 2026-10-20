@@ -79,7 +79,7 @@ ${theme} [data-code-block-content] { background-color:#0a1420; }
 .moss-connect,.moss-copy { display:inline-flex; align-items:center; justify-content:center; gap:7px; }
 .moss-connect .moss-icon,.moss-copy .moss-icon { width:13px; height:13px; }
 ${theme} .moss-persona summary { font-family:var(--moss-display); }
-${theme} .moss-persona textarea { font-family:var(--moss-text); }
+${theme} .moss-persona textarea { font-family:var(--moss-display); }
 ${theme} .moss-console { background-image:radial-gradient(ellipse at 100% 0,#9ac2e610,transparent 50%),linear-gradient(180deg,#17283afa,#0c1724fc); }
 @media (prefers-reduced-motion:reduce) {
   ${theme} :is(header[data-window-drag],[data-turn-tail],[data-code-block-banner]) button svg { transition:none; }

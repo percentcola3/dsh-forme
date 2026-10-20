@@ -26,6 +26,7 @@ ${prose}:first-child::before {
   background:${transmissionGlyph} left 5px/14px 14px no-repeat,linear-gradient(#e45459,#e45459) left top/24px 1px no-repeat;
 }
 ${prose} > :first-child { margin-top:0; }
+${prose} :is(p,li,td,th) { font-family:var(--moss-text); }
 ${prose} p { color:var(--dsw-alias-label-primary); line-height:1.85; }
 ${prose} :is(h1,h2,h3,h4) { font-family:var(--moss-display); color:#e8eaee; letter-spacing:.035em; }
 ${prose} h1 { font-size:1.45em; font-weight:600; line-height:1.55; margin:0 0 16px; }

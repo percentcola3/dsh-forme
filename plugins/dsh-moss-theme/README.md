@@ -46,7 +46,7 @@ dsh plugin --profile web add 'git+ssh://git@github.com/percentcola3/dsh-forme.gi
 
 ## 字体
 
-英数标识与仪表文字使用内嵌的 **Rajdhani Medium / SemiBold**；中文使用 **Noto Sans SC Regular / SemiBold**（与思源黑体同源），正文保留清晰可读的字距，代码继续使用等宽字体。这是电影界面风格的字体搭配，不将正文字体宣称为电影的原版字体。字体随客户端打包，支持离线；SIL OFL 授权保存在 `licenses/`，来源见 `NOTICE`。
+侧栏、会话列表、菜单、按钮、普通标签与输入框的英数统一使用内嵌的 **Rajdhani Medium / SemiBold**，中文回退到 **Noto Sans SC Regular / SemiBold**（与思源黑体同源）。对话正文使用 Noto Sans SC，代码使用等宽字体，保持长篇阅读与代码对齐。550W 字标是独立 SVG，不依赖字体。这是电影界面风格的字体搭配，不将正文字体宣称为电影的原版字体。字体随客户端打包，支持离线；SIL OFL 授权保存在 `licenses/`，来源见 `NOTICE`。
 
 ## 使用
 

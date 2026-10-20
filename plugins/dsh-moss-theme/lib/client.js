@@ -275,7 +275,7 @@ ${theme} [data-code-block-content] { background-color:#0a1420; }
 .moss-connect,.moss-copy { display:inline-flex; align-items:center; justify-content:center; gap:7px; }
 .moss-connect .moss-icon,.moss-copy .moss-icon { width:13px; height:13px; }
 ${theme} .moss-persona summary { font-family:var(--moss-display); }
-${theme} .moss-persona textarea { font-family:var(--moss-text); }
+${theme} .moss-persona textarea { font-family:var(--moss-display); }
 ${theme} .moss-console { background-image:radial-gradient(ellipse at 100% 0,#9ac2e610,transparent 50%),linear-gradient(180deg,#17283afa,#0c1724fc); }
 @media (prefers-reduced-motion:reduce) {
   ${theme} :is(header[data-window-drag],[data-turn-tail],[data-code-block-banner]) button svg { transition:none; }
@@ -297,7 +297,8 @@ html body[data-moss-theme="on"] {
   --moss-accent:#df4e54; --moss-accent-dim:#803137; --moss-red:#e34448; --moss-red-deep:#8b2228;
   --moss-display:'MOSS Rajdhani','MOSS Sans SC','Source Han Sans SC','PingFang SC',sans-serif;
   --moss-text:'MOSS Sans SC','Source Han Sans SC','Noto Sans SC','PingFang SC',sans-serif;
-  --dsw-font-family:var(--moss-text); --dsw-font-family-brand:var(--moss-display); --dsh-font-family-text:var(--moss-text);
+  --dsw-font-family:var(--moss-display); --dsw-font-family-brand:var(--moss-display);
+  --dsh-font-family-text:var(--moss-display); --dsh-font-family-text-default:var(--moss-display);
   --moss-line:#d0d4dc25; --moss-line-strong:#d0d4dc4a; --moss-mono:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,monospace;
   --dsw-alias-bg-base:#0c1521;
   --dsw-alias-bg-layer-1:#101e2e;
@@ -367,11 +368,13 @@ html body[data-moss-theme="on"] {
   --dsw-specific-input-major:#112031;
   --dsw-specific-login-input:#112031;
   --dsw-specific-tip:#203247;
-  background:var(--dsw-alias-bg-base); color:var(--dsw-alias-label-primary); font-family:var(--moss-text);
+  background:var(--dsw-alias-bg-base); color:var(--dsw-alias-label-primary); font-family:var(--moss-display);
 }
-/* Film-style display typography for chrome; prose and code keep readable families. */
-body[data-moss-theme="on"] :is(button,select,[data-window-drag]) { font-family:var(--moss-display); }
-body[data-moss-theme="on"] :is([data-composer-input],textarea) { font-family:var(--moss-text); }
+/* Native session rows are divs, while menus and editors can set their own font.
+   Cover UI semantics as well as buttons; do not override code/editor descendants. */
+html body[data-moss-theme="on"] :is(button,input,select,textarea,[contenteditable="true"],[data-composer-input],[role="treeitem"],[role="option"],[role="menuitem"],[role="tab"],[data-window-drag]) { font-family:var(--moss-display); }
+/* Reading surfaces use the text face; code retains its own monospace stack. */
+body[data-moss-theme="on"] [data-chat-flow-kind] { font-family:var(--moss-text); }
 /* One shared contour for the card, its native overlays and the shortcut row. */
 body[data-moss-theme="on"] [data-composer-card] {
   --moss-card-radius:10px; --dsw-radius-panel:var(--moss-card-radius);
@@ -435,6 +438,7 @@ ${prose}:first-child::before {
   background:${transmissionGlyph} left 5px/14px 14px no-repeat,linear-gradient(#e45459,#e45459) left top/24px 1px no-repeat;
 }
 ${prose} > :first-child { margin-top:0; }
+${prose} :is(p,li,td,th) { font-family:var(--moss-text); }
 ${prose} p { color:var(--dsw-alias-label-primary); line-height:1.85; }
 ${prose} :is(h1,h2,h3,h4) { font-family:var(--moss-display); color:#e8eaee; letter-spacing:.035em; }
 ${prose} h1 { font-size:1.45em; font-weight:600; line-height:1.55; margin:0 0 16px; }
