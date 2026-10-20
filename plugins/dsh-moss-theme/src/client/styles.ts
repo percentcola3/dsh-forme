@@ -109,7 +109,9 @@ body[data-moss-theme="on"] [data-composer-card]::before {
   mask:linear-gradient(#000 0 0) top left/20px 20px no-repeat,linear-gradient(#000 0 0) bottom right/20px 20px no-repeat;
 }
 body[data-moss-theme="on"] [data-composer-card]:focus-within { border-color:#e25c626e; box-shadow:0 16px 45px #0506084d, 0 0 0 2px #e3444812, inset 0 1px #e0e3e80a; }
-body[data-moss-theme="on"] header[data-window-drag] {
+/* The plugin manager also marks its inset page heading as a drag region.
+   Keep the console gradient on the full-width conversation header only. */
+body[data-moss-theme="on"] header[data-window-drag]:has([data-conversation-header-leading]) {
   border-bottom:1px solid var(--moss-line);
   background:linear-gradient(180deg,#17283a,#101e2c);
   box-shadow:inset 0 1px #e0e3e81a,0 1px 0 #0003;
