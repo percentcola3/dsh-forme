@@ -89,7 +89,7 @@ Click **+** above the composer, enter a name and task content, then save. Click 
 
 All shortcuts launch **native background subagents** using the main Agent’s model, directory, preset and permissions, with fresh context. Both natural-language instructions and saved commands go through the AI. Legacy shortcut names and original content are preserved; the old three modes and model overrides no longer apply.
 
-The right floating panel shows status, elapsed time, tools and results. Tasks can run concurrently while you keep using the main composer; results do not automatically send messages to the main Agent. Collapse the panel without stopping tasks, use **停止** to interrupt one task, or **完整记录** to open its native session and handle pending interactions. Failed, blocked and interrupted runs are never presented as successful.
+A compact card window at the upper right scrolls independently. Cards show status, elapsed time and a two-line result preview; expand a card for tools and the full text. Tasks can run concurrently while you keep using the main composer; results do not automatically send messages to the main Agent. Collapse the panel without stopping tasks, use **停止** to interrupt one task, or **完整记录** to open its native session and handle pending interactions. Failed, blocked and interrupted runs are never presented as successful.
 
 Definitions live in `~/.dsh/quick-prompts.json`. Labels show up to five characters; hover for the full name. The panel survives page refresh and session changes; its in-memory run list resets when DSH restarts. Persisted child sessions remain in DSH’s native subagent list. Requires the native `spawn` provider; verified on Desktop **0.2.1-rc.2**. See the [plugin guide](plugins/dsh-quick-prompts/README.md).
 

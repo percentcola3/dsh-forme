@@ -89,17 +89,48 @@ export function TaskPanel({ ctx, tasks }: { ctx: Context; tasks: TaskStore }): R
   const state = React.useSyncExternalStore(tasks.subscribe, tasks.getSnapshot)
   const [now, setNow] = React.useState(Date.now)
   const count = state.runs.filter(run => active(run.status)).length
-  React.useEffect(() => { if (!state.open || !count) return; setNow(Date.now()); const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer) }, [state.open, count])
-  if (!state.open) return state.runs.length ? createPortal(h('button', { type: 'button', className: 'dqp-float-collapsed', 'aria-label': '展开后台快捷任务', onClick: () => tasks.show() }, h('i', { className: 'dqp-dot', 'data-status': count ? 'running' : 'completed' }), '后台任务', count ? ` · ${count}` : ''), document.body) : null
+  React.useEffect(() => {
+    if (!state.open || !count) return
+    setNow(Date.now())
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [state.open, count])
+  if (!state.open) return state.runs.length ? createPortal(
+    h('button', { type: 'button', className: 'dqp-float-collapsed', 'aria-label': '展开后台快捷任务', onClick: () => tasks.show() },
+      h('i', { className: 'dqp-dot', 'data-status': count ? 'running' : 'stopped' }), '后台任务', count ? ` · ${count}` : ''), document.body) : null
   const runs = [...state.runs].sort((a, b) => Number(active(b.status)) - Number(active(a.status)) || b.startedAt - a.startedAt).slice(0, 20)
   return createPortal(h('aside', { className: 'dqp-float', 'aria-label': '后台快捷任务' },
-    h('header', { className: 'dqp-float-head' }, h('i', { className: 'dqp-dot', 'data-status': count ? 'running' : 'completed' }), h('span', null, h('strong', null, '后台快捷任务'), h('small', null, count ? `${count} 个任务执行中 · 主对话可继续` : '独立执行 · 结果保留在这里')), h('button', { type: 'button', 'aria-label': '收起后台任务面板', onClick: () => tasks.show(false) }, '−')),
-    h('div', { className: 'dqp-float-body' }, (state.error || state.syncError) && h('p', { role: 'alert', className: 'dqp-float-error' }, state.error || state.syncError), !runs.length && h('div', { className: 'dqp-float-empty' }, '点击快捷指令，子 Agent 会在这里执行。'), ...runs.map(run => h('section', { className: 'dqp-run-card', key: run.id, 'data-run-id': run.id, 'aria-label': run.name },
-      h('div', { className: 'dqp-run-heading' }, h('i', { className: 'dqp-dot', 'data-status': run.status }), h('strong', { title: run.name }, run.name), h('span', { className: 'dqp-run-status', 'data-status': run.status, role: 'status' }, statusLabels[run.status])),
-      h('div', { className: 'dqp-run-meta' }, h('span', { title: run.parentTitle }, run.parentTitle), h('time', null, elapsed(run, now))),
-      h('div', { className: 'dqp-run-progress' }, run.progress), run.error && h('div', { className: 'dqp-run-error' }, run.error),
-      !!run.tools.length && h('ul', { className: 'dqp-run-tools' }, ...run.tools.map(tool => h('li', { key: tool.callId }, h('span', null, tool.name), h('b', null, { running: '执行中', done: '已返回', failed: '失败', ended: '已结束' }[tool.state])))),
-      !!run.output && h('pre', { className: 'dqp-run-output' }, run.output),
-      h('div', { className: 'dqp-run-actions' }, h('button', { type: 'button', disabled: !run.steps && !run.output, onClick: () => openRun(ctx, run) }, '完整记录'), active(run.status) && h('button', { type: 'button', className: 'dqp-run-stop', disabled: run.status === 'stopping', 'aria-label': `停止 ${run.name}`, onClick: () => { void tasks.stop(run.id) } }, run.status === 'stopping' ? '停止中…' : '停止'))))),
-    h('footer', { className: 'dqp-float-foot' }, '任务在后台运行 · 收起后继续执行')), document.body)
+    h('header', { className: 'dqp-float-head' },
+      h('strong', null, '快捷任务'),
+      h('span', { className: 'dqp-float-count', role: 'status' }, count ? `${count} 个执行中` : `${runs.length} 条记录`),
+      h('button', { type: 'button', 'aria-label': '收起后台任务面板', onClick: () => tasks.show(false) },
+        h('svg', { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, 'aria-hidden': true }, h('path', { d: 'M5 12h14' })))),
+    h('div', { className: 'dqp-float-body', role: 'region', 'aria-label': '快捷任务列表', tabIndex: 0 },
+      (state.error || state.syncError) && h('p', { role: 'alert', className: 'dqp-float-error' }, state.error || state.syncError),
+      !runs.length && h('div', { className: 'dqp-float-empty' }, '点击快捷指令，在后台执行任务。'),
+      ...runs.map(run => h(RunCard, { key: run.id, ctx, tasks, run, now })))), document.body)
+}
+function RunCard({ ctx, tasks, run, now }: { ctx: Context; tasks: TaskStore; run: TaskRun; now: number }): React.ReactElement {
+  const [expanded, setExpanded] = React.useState(false)
+  const hasDetails = !!(run.output || run.error || run.tools.length)
+  const detailId = `dqp-details-${run.id}`
+  return h('section', { className: 'dqp-run-card', 'data-run-id': run.id, 'aria-label': run.name },
+    h('div', { className: 'dqp-run-heading' },
+      h('i', { className: 'dqp-dot', 'data-status': run.status }),
+      h('strong', { title: run.name }, run.name),
+      h('span', { className: 'dqp-run-status', 'data-status': run.status, role: 'status' }, statusLabels[run.status])),
+    h('div', { className: 'dqp-run-meta' }, h('span', { title: run.parentTitle }, run.parentTitle), h('time', null, elapsed(run, now))),
+    active(run.status) && h('div', { className: 'dqp-run-progress', title: run.progress }, run.progress),
+    !expanded && run.error && h('div', { className: 'dqp-run-error dqp-run-preview', title: run.error }, run.error),
+    !expanded && !run.error && run.output && h('p', { className: 'dqp-run-preview' }, run.output.replace(/\s+/g, ' ').trim()),
+    expanded && h('div', { className: 'dqp-run-details', id: detailId },
+      run.error && h('div', { className: 'dqp-run-error' }, run.error),
+      !!run.tools.length && h('ul', { className: 'dqp-run-tools' }, ...run.tools.map(tool =>
+        h('li', { key: tool.callId }, h('span', null, tool.name), h('b', null, { running: '执行中', done: '已返回', failed: '失败', ended: '已结束' }[tool.state])))),
+      !!run.output && h('pre', { className: 'dqp-run-output', tabIndex: 0, 'aria-label': `${run.name} 的执行结果` }, run.output)),
+    h('div', { className: 'dqp-run-actions' },
+      hasDetails && h('button', { type: 'button', className: 'dqp-run-expand', 'aria-expanded': expanded, 'aria-controls': expanded ? detailId : undefined, onClick: () => setExpanded(!expanded) },
+        expanded ? '收起详情' : '展开详情', h('svg', { width: 10, height: 10, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, 'aria-hidden': true, style: { transform: expanded ? 'rotate(180deg)' : undefined } }, h('path', { d: 'm6 9 6 6 6-6' }))),
+      h('button', { type: 'button', className: 'dqp-run-record', disabled: !run.steps && !run.output, onClick: () => openRun(ctx, run) }, '完整记录', h('span', { 'aria-hidden': true }, '↗')),
+      active(run.status) && h('button', { type: 'button', className: 'dqp-run-stop', disabled: run.status === 'stopping', 'aria-label': `停止 ${run.name}`, onClick: () => { void tasks.stop(run.id) } }, run.status === 'stopping' ? '停止中…' : '停止')))
 }
