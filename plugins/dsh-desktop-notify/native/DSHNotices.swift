@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import QuartzCore
 
 struct Preferences: Decodable {
     var enabled = true
@@ -34,34 +35,57 @@ struct NoticeCard: View {
     let open: () -> Void
     let dismiss: () -> Void
     let hover: (Bool) -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var appeared = false
+    @State private var breathing = false
     var attention: Bool { notice.kind != "complete" }
-    var accent: Color { attention ? Color(red: 1, green: 0.39, blue: 0.43) : Color(red: 0.44, green: 0.84, blue: 0.73) }
+    var label: String { notice.kind == "complete" ? "任务完成" : (notice.kind == "error" ? "执行异常" : "需要选择") }
+    var accent: Color { attention ? Color(red: 1, green: 0.46, blue: 0.5) : Color(red: 0.49, green: 0.84, blue: 0.74) }
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            ZStack {
-                Circle().fill(accent.opacity(0.13)).frame(width: 38, height: 38)
-                Image(systemName: attention ? "ellipsis.bubble.fill" : "checkmark").font(.system(size: 17, weight: .semibold)).foregroundStyle(accent)
-            }.padding(.top, 2)
-            VStack(alignment: .leading, spacing: 7) {
-                HStack(spacing: 8) {
-                    Text(attention ? (notice.kind == "error" ? "任务需要检查" : "需要你的选择") : "任务已完成").font(.system(size: 11, weight: .semibold)).foregroundStyle(accent)
-                    Text("DSH").font(.system(size: 9, weight: .medium, design: .monospaced)).tracking(1.5).foregroundStyle(.white.opacity(0.42))
-                    if count > 1 { Text("+\(count - 1)").font(.system(size: 10, design: .monospaced)).foregroundStyle(.white.opacity(0.5)) }
-                    Spacer(minLength: 0)
-                    Button(action: dismiss) { Image(systemName: "xmark").font(.system(size: 10, weight: .medium)).foregroundStyle(.white.opacity(0.5)).frame(width: 20, height: 18) }.buttonStyle(.plain).accessibilityLabel("关闭提醒")
-                }
-                Text(notice.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(.white.opacity(0.95)).lineLimit(1)
-                Text(notice.body).font(.system(size: 11)).foregroundStyle(.white.opacity(0.62)).lineLimit(island ? 1 : 2).frame(maxWidth: .infinity, alignment: .leading)
-                Button(action: open) { HStack(spacing: 5) { Text(notice.sessionId.isEmpty ? "测试提醒" : "查看任务"); Image(systemName: "arrow.up.right").font(.system(size: 9)) }.font(.system(size: 10, weight: .medium)).foregroundStyle(.white.opacity(0.86)) }.buttonStyle(.plain).padding(.top, 2)
+        HStack(spacing: 6) {
+            Button(action: open) {
+                HStack(spacing: 10) {
+                    ZStack {
+                        Circle().fill(accent.opacity(0.1)).frame(width: 28, height: 28)
+                        if attention {
+                            Circle().stroke(accent.opacity(breathing ? 0.2 : 0.65), lineWidth: 1)
+                                .frame(width: 25, height: 25)
+                                .scaleEffect(reduceMotion ? 1 : (breathing ? 1.12 : 0.92))
+                                .animation(reduceMotion ? nil : .easeInOut(duration: 1.4).repeatForever(autoreverses: true), value: breathing)
+                        } else {
+                            Circle().stroke(accent.opacity(0.5), lineWidth: 1).frame(width: 25, height: 25)
+                                .scaleEffect(reduceMotion ? 1 : (appeared ? 1.4 : 0.8))
+                                .opacity(reduceMotion || appeared ? 0 : 1)
+                                .animation(reduceMotion ? nil : .easeOut(duration: 0.8), value: appeared)
+                        }
+                        Image(systemName: notice.kind == "complete" ? "checkmark" : (notice.kind == "error" ? "exclamationmark" : "ellipsis"))
+                            .font(.system(size: 12, weight: .semibold)).foregroundStyle(accent)
+                            .scaleEffect(reduceMotion || appeared ? 1 : 0.6)
+                            .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.65), value: appeared)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(label).font(.system(size: 12, weight: .semibold)).foregroundStyle(accent)
+                        Text(notice.title).font(.system(size: 10)).foregroundStyle(.white.opacity(0.62)).lineLimit(1).truncationMode(.tail)
+                    }.frame(maxWidth: .infinity, alignment: .leading)
+                }.contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(label)，\(notice.title)")
+            .accessibilityHint(notice.sessionId.isEmpty ? "关闭测试提醒" : "打开任务")
+            if count > 1 {
+                Text("+\(count - 1)").font(.system(size: 10, weight: .medium, design: .monospaced)).foregroundStyle(.white.opacity(0.5))
+            }
+            Button(action: dismiss) {
+                Image(systemName: "xmark").font(.system(size: 9, weight: .medium)).foregroundStyle(.white.opacity(0.45)).frame(width: 20, height: 28)
+            }.buttonStyle(.plain).accessibilityLabel("关闭提醒")
         }
-        .padding(.horizontal, island ? 25 : 21).padding(.vertical, island ? 18 : 20)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(island ? Color.black : Color(red: 0.055, green: 0.075, blue: 0.105))
-        .overlay(alignment: .top) { Rectangle().fill(LinearGradient(colors: [.clear, accent.opacity(0.45), .clear], startPoint: .leading, endPoint: .trailing)).frame(height: 1).padding(.horizontal, 28) }
-        .clipShape(RoundedRectangle(cornerRadius: island ? 30 : 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: island ? 30 : 18, style: .continuous).stroke(.white.opacity(island ? 0.1 : 0.15), lineWidth: 1))
+        .padding(.horizontal, 13)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .background(island ? Color.black : Color(red: 0.045, green: 0.065, blue: 0.09))
+        .clipShape(Capsule())
+        .overlay(Capsule().stroke(.white.opacity(island ? 0.12 : 0.16), lineWidth: 1))
         .padding(1)
+        .onAppear { appeared = true; breathing = true }
         .onHover(perform: hover)
     }
 }
@@ -71,6 +95,8 @@ final class Controller: NSObject, NSApplicationDelegate {
     var queue: [Notice] = []
     var timer: Timer?
     var hovered = false
+    var displayedID: String?
+    var presentation = 0
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         panel = NoticePanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
@@ -125,8 +151,8 @@ final class Controller: NSObject, NSApplicationDelegate {
     @objc func reposition() {
         guard let screen = screen else { return }
         let island = preferences.position == "island"
-        let width: CGFloat = min(island ? 420 : (preferences.position == "top" ? 460 : 380), screen.visibleFrame.width - 32)
-        let height: CGFloat = island ? 140 : 166
+        let width: CGFloat = min(island ? 280 : 300, screen.visibleFrame.width - 32)
+        let height: CGFloat = island || preferences.position == "top" ? 56 : 60
         let visible = screen.visibleFrame
         var x = visible.maxX - width - 22
         var y = visible.maxY - height - 22
@@ -135,15 +161,51 @@ final class Controller: NSObject, NSApplicationDelegate {
         if island { y = screen.frame.maxY - max(screen.safeAreaInsets.top, screen.frame.maxY - visible.maxY) - height - 6 }
         panel.setFrame(NSRect(x: x, y: y, width: width, height: height), display: true)
     }
+    func transitionOffset(_ frame: NSRect) -> NSRect {
+        if preferences.position == "left" { return frame.offsetBy(dx: -12, dy: 0) }
+        if preferences.position == "right" { return frame.offsetBy(dx: 12, dy: 0) }
+        return frame.offsetBy(dx: 0, dy: 8)
+    }
     func render() {
         timer?.invalidate(); timer = nil
-        guard let notice = queue.first else { panel.orderOut(nil); return }
-        panel.contentView = NSHostingView(rootView: NoticeCard(notice: notice, island: preferences.position == "island", count: queue.count, open: { self.open(notice) }, dismiss: { self.remove(notice.id) }, hover: { over in self.hovered = over; self.schedule() }))
+        presentation += 1
+        let revision = presentation
+        let reduced = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        guard let notice = queue.first else {
+            displayedID = nil
+            guard panel.isVisible, !reduced else { panel.orderOut(nil); return }
+            let destination = transitionOffset(panel.frame)
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = 0.18
+                context.timingFunction = CAMediaTimingFunction(name: .easeIn)
+                panel.animator().alphaValue = 0
+                panel.animator().setFrame(destination, display: true)
+            }, completionHandler: {
+                // A new notice may arrive while the previous capsule is leaving.
+                guard self.presentation == revision, self.queue.isEmpty else { return }
+                self.panel.orderOut(nil)
+            })
+            return
+        }
+        let appearing = !panel.isVisible || displayedID != notice.id
+        if appearing { hovered = false }
+        displayedID = notice.id
+        panel.contentView = NSHostingView(rootView: NoticeCard(notice: notice, island: preferences.position == "island", count: queue.count, open: { self.open(notice) }, dismiss: { self.remove(notice.id) }, hover: { over in self.hovered = over; self.schedule() }).id(notice.id))
         reposition()
-        let appearing = !panel.isVisible
-        if appearing { panel.alphaValue = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 1 : 0 }
+        let destination = panel.frame
+        if appearing && !reduced {
+            panel.alphaValue = 0
+            panel.setFrame(transitionOffset(destination), display: true)
+        } else { panel.alphaValue = 1 }
         panel.orderFrontRegardless()
-        if appearing { NSAnimationContext.runAnimationGroup { context in context.duration = 0.22; panel.animator().alphaValue = 1 } }
+        if appearing && !reduced {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.26
+                context.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.8, 0.2, 1)
+                panel.animator().setFrame(destination, display: true)
+                panel.animator().alphaValue = 1
+            }
+        }
         schedule()
     }
     func schedule() {

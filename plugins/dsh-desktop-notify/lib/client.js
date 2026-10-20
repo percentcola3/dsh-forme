@@ -287,7 +287,7 @@ window.__ModuleLoader__.load({
 			].map((seconds) => h("option", {
 				value: seconds,
 				key: seconds
-			}, `${seconds} 秒`))))), toggle("completion", "任务完成", "仅正常结束时提醒，取消和中断不会显示为完成。"), toggle("decisions", "需要选择或审批", "持续显示到处理或关闭；已处理请求自动收起。异常也会提醒。"), toggle("sound", "提示音", "每条新提醒播放一次轻提示音。"), h("p", { className: "dn-note" }, "灵动岛是屏幕上方的黑色悬浮卡片。点击真实提醒可返回对应任务；悬停会暂停自动收起。"), h("div", {
+			}, `${seconds} 秒`))))), toggle("completion", "任务完成", "仅正常结束时提醒，取消和中断不会显示为完成。"), toggle("decisions", "需要选择或审批", "持续显示到处理或关闭；已处理请求自动收起。异常也会提醒。"), toggle("sound", "提示音", "每条新提醒播放一次轻提示音。"), h("p", { className: "dn-note" }, "紧凑胶囊仅显示状态与任务名。点击返回任务，悬停暂停收起。"), h("div", {
 				className: "dn-status",
 				role: "status"
 			}, busy ? "正在保存或准备原生提醒，首次编译可能需要片刻…" : state?.native.status === "ready" ? "原生提醒已就绪 · 覆盖所有会话 · 前后台均有效" : state?.native.status === "unavailable" ? state.native.error : "首次保存或测试会准备原生提醒，无需系统通知权限。"), error && h("div", {

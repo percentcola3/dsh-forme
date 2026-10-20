@@ -90,7 +90,7 @@ dsh plugin --profile web add 'git+ssh://git@github.com/percentcola3/dsh-forme.gi
 
 ## 桌面任务提醒
 
-点击侧栏底部的「桌面提醒」或设置中的「通用」，选择左侧、右侧、顶部或灵动岛，保存后生效。服务端监听所有普通会话；DSH 在后台或最小化时仍可显示原生悬浮窗，不抢焦点。完成提醒自动收起，需要选择或审批的提醒会保留到处理或关闭。首次使用需要 Xcode Command Line Tools；自定义桌面位置目前支持 macOS。详见[插件说明](plugins/dsh-desktop-notify/README.md)。
+点击侧栏底部的「桌面提醒」或设置中的「通用」，选择左侧、右侧、顶部或灵动岛，保存后生效。服务端监听所有普通会话；DSH 在后台或最小化时仍可显示原生悬浮窗，不抢焦点。紧凑胶囊仅显示状态和单行任务名，搭配轻微进出场与呼吸光圈。完成提醒自动收起，需要选择或审批的提醒会保留到处理或关闭。首次使用需要 Xcode Command Line Tools；自定义桌面位置目前支持 macOS。详见[插件说明](plugins/dsh-desktop-notify/README.md)。
 
 ![桌面提醒配置](assets/desktop-notify-settings.png)
 

@@ -79,7 +79,7 @@ export async function apply(ctx: Context, _config: unknown = {}, internals: { di
       } else if (body.action === 'test') {
         if (!preferences.enabled) throw new Error('请先开启桌面提醒。')
         await native.prepare()
-        const notice: Notice = { id: `preview:${randomUUID()}`, sessionId: '', kind: body.kind === 'decision' ? 'decision' : 'complete', title: 'DSH 桌面提醒 · 测试', body: body.kind === 'decision' ? '任务需要你的选择。真实请求处理后，此提醒会自动收起。' : '任务已完成。DSH 在后台运行时，也会在这里提醒。' }
+        const notice: Notice = { id: `preview:${randomUUID()}`, sessionId: '', kind: body.kind === 'decision' ? 'decision' : 'complete', title: '提醒测试', body: body.kind === 'decision' ? '任务需要你的选择。真实请求处理后，此提醒会自动收起。' : '任务已完成。DSH 在后台运行时，也会在这里提醒。' }
         await native.show(notice, preferences)
       } else if (body.action === 'prepare') await native.prepare()
       else if (body.action === 'poll') {

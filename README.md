@@ -97,7 +97,7 @@ Definitions are grouped by canonical project directory in `~/.dsh/quick-prompts.
 
 ### Desktop task alerts
 
-Open **桌面提醒** at the bottom of the sidebar or in General settings. Choose left, right, top or island placement, then save. Alerts use server-side task events and a native macOS panel, so DSH can remain in the background. Completed turns dismiss automatically; decisions remain until handled or closed. First use requires Xcode Command Line Tools. See the [plugin guide](plugins/dsh-desktop-notify/README.md).
+Open **桌面提醒** at the bottom of the sidebar or in General settings. Choose left, right, top or island placement, then save. Alerts use server-side task events and a native macOS panel, so DSH can remain in the background. Compact capsules show only status and a single-line task name, with gentle entry/exit motion and a breathing attention ring. Completed turns dismiss automatically; decisions remain until handled or closed. First use requires Xcode Command Line Tools. See the [plugin guide](plugins/dsh-desktop-notify/README.md).
 
 ![Desktop notification settings](assets/desktop-notify-settings.png)
 
