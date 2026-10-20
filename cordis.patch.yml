@@ -1,4 +1,4 @@
-# The dsh-forme meta-bundle patch: one insert layer whose rows are the four
+# The dsh-forme meta-bundle patch: one insert layer whose rows are the five
 # plugin packages carried by this repository, plus the 550W agent preset. Row ids and configs match each
 # plugin's own cordis.patch.yml, so installing this bundle alone or the plugins
 # individually composes to the same tree.
@@ -19,6 +19,9 @@
 
     - id: dsh-moss-theme
       name: dsh-moss-theme
+
+    - id: dsh-desktop-notify
+      name: dsh-desktop-notify
 
 # 550W agent preset: the shipped `standard` composition with a 550W persona.
 # Derived from @deepseek-ai/dsh-web-app presets/standard.patch.yml (DSH 0.2.1-rc.2);

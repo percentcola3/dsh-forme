@@ -1,6 +1,6 @@
 # dsh-forme
 
-为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 提供四个插件：Git 变更对比、文件预览与引用、自定义快捷任务，以及流浪地球 550W 主题。直接复用 DSH 的工作区、会话、模型及审批能力。
+为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 提供五个插件：Git 变更对比、文件预览与引用、自定义快捷任务、桌面任务提醒，以及流浪地球 550W 主题。直接复用 DSH 的工作区、会话、模型及审批能力。
 
 [English](README.md)
 
@@ -14,8 +14,9 @@
 | `dsh-file-preview` | 文件标签页，使用官方文件树和 Markdown/代码预览，把文件或代码选区引用加入输入框。 |
 | [`dsh-moss-theme`](plugins/dsh-moss-theme) | 流浪地球主题、550W 状态灯、真实会话状态及可选对话风格指令。 |
 | `dsh-quick-prompts` | 在输入框上方保存快捷任务，支持当前对话、独立 Agent、Shell 命令三种模式。 |
+| [`dsh-desktop-notify`](plugins/dsh-desktop-notify) | 前后台任务完成、审批和问题提醒，支持屏幕左侧、右侧、顶部和灵动岛样式。 |
 
-根安装包只启用这四个插件。任务工作区、独立终端等实验不包含在本次安装包中；快捷任务里的 Shell 命令仍可使用。
+根安装包只启用这五个插件。任务工作区、独立终端等实验不包含在本次安装包中；快捷任务里的 Shell 命令仍可使用。
 
 ## 安装到官方桌面端
 
@@ -27,7 +28,7 @@ cd dsh-forme
 npm run install:desktop
 ```
 
-脚本使用桌面应用自带的 pnpm 和 CLI，构建四个插件并补齐本地依赖链接，安装到 `~/.dsh/profiles/desktop`。完成后退出并重新打开 DSH，在「插件」中确认四个组件均为运行状态。此方式是本地链接安装，安装后请保留仓库目录。
+脚本使用桌面应用自带的 pnpm 和 CLI，构建五个插件并补齐本地依赖链接，安装到 `~/.dsh/profiles/desktop`。完成后退出并重新打开 DSH，在「插件」中确认五个组件均为运行状态。此方式是本地链接安装，安装后请保留仓库目录。
 
 如果应用没有安装在默认位置，可指定资源目录：
 
@@ -50,7 +51,7 @@ dsh plugin --profile web add 'git+ssh://git@github.com/percentcola3/dsh-forme.gi
 dsh plugin --profile web add 'git+ssh://git@github.com/percentcola3/dsh-forme.git#path:plugins/dsh-git-plus'
 ```
 
-单个插件地址末尾可替换为 `dsh-file-preview` 或 `dsh-quick-prompts`。请使用完整的 `git+ssh://` 地址，pnpm 可能把 `git@github.com:...` 识别为本地路径。需要含 DSH Web UI 服务的 profile，纯 CLI profile 无法运行完整插件集。
+单个插件地址末尾可替换为 `dsh-file-preview`、`dsh-quick-prompts`、`dsh-moss-theme` 或 `dsh-desktop-notify`。请使用完整的 `git+ssh://` 地址，pnpm 可能把 `git@github.com:...` 识别为本地路径。需要含 DSH Web UI 服务的 profile，纯 CLI profile 无法运行完整插件集。
 
 ## 怎么使用
 
@@ -89,6 +90,12 @@ dsh plugin --profile web add 'git+ssh://git@github.com/percentcola3/dsh-forme.gi
 
 快捷任务保存在 `~/.dsh/quick-prompts.json`。按钮最多显示五个字符，悬停查看完整名称；最近的独立 Agent 结果链接保存在本机客户端。
 
+## 桌面任务提醒
+
+点击侧栏底部的「桌面提醒」或设置中的「通用」，选择左侧、右侧、顶部或灵动岛，保存后生效。服务端监听所有普通会话；DSH 在后台或最小化时仍可显示原生悬浮窗，不抢焦点。完成提醒自动收起，需要选择或审批的提醒会保留到处理或关闭。首次使用需要 Xcode Command Line Tools；自定义桌面位置目前支持 macOS。详见[插件说明](plugins/dsh-desktop-notify/README.md)。
+
+![桌面提醒配置](assets/desktop-notify-settings.png)
+
 ## 550W 流浪地球主题
 
 界面以深蓝灰和灰白为主，红色用于强调，搭配浅蓝地球、动态大气尾流和通讯终端式 AI 回复。侧栏、控制台及宿主启动页共用手绘的 550W 红白细线字标。顶部增加独立拖动区域；官方 Electron 桌面端保留原生最小化、缩放按钮，Tauri 外壳调用窗口接口，浏览器提供全屏按钮。
@@ -126,8 +133,10 @@ pnpm -r exec tsc --noEmit
 pnpm -r run build
 ```
 
-Git 测试使用临时仓库，可通过 `DSH_TEST_GIT` 和 `DSH_TEST_GIT_EXEC_PATH` 指定便携 Git。源代码变更后请重新构建并提交四个插件的 `lib/` 产物；Host 变更需要重启 DSH。
+Git 测试使用临时仓库，可通过 `DSH_TEST_GIT` 和 `DSH_TEST_GIT_EXEC_PATH` 指定便携 Git。源代码变更后请重新构建并提交五个插件的 `lib/` 产物；Host 变更需要重启 DSH。
 
 2026-10-02 已通过 **37 项测试、类型检查与构建**。官方桌面端实测了 Git diff 与说明生成、文件及代码选区引用、当前对话与独立 Agent 的真实响应，以及退出码为 0 的 Shell 命令。该轮桌面验收未实际执行提交/推送。
+
+2026-10-20 已通过 **62 项测试、全工作区类型检查与构建**，原生提醒辅助程序已通过 macOS 12 目标编译。提醒验收使用隔离模拟任务，覆盖完成、待选择、回答后收起、点击任务定位、四种位置和后台焦点检查。新插件已安装到 Desktop 配置，DSH 下次重启后加载。
 
 `desktop/` 是早期自定义桌面壳，官方桌面端安装不需要它。许可证：[MIT](plugins/dsh-git-plus/LICENSE)。

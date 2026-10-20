@@ -1,7 +1,7 @@
 {
   "name": "dsh-forme",
   "version": "0.1.0",
-  "description": "Git changes, file previews, reusable tasks, and a 550W console theme for DeepSeek Harness.",
+  "description": "Git changes, file previews, reusable tasks, desktop alerts, and a 550W console theme for DeepSeek Harness.",
   "type": "module",
   "license": "MIT",
   "files": [
@@ -18,7 +18,8 @@
     "dsh-git-plus": "git+ssh://git@github.com/percentcola3/dsh-forme.git#path:plugins/dsh-git-plus",
     "dsh-file-preview": "git+ssh://git@github.com/percentcola3/dsh-forme.git#path:plugins/dsh-file-preview",
     "dsh-quick-prompts": "git+ssh://git@github.com/percentcola3/dsh-forme.git#path:plugins/dsh-quick-prompts",
-    "dsh-moss-theme": "git+ssh://git@github.com/percentcola3/dsh-forme.git#path:plugins/dsh-moss-theme"
+    "dsh-moss-theme": "git+ssh://git@github.com/percentcola3/dsh-forme.git#path:plugins/dsh-moss-theme",
+    "dsh-desktop-notify": "git+ssh://git@github.com/percentcola3/dsh-forme.git#path:plugins/dsh-desktop-notify"
   },
   "scripts": {
     "install:desktop": "node scripts/install-local.mjs"

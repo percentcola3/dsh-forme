@@ -1,6 +1,6 @@
 # dsh-forme
 
-Four focused plugins for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness): inspect Git changes, browse and reference files, run reusable tasks, and switch to a Wandering Earth inspired 550W console.
+Five focused plugins for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness): inspect Git changes, browse and reference files, run reusable tasks, receive desktop alerts, and switch to a Wandering Earth inspired 550W console.
 
 [中文使用说明](README.zh-CN.md)
 
@@ -14,8 +14,9 @@ Tested with **DeepSeek Harness Desktop 0.2.0-rc.2 on macOS**. The plugins extend
 | [`dsh-file-preview`](plugins/dsh-file-preview) | A Files tab with the official file tree and Markdown/code previews; insert file and code-selection references into your draft. |
 | [`dsh-moss-theme`](plugins/dsh-moss-theme) | Wandering Earth inspired dark console, minimal status light, live session status, and a local theme toggle. |
 | [`dsh-quick-prompts`](plugins/dsh-quick-prompts) | Saved shortcuts above the composer: send a prompt, launch an independent agent, or execute a shell command. |
+| [`dsh-desktop-notify`](plugins/dsh-desktop-notify) | Native macOS task completion, approval, and question alerts with left, right, top, and island placement. |
 
-The root bundle installs these **four plugins**. Experimental task workspaces and a standalone terminal are outside this bundle. Shell commands remain available inside Quick Prompts.
+The root bundle installs these **five plugins**. Experimental task workspaces and a standalone terminal are outside this bundle. Shell commands remain available inside Quick Prompts.
 
 ## Install
 
@@ -29,7 +30,7 @@ cd dsh-forme
 npm run install:desktop
 ```
 
-The script uses the app's bundled pnpm and CLI to build the four plugins, link their local dependencies, and install the bundle into `~/.dsh/profiles/desktop`. Quit and reopen DSH, then open **Plugins / 插件** and check that all four components are running. Keep the checkout in place: this is a linked installation.
+The script uses the app's bundled pnpm and CLI to build the five plugins, link their local dependencies, and install the bundle into `~/.dsh/profiles/desktop`. Quit and reopen DSH, then open **Plugins / 插件** and check that all five components are running. Keep the checkout in place: this is a linked installation.
 
 If the app is installed elsewhere:
 
@@ -57,7 +58,7 @@ dsh plugin --profile web add 'git+ssh://git@github.com/percentcola3/dsh-forme.gi
 dsh plugin --profile web add 'git+ssh://git@github.com/percentcola3/dsh-forme.git#path:plugins/dsh-git-plus'
 ```
 
-Replace the final package name with `dsh-file-preview`, `dsh-quick-prompts`, or `dsh-moss-theme` as needed. Restart `dsh web` after installing. Use the full `git+ssh://` form; pnpm may interpret `git@github.com:...` as a local path. These are Web UI plugins: a bare CLI profile without DSH's web-app services cannot run the complete bundle.
+Replace the final package name with `dsh-file-preview`, `dsh-quick-prompts`, `dsh-moss-theme`, or `dsh-desktop-notify` as needed. Restart `dsh web` after installing. Use the full `git+ssh://` form; pnpm may interpret `git@github.com:...` as a local path. These are Web UI plugins: a bare CLI profile without DSH's web-app services cannot run the complete bundle.
 
 ## Use the plugins
 
@@ -95,6 +96,12 @@ Click **+** above the composer, enter a name, select an execution mode, and save
 For independent agents, **查看结果/审批** opens the result conversation; its task control can stop the run. Shell output has a **停止命令** control. Shell shortcuts support one active command per directory and foreground, non-interactive commands; they do not provide terminal input. The commands you use must already be installed on the DSH host.
 
 Shortcut definitions are saved in `~/.dsh/quick-prompts.json`. Button labels show up to five characters; hover to see the full name. Recent independent-agent result links are stored locally in the client.
+
+### Desktop task alerts
+
+Open **桌面提醒** at the bottom of the sidebar or in General settings. Choose left, right, top or island placement, then save. Alerts use server-side task events and a native macOS panel, so DSH can remain in the background. Completed turns dismiss automatically; decisions remain until handled or closed. First use requires Xcode Command Line Tools. See the [plugin guide](plugins/dsh-desktop-notify/README.md).
+
+![Desktop notification settings](assets/desktop-notify-settings.png)
 
 ### 550W console theme
 
@@ -135,9 +142,11 @@ pnpm -r exec tsc --noEmit
 pnpm -r run build
 ```
 
-Git tests use temporary repositories. To use a portable Git distribution, set `DSH_TEST_GIT` and optionally `DSH_TEST_GIT_EXEC_PATH`. Rebuild and include the four plugins' `lib/` files with source changes; restart DSH after Host changes.
+Git tests use temporary repositories. To use a portable Git distribution, set `DSH_TEST_GIT` and optionally `DSH_TEST_GIT_EXEC_PATH`. Rebuild and include the five plugins' `lib/` files with source changes; restart DSH after Host changes.
 
 Validation on 2026-10-02: **37 tests passed**, plus type checks and builds. Native desktop checks covered Git diffs and message generation, Markdown/code previews and clickable selection references, real chat/independent-agent responses, and shell output with exit code 0. Commit/push execution was not part of that desktop acceptance run.
+
+Validation on 2026-10-20: **62 tests passed**, all workspace type checks and builds passed, and the notification helper compiled for macOS 12. Native notification acceptance used isolated simulated tasks: completion, decisions, answer dismissal, click routing, four placements, and a background-window focus check. The new plugin is installed into the Desktop profile and loads after the next DSH restart.
 
 `desktop/` contains the earlier custom desktop wrapper. It is not required by the official-app installation above.
 

@@ -1,6 +1,6 @@
 # dsh-forme plugins
 
-The current bundle contains four independently installable DSH Web UI plugins:
+The current bundle contains five independently installable DSH Web UI plugins:
 
 | Package | Purpose |
 | --- | --- |
@@ -8,7 +8,8 @@ The current bundle contains four independently installable DSH Web UI plugins:
 | [dsh-file-preview](dsh-file-preview) | Native file tree and previews, with file and code-selection references. |
 | [dsh-moss-theme](dsh-moss-theme) | Wandering Earth console theme, 550W status light, live session status, and optional conversation-style prompt. |
 | [dsh-quick-prompts](dsh-quick-prompts) | Saved chat prompts, independent agents, and shell commands. |
+| [dsh-desktop-notify](dsh-desktop-notify) | Native macOS alerts for background task completion, approvals, and questions; configurable placement. |
 
 See the [installation and usage guide](../README.md) or [中文使用说明](../README.zh-CN.md).
 
-From this directory, run `pnpm install --frozen-lockfile --ignore-scripts`, then `pnpm -r run build`. The explicit workspace list includes only these four plugins. Other historical or local experimental directories are not installed by the bundle.
+From this directory, run `pnpm install --frozen-lockfile --ignore-scripts`, then `pnpm -r run build`. The explicit workspace list includes only these five plugins. Other historical or local experimental directories are not installed by the bundle.

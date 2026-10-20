@@ -3,3 +3,4 @@ packages:
   - dsh-file-preview
   - dsh-quick-prompts
   - dsh-moss-theme
+  - dsh-desktop-notify
