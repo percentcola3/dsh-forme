@@ -43,7 +43,7 @@ window.__ModuleLoader__.load({
 			sound: false,
 			position: "right",
 			display: "main",
-			duration: 5
+			duration: 4
 		};
 		//#endregion
 		//#region src/client/styles.ts
@@ -355,6 +355,7 @@ window.__ModuleLoader__.load({
 				onChange: (event) => patch({ duration: Number(event.target.value) })
 			}, ...[.../* @__PURE__ */ new Set([
 				3,
+				4,
 				5,
 				8,
 				12,

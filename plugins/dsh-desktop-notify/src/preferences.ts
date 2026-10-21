@@ -1,7 +1,7 @@
 export const positions = ['left', 'right', 'top', 'island'] as const
 export type Position = typeof positions[number]
 export type Preferences = { enabled: boolean; completion: boolean; decisions: boolean; sound: boolean; position: Position; display: 'main' | 'pointer'; duration: number }
-export const defaults: Preferences = { enabled: true, completion: true, decisions: true, sound: false, position: 'right', display: 'main', duration: 5 }
+export const defaults: Preferences = { enabled: true, completion: true, decisions: true, sound: false, position: 'right', display: 'main', duration: 4 }
 export function parsePreferences(value: unknown): Preferences {
   const data = value && typeof value === 'object' ? value as Record<string, unknown> : {}
   return {

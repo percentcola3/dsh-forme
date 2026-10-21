@@ -309,7 +309,7 @@ const defaults = {
 	sound: false,
 	position: "right",
 	display: "main",
-	duration: 5
+	duration: 4
 };
 function parsePreferences(value) {
 	const data = value && typeof value === "object" ? value : {};

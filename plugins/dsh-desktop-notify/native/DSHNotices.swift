@@ -7,7 +7,7 @@ struct Preferences: Decodable {
     var enabled = true
     var position = "right"
     var display = "main"
-    var duration = 5.0
+    var duration = 4.0
     var sound = false
     var completion = true
     var decisions = true
@@ -289,7 +289,10 @@ final class Controller: NSObject, NSApplicationDelegate {
             queue.removeAll { $0.id == notice.id }
             if queue.count >= 20 { queue.removeLast() }
             if notice.kind == "decision" { queue.insert(notice, at: 0) } else { queue.append(notice) }
-            if preferences.sound { NSSound(named: notice.kind == "decision" ? "Glass" : "Pop")?.play() }
+            if preferences.sound, let sound = NSSound(named: notice.kind == "complete" ? "Tink" : "Morse") {
+                sound.volume = 0.35
+                sound.play()
+            }
             render()
         case "dismiss":
             guard queue.contains(where: { $0.id == command.id }) else { return }
