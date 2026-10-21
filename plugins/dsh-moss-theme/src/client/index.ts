@@ -8,6 +8,7 @@ import { RunningFlight } from './running.ts'
 import { BrandMark, SidebarBrand } from './brand.ts'
 import { WindowChrome } from './chrome.ts'
 import { installDepartmentIcons, type DepartmentSlots } from './departments.ts'
+import { installWorkspaceIcons } from './workspace-icons.ts'
 
 export const inject = ['slots', 'sessions', 'uiWorkspace', 'uiSession']
 type Store<T> = { getSnapshot(): T; subscribe(listener: () => void): () => void }
@@ -79,6 +80,7 @@ function activate(ctx: Context): void {
     () => React.createElement(ThemeSettings, { preferences }),
   ))) ?? noop)
   ctx.effect(() => guard('department icons', () => installDepartmentIcons(slots as DepartmentSlots, preferences)) ?? noop)
+  ctx.effect(() => guard('workspace icons', () => installWorkspaceIcons(storage)) ?? noop)
   // Unregister the brand override when disabled so DSH's original mark returns.
   ctx.effect(() => {
     let stop: (() => void) | undefined

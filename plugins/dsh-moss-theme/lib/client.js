@@ -218,7 +218,49 @@ window.__ModuleLoader__.load({
 					transform: `translate(3.12 3.12) scale(.74) ${part.transform ?? ""}`.trim()
 				}))
 			],
-			flight: [{ d: "M11.4 1.3A10.7 10.7 0 0 0 2.6 17l1.7-1.1A8.7 8.7 0 0 1 9.6 3.6v18.8h1.8zM12.6 1.3A10.7 10.7 0 0 1 21.4 17l-1.7-1.1A8.7 8.7 0 0 0 12.6 3.4zM8.5 6.2l-1.9.6c0 5.6-1.4 8.7-4 10.5a10.7 10.7 0 0 0 5.8 4.8v-2.2a8.6 8.6 0 0 1-2.9-2.2C7.7 15.5 8.5 11.3 8.5 6.2ZM12.6 6.2l1.8.6c0 5.6 1.4 8.7 4.1 10.5a8.6 8.6 0 0 1-4.1 2.8V7l-1.8-.6v16a10.7 10.7 0 0 0 8.8-5.1c-5-3.2-6.1-6.3-6.1-10.5z" }]
+			flight: [{ d: "M11.4 1.3A10.7 10.7 0 0 0 2.6 17l1.7-1.1A8.7 8.7 0 0 1 9.6 3.6v18.8h1.8zM12.6 1.3A10.7 10.7 0 0 1 21.4 17l-1.7-1.1A8.7 8.7 0 0 0 12.6 3.4zM8.5 6.2l-1.9.6c0 5.6-1.4 8.7-4 10.5a10.7 10.7 0 0 0 5.8 4.8v-2.2a8.6 8.6 0 0 1-2.9-2.2C7.7 15.5 8.5 11.3 8.5 6.2ZM12.6 6.2l1.8.6c0 5.6 1.4 8.7 4.1 10.5a8.6 8.6 0 0 1-4.1 2.8V7l-1.8-.6v16a10.7 10.7 0 0 0 8.8-5.1c-5-3.2-6.1-6.3-6.1-10.5z" }],
+			engine: [{
+				d: "M12 1v7M9.5 4v4m5-4v4M8 9h8l2 8H6zM4 20h16M7 17l-3 5m13-5 3 5M9 12h6m-6 3h6",
+				stroke: "currentColor",
+				strokeWidth: 1.2,
+				fill: "none"
+			}, { d: "M10 18h4v4h-4z" }],
+			station: [{
+				d: "M3 3l7 4-4 7-5-3zM21 21l-7-4 4-7 5 3zM4 6l4 2m-5 1 3 2m12 2 3 2m-5 1 4 2M7 15l8-8m-6 8 6-6M11 3l4-2 3 3-1 4M7 17l-1 4 3 2 4-2",
+				stroke: "currentColor",
+				strokeWidth: 1.15,
+				fill: "none"
+			}, { d: "M8 11l5-5 5 5-5 5z" }],
+			moon: [{
+				d: "M21.3 13.4A9.4 9.4 0 1 1 10.6 2.7a8.4 8.4 0 0 0 10.7 10.7ZM6.8 12a1.5 1.5 0 1 1 0 .1M11 17.5a1 1 0 1 1 0 .1M5 17l1 1M17 3v4m-2-2h4",
+				stroke: "currentColor",
+				strokeWidth: 1.25,
+				fill: "none"
+			}],
+			relay: [{
+				d: "M4 4c0 7.2 3.8 11 11 11L4 4ZM7 12l-3 9m7-7 3 7M2 21h15M11 11l5-5m-2-4a8 8 0 0 1 8 8M14 6a4 4 0 0 1 4 4",
+				stroke: "currentColor",
+				strokeWidth: 1.25,
+				fill: "none"
+			}, { d: "M15 4h3v3h-3z" }],
+			quantum: [{
+				d: "M6 5h12v14H6zM2 8h4m-4 4h4m-4 4h4m12-8h4m-4 4h4m-4 4h4M9 1v4m6-4v4M9 19v4m6-4v4",
+				stroke: "currentColor",
+				strokeWidth: 1.15,
+				fill: "none"
+			}, { d: "M9 8h6v4H9zM10.5 14h3v3h-3z" }],
+			elevator: [{
+				d: "M12 1v5m0 12v5M7 6h10l-1 12H8zM10 9h4v5h-4zM2 8l5 2m10 0 5-2M1 18l7-3m8 0 7 3M4 4l3 2m10 0 3-2",
+				stroke: "currentColor",
+				strokeWidth: 1.2,
+				fill: "none"
+			}, { d: "M10 19h4v2h-4z" }],
+			rescue: [{
+				d: "M12 1.8 21 5v7c0 5-4 8-9 10.2C7 20 3 17 3 12V5z",
+				stroke: "currentColor",
+				strokeWidth: 1.25,
+				fill: "none"
+			}, { d: "M10 7h4v3h3v4h-3v3h-4v-3H7v-4h3z" }]
 		};
 		function DepartmentIcon({ name, size = 18 }) {
 			return react.default.createElement("svg", {
@@ -240,6 +282,112 @@ window.__ModuleLoader__.load({
 			return `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">${parts}</svg>`)}")`;
 		}
 		//#endregion
+		//#region src/client/workspace-icons.ts
+		const WORKSPACE_ICONS = [
+			"ueg",
+			"engine",
+			"station",
+			"moon",
+			"relay",
+			"quantum",
+			"elevator",
+			"rescue"
+		];
+		const WORKSPACE_ICONS_KEY = "dsh-moss-theme:workspace-icons:v1";
+		const selector = "[role=\"treeitem\"][data-row-key^=\"workspace:\"]";
+		const attribute = "data-moss-workspace-icon";
+		function isIcon(value) {
+			return WORKSPACE_ICONS.includes(value);
+		}
+		function hash(key) {
+			let value = 2166136261;
+			for (const letter of key) value = Math.imul(value ^ letter.codePointAt(0), 16777619);
+			return value >>> 0;
+		}
+		/** Assign by workspace identity, never by the current row order or title. Persisted
+		* allocations survive renames and restarts; unused motifs are preferred for new projects. */
+		function createWorkspaceIcons(storage) {
+			const assigned = /* @__PURE__ */ new Map();
+			try {
+				const saved = JSON.parse(storage?.getItem("dsh-moss-theme:workspace-icons:v1") ?? "{}");
+				if (saved && typeof saved === "object" && !Array.isArray(saved)) {
+					for (const [key, value] of Object.entries(saved)) if (key.startsWith("workspace:") && isIcon(value)) assigned.set(key, value);
+				}
+			} catch {}
+			return (keys) => {
+				let changed = false;
+				for (const key of [...new Set(keys)].filter((key) => key.startsWith("workspace:")).sort()) {
+					if (assigned.has(key)) continue;
+					const counts = WORKSPACE_ICONS.map((icon) => [...assigned.values()].filter((value) => value === icon).length);
+					const least = Math.min(...counts);
+					const start = hash(key) % WORKSPACE_ICONS.length;
+					for (let offset = 0; offset < WORKSPACE_ICONS.length; offset++) {
+						const index = (start + offset) % WORKSPACE_ICONS.length;
+						if (counts[index] !== least) continue;
+						assigned.set(key, WORKSPACE_ICONS[index]);
+						changed = true;
+						break;
+					}
+				}
+				if (changed) try {
+					storage?.setItem(WORKSPACE_ICONS_KEY, JSON.stringify(Object.fromEntries(assigned)));
+				} catch {}
+				return assigned;
+			};
+		}
+		/** The host exposes no workspace-folder glyph slot. Decorate only its stable row
+		* attribute; leave the folder, expansion chevron, hit targets and accessible name intact. */
+		function installWorkspaceIcons(storage, doc = document) {
+			if (!doc.body) {
+				let stop = () => {};
+				const ready = () => {
+					stop = installWorkspaceIcons(storage, doc);
+				};
+				doc.addEventListener("DOMContentLoaded", ready, { once: true });
+				return () => {
+					doc.removeEventListener("DOMContentLoaded", ready);
+					stop();
+				};
+			}
+			const Observer = doc.defaultView?.MutationObserver;
+			if (!Observer) return () => {};
+			const assign = createWorkspaceIcons(storage);
+			const decorated = /* @__PURE__ */ new Map();
+			const sync = () => {
+				const rows = [...doc.querySelectorAll(selector)];
+				const live = new Set(rows);
+				for (const [row, previous] of decorated) {
+					if (live.has(row)) continue;
+					if (previous === null) row.removeAttribute(attribute);
+					else row.setAttribute(attribute, previous);
+					decorated.delete(row);
+				}
+				const icons = assign(rows.map((row) => row.getAttribute("data-row-key")));
+				for (const row of rows) {
+					if (!decorated.has(row)) decorated.set(row, row.getAttribute(attribute));
+					const icon = icons.get(row.getAttribute("data-row-key"));
+					if (row.getAttribute(attribute) !== icon) row.setAttribute(attribute, icon);
+				}
+			};
+			const containsRow = (node) => node.nodeType === 1 && (node.matches(selector) || !!node.querySelector(selector));
+			const observer = new Observer((records) => {
+				if (records.some((record) => record.type === "attributes" || [...record.addedNodes, ...record.removedNodes].some(containsRow))) sync();
+			});
+			observer.observe(doc.body, {
+				subtree: true,
+				childList: true,
+				attributes: true,
+				attributeFilter: ["data-row-key"]
+			});
+			sync();
+			return () => {
+				observer.disconnect();
+				for (const [row, previous] of decorated) if (previous === null) row.removeAttribute(attribute);
+				else row.setAttribute(attribute, previous);
+				decorated.clear();
+			};
+		}
+		//#endregion
 		//#region src/client/interface-styles.ts
 		const theme = "body[data-moss-theme=\"on\"]";
 		const userBubble = ":is([data-chat-flow-kind=\"user\"],[data-chat-flow-kind=\"steering\"]) > [data-slot=\"conversation.chat.node\"] > div > div > div:not([data-message-attachments]):has(> span)";
@@ -256,14 +404,15 @@ ${theme} {
   --dsw-alias-interactive-bg-hover-solid:#213347;
   --dsw-focus-ring-color:#d75b62;
 }
-/* The UEG polar globe/laurel badge occupies only the workspace folder seat.
+/* Each project keeps its own insignia in the workspace folder seat.
    The native hover chevron and actions
    keep their layout and behavior; currentColor retains the active red state. */
+${WORKSPACE_ICONS.map((name) => `${theme} [data-moss-workspace-icon="${name}"] { --moss-workspace-symbol:${departmentURL(name)}; }`).join("\n")}
 ${theme} [role="treeitem"][data-row-key^="workspace:"] > span:first-child { position:relative; }
 ${theme} [role="treeitem"][data-row-key^="workspace:"] > span:first-child > svg { visibility:hidden; }
 ${theme} [role="treeitem"][data-row-key^="workspace:"] > span:first-child::before {
   content:''; position:absolute; width:18px; height:18px; inset:50% auto auto 50%; transform:translate(-50%,-50%);
-  background:currentColor; mask:${departmentURL("ueg")} center/contain no-repeat; pointer-events:none;
+  background:currentColor; mask:var(--moss-workspace-symbol,${departmentURL("ueg")}) center/contain no-repeat; pointer-events:none;
 }
 /* Select, hover and keyboard focus have distinct, consistent affordances. */
 ${theme} :is([role="treeitem"],[role="option"])[aria-selected="true"],
@@ -1574,6 +1723,7 @@ void main(){
 				order: 75
 			}, () => react.default.createElement(ThemeSettings, { preferences })))) ?? noop);
 			ctx.effect(() => guard("department icons", () => installDepartmentIcons(slots, preferences)) ?? noop);
+			ctx.effect(() => guard("workspace icons", () => installWorkspaceIcons(storage)) ?? noop);
 			ctx.effect(() => {
 				let stop;
 				const sync = () => {
