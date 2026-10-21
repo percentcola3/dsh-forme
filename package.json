@@ -19,7 +19,8 @@
     "dsh-file-preview": "git+ssh://git@github.com/percentcola3/dsh-forme.git#path:plugins/dsh-file-preview",
     "dsh-quick-prompts": "git+ssh://git@github.com/percentcola3/dsh-forme.git#path:plugins/dsh-quick-prompts",
     "dsh-moss-theme": "git+ssh://git@github.com/percentcola3/dsh-forme.git#path:plugins/dsh-moss-theme",
-    "dsh-desktop-notify": "git+ssh://git@github.com/percentcola3/dsh-forme.git#path:plugins/dsh-desktop-notify"
+    "dsh-desktop-notify": "git+ssh://git@github.com/percentcola3/dsh-forme.git#path:plugins/dsh-desktop-notify",
+    "dsh-terminal": "git+ssh://git@github.com/percentcola3/dsh-forme.git#path:plugins/dsh-terminal"
   },
   "scripts": {
     "install:desktop": "node scripts/install-local.mjs"

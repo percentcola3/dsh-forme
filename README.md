@@ -15,8 +15,9 @@ Tested with **DeepSeek Harness Desktop 0.2.0-rc.2 on macOS**. The plugins extend
 | [`dsh-moss-theme`](plugins/dsh-moss-theme) | Wandering Earth inspired dark console, minimal status light, live session status, and a local theme toggle. |
 | [`dsh-quick-prompts`](plugins/dsh-quick-prompts) | Saved shortcuts launch native background subagents; only running tasks appear as live output cards beside the conversation. |
 | [`dsh-desktop-notify`](plugins/dsh-desktop-notify) | Native macOS task completion, approval, and question alerts with left, right, top, and island placement. |
+| [`dsh-terminal`](plugins/dsh-terminal) | Interactive PTY terminal for the session's project, opened as a small dock card from the Quick Prompts bar (中断 = Ctrl+C, 关闭 ends the PTY). |
 
-The root bundle installs these **five plugins**. Experimental task workspaces and a standalone terminal are outside this bundle. Quick Prompts passes both instructions and commands to background subagents.
+The root bundle installs these **six plugins**. Experimental task workspaces are outside this bundle. Quick Prompts passes both instructions and commands to background subagents; failed task cards stay on the dock until you close them.
 
 ## Install
 
@@ -30,7 +31,7 @@ cd dsh-forme
 npm run install:desktop
 ```
 
-The script uses the app's bundled pnpm and CLI to build the five plugins, link their local dependencies, and install the bundle into `~/.dsh/profiles/desktop`. Quit and reopen DSH, then open **Plugins / 插件** and check that all five components are running. Keep the checkout in place: this is a linked installation.
+The script uses the app's bundled pnpm and CLI to build six plugins, link their local dependencies, and install the bundle into `~/.dsh/profiles/desktop`. Quit and reopen DSH, then open **Plugins / 插件** and check that all six components are running. Keep the checkout in place: this is a linked installation.
 
 If the app is installed elsewhere:
 
@@ -140,7 +141,7 @@ pnpm -r exec tsc --noEmit
 pnpm -r run build
 ```
 
-Git tests use temporary repositories. To use a portable Git distribution, set `DSH_TEST_GIT` and optionally `DSH_TEST_GIT_EXEC_PATH`. Rebuild and include the five plugins' `lib/` files with source changes; restart DSH after Host changes.
+Git tests use temporary repositories. To use a portable Git distribution, set `DSH_TEST_GIT` and optionally `DSH_TEST_GIT_EXEC_PATH`. Rebuild and include the six plugins' `lib/` files with source changes; restart DSH after Host changes.
 
 Validation on 2026-10-02: **37 tests passed**, plus type checks and builds. Native desktop checks covered Git diffs and message generation, Markdown/code previews and clickable selection references, real chat/independent-agent responses, and shell output with exit code 0. Commit/push execution was not part of that desktop acceptance run.
 

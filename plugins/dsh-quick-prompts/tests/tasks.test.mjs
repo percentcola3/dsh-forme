@@ -149,10 +149,11 @@ test('stopping an idle child waiting for a late answer does not stick at stoppin
   await f.manager.dispose()
 })
 
-test('visible cards include only live tasks and disappear immediately on settlement', () => {
+test('visible cards keep active tasks and failures until dismissed; completed settle away', () => {
   const runs = ['completed', 'stopped', 'failed', 'starting', 'running', 'waiting', 'stopping'].map((status, i) => ({ id: String(i), status, startedAt: i }))
-  assert.deepEqual(ongoingRuns(runs).map(run => run.status), ['stopping', 'waiting', 'running', 'starting'])
+  assert.deepEqual(ongoingRuns(runs).map(run => run.status), ['stopping', 'waiting', 'running', 'starting', 'failed'])
   assert.equal(ongoingRuns(runs.map(run => ({ ...run, status: 'completed' }))).length, 0)
+  assert.equal(ongoingRuns(runs.map(run => ({ ...run, dismissed: true }))).length, 0)
 })
 test('native assistant frames are visible before settlement, tool text joins once, and late frames are ignored', async () => {
   const f = fixture(); const run = f.manager.start(f.parent, f.prompt, 'one'); await tick()
@@ -171,19 +172,19 @@ test('native assistant frames are visible before settlement, tool text joins onc
   assert.equal(f.manager.list()[0].liveOutput, '实时输出\n\nstdout')
   await f.manager.dispose()
 })
-test('a newly failed task surfaces an error outside its removed card; old failures do not reappear', async () => {
+test('a newly failed task surfaces an error and keeps its card; old failures do not re-alert', async () => {
   let runs = [{ id: 'new', name: '检查', status: 'running' }, { id: 'old', name: '旧任务', status: 'failed', error: 'old failure' }]
   const tasks = await readyTasks(async () => ({ runs })); await tasks.refresh()
   assert.equal(tasks.getSnapshot().error, '')
   runs = [{ ...runs[0], status: 'failed', error: 'model unavailable' }, runs[1]]; await tasks.refresh()
   assert.match(tasks.getSnapshot().error, /检查：model unavailable/)
-  assert.equal(ongoingRuns(tasks.getSnapshot().runs).length, 0)
+  assert.deepEqual(ongoingRuns(tasks.getSnapshot().runs).map(run => run.id), ['new', 'old'])
 })
 test('a startup failure already present in the admission response still shows an error', async () => {
   const tasks = await readyTasks(async () => ({ run: { id: 'failed', name: '检查', status: 'failed', error: 'spawn unavailable' } }))
   await tasks.start('main', 'p')
   assert.match(tasks.getSnapshot().error, /检查：spawn unavailable/)
-  assert.equal(ongoingRuns(tasks.getSnapshot().runs).length, 0)
+  assert.deepEqual(ongoingRuns(tasks.getSnapshot().runs).map(run => run.id), ['failed'])
 })
 
 test('same shortcut supports independent instances; project-scoped stop/close cannot affect another project', async () => {

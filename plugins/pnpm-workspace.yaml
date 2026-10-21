@@ -4,3 +4,4 @@ packages:
   - dsh-quick-prompts
   - dsh-moss-theme
   - dsh-desktop-notify
+  - dsh-terminal

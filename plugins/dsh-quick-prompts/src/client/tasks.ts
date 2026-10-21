@@ -1,6 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { active, type Prompt, type TaskRun } from '../types.ts'
 export type { Prompt, TaskRun } from '../types.ts'
+export { active } from '../types.ts'
 export async function taskRequest(action: string, body: Record<string, unknown> = {}): Promise<any> {
   const res = await fetch('/dsh-quick-prompts', { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, ...body }) })
   const value = await res.json()
@@ -11,10 +12,12 @@ export function openRun(ctx: Pick<Context, 'get'>, run: TaskRun): void {
   const workspace = ctx.get('uiWorkspace') as { openSession(address: { kind: 'subagent'; parentSessionId: string; childSessionId: string; mode: 'continuable' }): void }
   workspace.openSession({ kind: 'subagent', parentSessionId: run.parentId, childSessionId: run.childId, mode: 'continuable' })
 }
-export const ongoingRuns = (runs: TaskRun[]): TaskRun[] => runs.filter(run => !run.dismissed && active(run.status)).sort((a, b) => b.startedAt - a.startedAt)
+// Failed runs stay on the dock until the user closes them: an abnormal exit
+// must not make the card vanish on its own.
+export const ongoingRuns = (runs: TaskRun[]): TaskRun[] => runs.filter(run => !run.dismissed && (active(run.status) || run.status === 'failed')).sort((a, b) => b.startedAt - a.startedAt)
 const messageOf = (error: unknown) => error instanceof Error ? error.message : String(error)
 export function createTasks(request: typeof taskRequest = taskRequest) {
-  let current = { sessionId: undefined as string | undefined, projectId: '', cwd: '', prompts: [] as Prompt[], legacyAvailable: false, ready: false, runs: [] as TaskRun[], open: true, error: '', syncError: '' }
+  let current = { sessionId: undefined as string | undefined, projectId: '', cwd: '', prompts: [] as Prompt[], legacyAvailable: false, ready: false, runs: [] as TaskRun[], open: true, terminalOpen: false, error: '', syncError: '' }
   const listeners = new Set<() => void>()
   const starting = new Map<string, Promise<void>>()
   let epoch = 0, mutation = 0
@@ -38,6 +41,7 @@ export function createTasks(request: typeof taskRequest = taskRequest) {
       await load(generation)
     },
     show(open = true) { publish({ open }) },
+    showTerminal(open = true) { publish({ terminalOpen: open, open: true }) },
     async refresh() {
       const generation = epoch
       if (!current.sessionId || polling === generation) return

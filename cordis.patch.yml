@@ -23,6 +23,9 @@
     - id: dsh-desktop-notify
       name: dsh-desktop-notify
 
+    - id: dsh-terminal
+      name: dsh-terminal
+
 # 550W agent preset: the shipped `standard` composition with a 550W persona.
 # Derived from @deepseek-ai/dsh-web-app presets/standard.patch.yml (DSH 0.2.1-rc.2);
 # re-sync the plugin list when DSH changes its standard preset.

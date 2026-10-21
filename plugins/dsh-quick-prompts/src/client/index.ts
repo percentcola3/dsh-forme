@@ -1,11 +1,12 @@
 import React from 'react'
 import { createPortal } from 'react-dom'
 import type { Context } from '@deepseek-ai/cordis'
-import { createTasks, ongoingRuns, type TaskStore, type Prompt } from './tasks.ts'
+import { createTasks, ongoingRuns, type TaskStore } from './tasks.ts'
 import { shortName, currentSessionId } from './logic.ts'
-import type { TaskRun } from '../types.ts'
+import { active, statusLabels, type Prompt, type TaskRun } from '../types.ts'
 import { styles } from './styles.ts'
 import { installTaskDock } from './task-dock.ts'
+import { TerminalCard } from './terminal-card.ts'
 export const inject = ['slots', 'uiWorkspace']
 const h = React.createElement
 type Draft = Omit<Prompt, 'id'> & { id?: string }
@@ -67,10 +68,16 @@ export function QuickPrompts({ ctx, tasks, sessionId }: { ctx: Context; tasks: T
       h('small', null, `使用当前项目目录：${state.cwd}。各任务独立运行，主对话可继续使用。`),
       error && h('p', { role: 'alert' }, error),
       h('footer', null, draft.id && h('button', { type: 'button', className: 'dqp-delete', disabled: saving, onClick: () => { void save('delete') } }, '删除'), h('button', { type: 'button', disabled: saving, onClick: close }, '取消'), h('button', { type: 'submit', className: 'dqp-save', disabled: saving || !draft.name.trim() || !draft.text.trim() }, saving ? '保存中…' : '保存')))), document.body) : null
-  const running = selected ? ongoingRuns(state.runs).length : 0
+  const running = selected ? ongoingRuns(state.runs).filter(run => active(run.status)).length : 0
   const notice = error || (selected ? state.error || state.syncError : '')
   return h(React.Fragment, null,
     h('div', { className: 'dqp-bar', role: 'group', 'aria-label': '快捷任务' }, h('button', { type: 'button', className: 'dqp-add', 'aria-label': '新增快捷任务', disabled: saving || !selected || !state.ready, onClick: (event: React.MouseEvent<HTMLButtonElement>) => open(event) }, '+'),
+      h('button', {
+        type: 'button', className: 'dqp-terminal', 'aria-label': '打开项目终端', 'aria-pressed': state.terminalOpen,
+        disabled: !selected || !sessionId, title: `${state.cwd || '当前项目'} 下打开终端小窗口`,
+        onClick: () => tasks.showTerminal(!state.terminalOpen),
+      }, h('svg', { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, 'aria-hidden': true },
+        h('path', { d: 'M4 5h16v14H4z' }), h('path', { d: 'M7.5 9.5l3 2.5-3 2.5' }), h('path', { d: 'M12.5 15h4' }))),
       h('div', { className: 'dqp-items' }, ...items.map(item =>
         h('span', { className: 'dqp-task-chip', key: item.id },
           h('button', {
@@ -94,9 +101,10 @@ export function TaskPanel({ tasks }: { tasks: TaskStore }): React.ReactPortal | 
   const [seat, setSeat] = React.useState<HTMLElement | null>(null)
   React.useLayoutEffect(() => installTaskDock(document.body, setSeat), [])
   const runs = ongoingRuns(state.runs)
-  if (!state.open || !seat || !runs.length) return null
+  if (!state.open || !seat || (!runs.length && !state.terminalOpen)) return null
   return createPortal(h('aside', { className: 'dqp-dock', 'aria-label': '进行中的快捷任务' },
     h('div', { className: 'dqp-dock-body', role: 'region', 'aria-label': '进行中的任务卡片', tabIndex: 0 },
+      state.terminalOpen && state.sessionId && h(TerminalCard, { key: `terminal:${state.sessionId}`, sessionId: state.sessionId, onClose: () => tasks.showTerminal(false) }),
       ...runs.map(run => h(RunCard, { key: run.id, run, tasks })))), seat)
 }
 function RunCard({ run, tasks }: { run: TaskRun; tasks: TaskStore }): React.ReactElement {
@@ -109,11 +117,12 @@ function RunCard({ run, tasks }: { run: TaskRun; tasks: TaskStore }): React.Reac
     const node = viewport.current
     if (node && follow.current) node.scrollTop = node.scrollHeight
   }, [output])
-  return h('section', { className: 'dqp-run-card', 'data-run-id': run.id, 'aria-label': run.name, title: run.name },
+  return h('section', { className: 'dqp-run-card', 'data-run-id': run.id, 'data-run-status': run.status, 'aria-label': run.name, title: run.name },
     h('div', { className: 'dqp-run-actions' },
-      h('span', { className: 'dqp-run-name' }, run.name),
-      h('button', { type: 'button', disabled: acting || run.status === 'stopping', title: '中断此任务', 'aria-label': `中断任务 ${run.name}`, onClick: () => { void control('stop') } }, run.status === 'stopping' ? '停止中' : '中断'),
-      h('button', { type: 'button', disabled: acting, title: '停止并关闭此任务', 'aria-label': `停止并关闭任务 ${run.name}`, onClick: () => { void control('close') } }, '×')),
+      h('span', { className: 'dqp-run-name' }, run.name, !active(run.status) && h('em', { className: 'dqp-run-state' }, statusLabels[run.status])),
+      active(run.status) && h('button', { type: 'button', disabled: acting || run.status === 'stopping', title: '中断此任务', 'aria-label': `中断任务 ${run.name}`, onClick: () => { void control('stop') } }, run.status === 'stopping' ? '停止中' : '中断'),
+      h('button', { type: 'button', disabled: acting, title: run.status === 'failed' ? '关闭此异常卡片' : '停止并关闭此任务', 'aria-label': `关闭任务 ${run.name}`, onClick: () => { void control('close') } }, '×')),
+    run.status === 'failed' && h('p', { className: 'dqp-run-error', role: 'alert' }, run.error ?? '任务未能完成，请查看输出。'),
     output ? h('pre', {
       ref: viewport, className: 'dqp-live-output', role: 'log', tabIndex: 0,
       'aria-label': `${run.name} 的实时输出`, 'aria-live': 'off',
