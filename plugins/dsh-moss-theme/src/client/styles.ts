@@ -1,6 +1,7 @@
 import { transmissionCSS } from './transmission-styles.ts'
 import { interfaceCSS } from './interface-styles.ts'
 import { chromeCSS } from './chrome-styles.ts'
+import { engineCSS } from './engine-styles.ts'
 
 /*
  * A midnight-blue control room with red reserved for emphasis:
@@ -145,31 +146,10 @@ body[data-moss-ambient="off"] [data-moss-atmosphere] { display:none; }
 
 ${transmissionCSS}
 
-/* A passive breathing light leaves the header free of extra controls. */
-.moss-status-indicator { display:inline-flex; align-items:center; justify-content:center; width:24px; height:28px; }
+/* Preserve the existing mode-selector placement around the engine status slot. */
 [data-conversation-header-leading]:has(.moss-status-indicator) { padding-inline-start:max(0px,calc(var(--dsh-frame-leading-clearance,0px) - 20px)); }
-[data-conversation-header-leading]:has(.moss-status-indicator) + * { padding-inline-start:12px; }
-.moss-status-indicator .moss-eye { --eye:10px; }
-
-/* A single diffused LED, without the old camera housing or glass highlights.
-   Silver = idle, white = connecting, blue = work, red = attention. */
-.moss-eye { --eye:12px; --lamp:#a5b3c3; --breath-time:4.8s; --breath-low:.25; --breath-high:.6;
-  position:relative; display:inline-block; flex-shrink:0; width:var(--eye); height:var(--eye); border-radius:50%; corner-shape:round;
-  background:none; box-shadow:none; }
-.moss-eye::before { content:''; position:absolute; inset:-35%; border-radius:50%; pointer-events:none;
-  background:var(--lamp); filter:blur(4px); animation:moss-lamp-halo var(--breath-time) ease-in-out infinite; }
-.moss-eye::after { content:''; position:absolute; inset:10%; border-radius:50%; pointer-events:none;
-  background:var(--lamp); box-shadow:0 0 4px color-mix(in srgb,var(--lamp) 30%,transparent);
-  animation:moss-lamp-core var(--breath-time) ease-in-out infinite; }
-.moss-eye[data-status="working"] { --lamp:#79bcff; --breath-time:1.6s; --breath-low:.42; --breath-high:1; }
-.moss-eye[data-status="connecting"] { --lamp:#e4edf7; --breath-time:1s; --breath-low:.2; --breath-high:.85; }
-.moss-eye[data-status="waiting"] { --lamp:#f08086; --breath-time:3.2s; --breath-low:.4; --breath-high:.9; }
-.moss-eye[data-status="error"] { --lamp:#ff4f5e; --breath-time:2.8s; --breath-low:.25; --breath-high:1; }
-.moss-eye[data-status="error"]::after { animation-name:moss-lamp-alert; }
-.moss-eye[data-status="error"]::before { animation-name:moss-lamp-alert-halo; }
-.moss-eye[data-status="offline"] { --lamp:#667384; }
-.moss-eye[data-status="offline"]::before { animation:none; opacity:0; }
-.moss-eye[data-status="offline"]::after { animation:none; opacity:.18; box-shadow:none; }
+[data-conversation-header-leading]:has(.moss-status-indicator) + * { padding-inline-start:4px; }
+${engineCSS}
 
 /* Theme preferences live inline in the host's General settings. */
 .moss-settings { margin-block:20px; color:var(--dsw-alias-label-primary); font:13px/1.6 var(--moss-text,sans-serif); }
@@ -184,17 +164,6 @@ ${transmissionCSS}
 .moss-setting input:checked::after { transform:translateX(14px); background:#f5f5f7; }
 .moss-setting input:focus-visible { outline:2px solid var(--moss-signal,#df4e54); outline-offset:3px; }
 
-@keyframes moss-lamp-core { 0%,100% { opacity:var(--breath-low); } 50% { opacity:var(--breath-high); } }
-@keyframes moss-lamp-halo { 0%,100% { opacity:.04; } 50% { opacity:.22; } }
-@keyframes moss-lamp-alert { 0%,32%,64%,100% { opacity:.25; } 16%,48% { opacity:1; } }
-@keyframes moss-lamp-alert-halo { 0%,32%,64%,100% { opacity:.02; } 16%,48% { opacity:.3; } }
-body[data-moss-motion="off"] .moss-eye::before, body[data-moss-motion="off"] .moss-eye::after { animation:none !important; }
-@media (prefers-reduced-motion:reduce) { .moss-eye::before,.moss-eye::after { animation:none !important; } }
-body[data-moss-motion="off"] .moss-eye:not([data-status="offline"])::after { opacity:.85; }
-@media (prefers-reduced-motion:reduce) { .moss-eye:not([data-status="offline"])::after { opacity:.85; } }
-body[data-moss-motion="off"] .moss-eye::before { opacity:.1; }
-@media (prefers-reduced-motion:reduce) { .moss-eye::before { opacity:.1; } }
-body[data-moss-motion="off"] .moss-eye[data-status="offline"]::before { opacity:0; }
 ${interfaceCSS}
 ${chromeCSS}
 `

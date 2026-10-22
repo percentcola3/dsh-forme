@@ -6,12 +6,12 @@ const execFileAsync = promisify(execFile)
 export function createGitRunner(config: { gitExecutable?: string; gitExecPath?: string } = {}) {
   const executable = config.gitExecutable?.trim() || 'git'
   const helperPath = config.gitExecPath?.trim()
-  return async (cwd: string, args: string[]): Promise<{ stdout: string; stderr: string; code: number }> => {
+  return async (cwd: string, args: string[], options: { timeoutMs?: number } = {}): Promise<{ stdout: string; stderr: string; code: number }> => {
     try {
       const result = await execFileAsync(executable, args, {
         cwd,
         env: helperPath ? { ...process.env, GIT_EXEC_PATH: helperPath } : process.env,
-        timeout: 20_000,
+        timeout: options.timeoutMs ?? 20_000,
         maxBuffer: 4 * 1024 * 1024,
         windowsHide: true,
       })

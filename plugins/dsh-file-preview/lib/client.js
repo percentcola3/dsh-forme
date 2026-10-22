@@ -220,12 +220,24 @@ window.__ModuleLoader__.load({
 					setHost(bar);
 				};
 				read();
-				const observer = new MutationObserver(read);
+				let frame = 0;
+				const observer = new MutationObserver((records) => {
+					if (frame) return;
+					const bar = header.querySelector("[data-dsh-workspace-tools]");
+					if (bar && records.every((record) => bar.contains(record.target))) return;
+					frame = requestAnimationFrame(() => {
+						frame = 0;
+						read();
+					});
+				});
 				observer.observe(header, {
 					childList: true,
 					subtree: true
 				});
-				return () => observer.disconnect();
+				return () => {
+					observer.disconnect();
+					if (frame) cancelAnimationFrame(frame);
+				};
 			}, []);
 			return {
 				anchorRef,
@@ -237,7 +249,20 @@ window.__ModuleLoader__.load({
 			return (0, react_dom.createPortal)(node, host);
 		}
 		//#endregion
+		//#region ../dsh-terminal/src/client/official-terminal.ts
+		/** Use the same target resolution and launch path as DSH's terminal shortcut. */
+		function openOfficialTerminal(sidebar, element) {
+			const target = sidebar.commandTarget(element);
+			if (target) sidebar.openTabFromTarget("terminal", target);
+			else sidebar.openTab("terminal");
+			const tab = sidebar.active();
+			if (!tab || tab.kind !== "terminal") throw new Error("官方终端尚未就绪，请稍后重试。");
+			return tab;
+		}
+		//#endregion
 		//#region src/client/files-workspace.ts
+		/** File tree share of the Files tab; DockKit refuses panes under 20%. */
+		const TREE_FRACTION = .22;
 		/** Official components stay in their React-owned dock; only their viewport changes. */
 		function installFilesWorkspace(sidebar, layout, currentSession) {
 			const originalOpen = sidebar.openResource;
@@ -265,6 +290,7 @@ window.__ModuleLoader__.load({
 					let stopped = false;
 					let pending;
 					let splitPending = false;
+					let openedTabId;
 					let timer;
 					let frame;
 					let ready = false;
@@ -304,12 +330,17 @@ window.__ModuleLoader__.load({
 						const tree = panes[0];
 						if (!tree) return;
 						mark(tree, "data-dfp-tree");
+						if (openedFilesTab && !openedTabId) {
+							const tab = tree.querySelector("[data-dockkit-tab][aria-selected=\"true\"]")?.dataset.dockkitTab;
+							if (tab) openedTabId = tab;
+						}
 						const preview = panes[1];
 						if (!preview) {
 							if (!splitPending) splitPending = !!sidebar.split(tree.dataset.dockkitPane);
 							return;
 						}
 						splitPending = false;
+						narrowTree(tree);
 						ready = true;
 						clearTimeout(timer);
 						mark(preview, "data-dfp-preview");
@@ -334,6 +365,21 @@ window.__ModuleLoader__.load({
 							}
 						}
 					};
+					let narrowed = false;
+					const narrowTree = (tree) => {
+						if (narrowed) return;
+						const layoutState = sidebar.mountedSurface?.()?.layout;
+						const root = layoutState?.nodes[layoutState.rootId];
+						if (!root || root.kind !== "split" || root.children?.length !== 2 || !root.sizes) return;
+						const target = root.children[0] === tree.dataset.dockkitPane ? [TREE_FRACTION, .78] : [.78, TREE_FRACTION];
+						narrowed = true;
+						if (root.sizes.every((size, index) => Math.abs(size - target[index]) < .005)) return;
+						try {
+							sidebar.actionsFor?.(session)?.resizeSplit?.(session, layoutState.rootId, target);
+						} catch (error) {
+							console.warn("dsh-file-preview: could not narrow the file tree", error);
+						}
+					};
 					active = {
 						session,
 						route(address, options) {
@@ -352,13 +398,17 @@ window.__ModuleLoader__.load({
 							sync();
 						}
 					};
+					let openedFilesTab = false;
 					const firstPane = panel()?.querySelector("[data-dockkit-pane]");
 					if (firstPane?.querySelector("[data-files-state]")) {
 						if (!sidebar.isExpanded()) sidebar.toggleExpanded();
-					} else sidebar.openTabIn(session, "files", {
-						paneId: firstPane?.dataset.dockkitPane,
-						revealIfOpened: false
-					});
+					} else {
+						openedFilesTab = true;
+						sidebar.openTabIn(session, "files", {
+							paneId: firstPane?.dataset.dockkitPane,
+							revealIfOpened: false
+						});
+					}
 					const schedule = () => {
 						if (stopped || frame !== void 0) return;
 						frame = requestAnimationFrame(() => {
@@ -387,7 +437,7 @@ window.__ModuleLoader__.load({
 						if (!stopped && !ready && ++attempts < 20) timer = setTimeout(retry, 80);
 					};
 					retry();
-					const cleanup = () => {
+					const cleanup = (restorePrevious = false) => {
 						if (stopped) return;
 						stopped = true;
 						active = void 0;
@@ -412,11 +462,19 @@ window.__ModuleLoader__.load({
 							]) el.style.removeProperty(`--dfp-${key}`);
 						}
 						if (layout.openRightbar === presentationOverride) layout.openRightbar = originalPresentation;
+						if (openedFilesTab && openedTabId) try {
+							sidebar.closeIn(session, openedTabId);
+						} catch {}
 						if (currentSession() === session) {
-							if (previousTab) sidebar.focus(previousTab);
-							if (sidebar.isExpanded() !== wasExpanded) sidebar.toggleExpanded();
-							if (wasExpanded) originalPresentation.call(layout, ...presentation);
-							else layout.closeRightbar();
+							if (restorePrevious) {
+								if (previousTab) sidebar.focus(previousTab);
+								if (sidebar.isExpanded() !== wasExpanded) sidebar.toggleExpanded();
+								if (wasExpanded) originalPresentation.call(layout, ...presentation);
+								else layout.closeRightbar();
+							} else {
+								if (sidebar.isExpanded()) sidebar.toggleExpanded();
+								layout.closeRightbar();
+							}
 						}
 						if (leave === cleanup) leave = void 0;
 					};
@@ -424,7 +482,7 @@ window.__ModuleLoader__.load({
 					return cleanup;
 				},
 				dispose() {
-					leave?.();
+					leave?.(true);
 					if (sidebar.openResource === wrappedOpen) sidebar.openResource = originalOpen;
 					if (sidebar.openResourceIn === wrappedOpenIn) sidebar.openResourceIn = originalOpenIn;
 				}
@@ -439,13 +497,50 @@ window.__ModuleLoader__.load({
 			"sessions",
 			"uiWorkspace"
 		];
-		function workspaceName(ctx, sessionId) {
-			const snap = ctx.get("sessions")?.list?.getSnapshot?.();
+		/** One lightweight probe per distinct project path; results cache across tab switches. */
+		const gitPaths = /* @__PURE__ */ new Map();
+		async function probeGit(sessionId, cwd) {
+			if (!cwd) return false;
+			if (gitPaths.has(cwd)) return gitPaths.get(cwd);
+			gitPaths.set(cwd, false);
+			try {
+				const res = await fetch("/dsh-file-preview", {
+					method: "POST",
+					credentials: "include",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						sessionId,
+						cwd
+					})
+				});
+				const value = await res.json();
+				if (res.ok && typeof value.git === "boolean") {
+					gitPaths.set(cwd, value.git);
+					return value.git;
+				}
+			} catch {}
+			return false;
+		}
+		function useWorkspacePath(ctx, sessionId) {
+			const sessions = ctx.get("sessions");
 			const navigation = ctx.get("uiWorkspace");
-			const id = sessionId || navigation.selection.getSnapshot().sessionId;
-			const cwd = id ? snap?.byId[id]?.cwd : void 0;
-			if (!cwd) return "文件";
-			return cwd;
+			const snapshot = react.default.useSyncExternalStore(sessions.list.subscribe, sessions.list.getSnapshot);
+			const selection = react.default.useSyncExternalStore(navigation.selection.subscribe, navigation.selection.getSnapshot);
+			const id = sessionId || selection.sessionId;
+			return (id ? snapshot.byId[id]?.cwd : void 0) ?? "";
+		}
+		function useIsGit(ctx, sessionId, name) {
+			const [git, setGit] = react.default.useState(() => gitPaths.get(name) ?? false);
+			react.default.useEffect(() => {
+				let live = true;
+				probeGit(sessionId, name).then((value) => {
+					if (live) setGit(value);
+				});
+				return () => {
+					live = false;
+				};
+			}, [sessionId, name]);
+			return git;
 		}
 		function apply(ctx) {
 			const slots = ctx.get("slots");
@@ -476,25 +571,99 @@ window.__ModuleLoader__.load({
 		}
 		function FilesAction(props) {
 			const { anchorRef, host } = useWorkspaceToolHost();
-			const name = workspaceName(props.ctx, props.sessionId);
-			const chip = react.default.createElement("span", {
+			const name = useWorkspacePath(props.ctx, props.sessionId);
+			const [copyState, setCopyState] = react.default.useState("idle");
+			const copyEpoch = react.default.useRef(0);
+			react.default.useEffect(() => {
+				copyEpoch.current++;
+				setCopyState("idle");
+				return () => {
+					copyEpoch.current++;
+				};
+			}, [name]);
+			react.default.useEffect(() => {
+				if (copyState === "idle") return;
+				const timer = setTimeout(() => setCopyState("idle"), 2500);
+				return () => clearTimeout(timer);
+			}, [copyState]);
+			const copy = async () => {
+				const epoch = ++copyEpoch.current;
+				try {
+					await navigator.clipboard.writeText(name);
+					if (copyEpoch.current === epoch) setCopyState("copied");
+				} catch {
+					if (copyEpoch.current === epoch) setCopyState("failed");
+				}
+			};
+			const copyByKey = (event) => {
+				if (event.key === "Enter" || event.key === " ") {
+					event.preventDefault();
+					copy();
+				}
+			};
+			const isGit = useIsGit(props.ctx, props.sessionId, name);
+			const openTerminal = (event) => {
+				try {
+					openOfficialTerminal(props.ctx.get("sidebarRight"), event.currentTarget);
+				} catch (error) {
+					console.warn("dsh-file-preview: could not open the official terminal", error);
+				}
+			};
+			const chip = !name ? react.default.createElement(react.default.Fragment) : react.default.createElement("span", {
 				className: "dfp-chip dfp-path-chip",
+				"data-dfp-git": isGit || void 0,
 				title: name
+			}, isGit ? react.default.createElement("svg", {
+				width: 12,
+				height: 12,
+				viewBox: "0 0 16 16",
+				fill: "currentColor",
+				"aria-hidden": true
+			}, react.default.createElement("path", { d: "M5 3a2 2 0 1 1-2.6 1.9L1.6 5.8a1.2 1.2 0 1 0 .3 2.2l1.8-.6a2 2 0 1 0 2.2-3.2A2 2 0 0 1 5 3zm6 6.5a2 2 0 1 1-2.6 1.9c-.6.3-1.6.9-2.3 1.3a1.2 1.2 0 1 0 1.1 2.1l3.8-2.1v-3.2zm0-6.4a2 2 0 1 0 0 3.8v1.9L7.3 11a1.2 1.2 0 0 0 1.2 2.1l3.5-2v-4.9a2 2 0 0 0 0-3.2zM11 4a1 1 0 1 1 0 2 1 1 0 0 1 0-2zM4 4a1 1 0 1 0 0 0zm0 7a1 1 0 1 0 0 2 1 1 0 0 0 0-2z" })) : null, react.default.createElement("span", { className: "dfp-chip-label dfp-path-label" }, name), react.default.createElement("button", {
+				type: "button",
+				className: "dfp-copy-path",
+				onClick: () => {
+					copy();
+				},
+				onKeyDown: copyByKey,
+				"aria-label": copyState === "copied" ? "路径已复制" : "复制项目路径",
+				title: copyState === "failed" ? "复制失败，请选中路径文字手动复制" : copyState === "copied" ? "已复制" : "复制完整项目路径"
+			}, react.default.createElement("svg", {
+				width: 13,
+				height: 13,
+				viewBox: "0 0 16 16",
+				fill: "none",
+				stroke: "currentColor",
+				strokeWidth: 1.4,
+				strokeLinecap: "round",
+				strokeLinejoin: "round",
+				"aria-hidden": true
+			}, react.default.createElement("path", { d: copyState === "copied" ? "M3 8l3 3 7-7" : "M5 5h8v9H5zM3 11H2V2h8v1" }))), react.default.createElement("span", {
+				className: "dfp-copy-feedback",
+				role: "status",
+				"aria-live": "polite"
+			}, copyState === "copied" ? "已复制完整路径" : copyState === "failed" ? "复制失败，请选中路径手动复制" : ""));
+			const terminal = react.default.createElement("button", {
+				type: "button",
+				className: "dfp-chip dfp-open-terminal",
+				onClick: openTerminal,
+				"aria-label": "打开终端",
+				title: "在右侧栏打开内置终端"
 			}, react.default.createElement("svg", {
 				width: 12,
 				height: 12,
 				viewBox: "0 0 16 16",
 				fill: "none",
 				stroke: "currentColor",
-				"stroke-width": "1.5",
+				"stroke-width": 1.6,
 				"stroke-linecap": "round",
 				"stroke-linejoin": "round",
 				"aria-hidden": true
-			}, react.default.createElement("path", { d: "M2.5 4.5h4l1.5 1.5h5.5v7.5h-11z" })), react.default.createElement("span", { className: "dfp-chip-label" }, name));
+			}, react.default.createElement("path", { d: "M3 4l3.5 4L3 12M8 12h5" })));
 			return react.default.createElement(react.default.Fragment, null, react.default.createElement("span", {
 				ref: anchorRef,
 				className: "dfp-anchor"
-			}), renderOnTabRow(host, chip, chip));
+			}), renderOnTabRow(host, react.default.createElement(react.default.Fragment, null, chip, terminal), chip));
 		}
 		function FilesView({ ctx, sessionId, workspace }) {
 			const ref = react.default.useRef(null);
@@ -534,9 +703,15 @@ window.__ModuleLoader__.load({
 .dfp-viewport { height:100%; min-height:0; color:var(--dsw-alias-label-tertiary); }
 [data-dfp-embedded] { position:fixed !important; inset:auto !important; left:var(--dfp-left) !important; top:var(--dfp-top) !important; width:var(--dfp-width) !important; height:var(--dfp-height) !important; z-index:10 !important; transform:none !important; transition:none !important; border:0 !important; overflow:hidden; }
 [data-dfp-embedded] [data-sidebar-right-mode], [data-dfp-embedded] [data-sidebar-right-toggle] { display:none !important; }
-[data-dfp-embedded] [data-dockkit-cell]:has(> [data-dfp-tree]) { flex:0 0 min(280px, 32%) !important; }
+/* Current DockKit positions panes directly; the older cell-only flex rule
+   does not constrain these panes and leaves a 50/50 split. */
+[data-dfp-embedded] { --dfp-tree-width:22%; }
+[data-dfp-embedded] [data-dfp-tree] { left:0 !important; width:var(--dfp-tree-width) !important; min-width:0 !important; box-sizing:border-box; }
+[data-dfp-embedded] [data-dfp-preview] { left:var(--dfp-tree-width) !important; width:calc(100% - var(--dfp-tree-width)) !important; min-width:0 !important; box-sizing:border-box; }
+[data-dfp-embedded] [data-dockkit-cell]:has(> [data-dfp-tree]) { flex:0 0 var(--dfp-tree-width) !important; }
 [data-dfp-embedded] [data-dockkit-cell]:has(> [data-dfp-preview]) { flex:1 1 0 !important; }
-[data-dfp-embedded] [data-dockkit-split]:has(> [data-dockkit-cell] > [data-dfp-tree]) > [data-dockkit-divider] { pointer-events:none; cursor:default; }
+[data-dfp-embedded] [data-dockkit-cell] > :is([data-dfp-tree],[data-dfp-preview]) { left:0 !important; width:100% !important; }
+[data-dfp-embedded] [data-dockkit-divider] { display:none !important; }
 [data-dfp-tree] { background:color-mix(in srgb, var(--dsw-alias-bg-base) 94%, var(--dsw-alias-label-primary) 6%); }
 [data-dfp-tree] [data-files-state] { background:inherit; }
 [data-dfp-preview] { background:var(--dsw-alias-bg-base); }
@@ -575,10 +750,23 @@ header [role="tablist"] > [role="tab"][data-dsh-nav="trace"] { order:3; border-r
 header [role="tablist"] > [role="tab"][data-dsh-nav="other"] { order:4; }
 .dsh-ws-tools { display:inline-flex; align-items:center; order:100; gap:6px; min-width:0; max-width:calc(100% - 350px); margin:0 0 0 auto; padding-left:16px; flex:0 1 auto; flex-wrap:nowrap; }
 .dgp-tab-counts { display:inline-flex; gap:3px; font-size:10px; font-weight:400; }
-.dfp-path-chip { order:0; max-width:240px !important; cursor:default !important; }
+.dfp-path-chip { order:0; max-width:320px !important; }
+.dfp-open-terminal { order:0; width:28px; padding:0; justify-content:center; }
+.dfp-open-terminal:hover { color:var(--dsw-alias-label-primary); border-color:var(--dsw-alias-border-l2); }
 .dgp-toolbar { order:1; }
 .dfp-chip { appearance:none; border:1px solid var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-layer-2); color:var(--dsw-alias-label-secondary); font:inherit; display:inline-flex; align-items:center; gap:5px; height:28px; box-sizing:border-box; max-width:160px; min-width:0; padding:0 8px; border-radius:8px; font-size:12px; line-height:1; white-space:nowrap; cursor:pointer; }
 .dfp-chip svg { flex:none; }
+.dfp-chip.dfp-path-chip { border:0; background:transparent; padding:2px 4px; cursor:copy; position:relative; }
+.dfp-chip.dfp-path-chip:hover { background:var(--dsw-alias-interactive-bg-hover); border-radius:6px; }
+.dfp-chip.dfp-path-chip:focus-visible { outline:2px solid var(--dsw-alias-state-business-primary); outline-offset:1px; }
+.dfp-path-label { user-select:text; cursor:text; }
+.dfp-path-chip[data-dfp-git] { color:var(--dsw-alias-label-secondary); }
+.dfp-path-chip[data-dfp-git] svg { color:#e8a97a; }
+.dfp-copy-path { position:relative; display:inline-flex; align-items:center; justify-content:center; flex:none; width:24px; height:24px; margin:2px 0 2px 2px; border:0; border-radius:4px; background:transparent; color:inherit; cursor:pointer; }
+.dfp-copy-path::before { content:''; position:absolute; inset:-6px; }
+.dfp-copy-path:hover { color:var(--dsw-alias-label-primary); background:var(--dsw-alias-bg-layer-2); }
+.dfp-copy-path:focus-visible { outline:2px solid var(--dsw-alias-state-business-primary); outline-offset:1px; }
+.dfp-copy-feedback { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
 .dfp-chip-label { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
 .dfp-chip[aria-pressed="true"] { color:var(--dsw-alias-state-business-primary); border-color:var(--dsw-alias-state-business-primary); background:var(--dsw-specific-sidebar-nav-item-active-accent); }

@@ -23,6 +23,7 @@ test('scene rendering pauses when hidden or motion is disabled and releases GPU 
     disconnect() { this.disconnected = true }
   }
   const gl = {
+    isContextLost: () => false,
     createShader: () => ({}), deleteShader() { shadersDeleted++ }, shaderSource() {}, compileShader() {}, getShaderParameter: () => true,
     createProgram: () => ({}), deleteProgram() { programsDeleted++ }, attachShader() {}, linkProgram() {}, getProgramParameter: () => true, useProgram() {},
     createBuffer: () => ({}), deleteBuffer() { buffersDeleted++ }, bindBuffer() {}, bufferData() {}, getAttribLocation: () => 0, enableVertexAttribArray() {}, vertexAttribPointer() {},
@@ -42,7 +43,10 @@ test('scene rendering pauses when hidden or motion is disabled and releases GPU 
       frames.delete(id); callback(now)
     }
     const dispose = mountEarth(canvas, { surface: 'fixture:earth', clouds: 'fixture:clouds' })
+    assert.equal(canvas.dataset.ready, undefined, 'loading must not reveal an incomplete canvas')
+    assert.equal(canvas.dataset.failed, undefined, 'loading must not reveal the blue CSS fallback')
     await new Promise(resolve => setImmediate(resolve))
+    assert.equal(canvas.dataset.ready, undefined, 'texture readiness alone is not a rendered frame')
     runFrame(100)
     assert.equal(canvas.dataset.ready, 'true')
     assert.equal(draws, 1)
@@ -80,6 +84,9 @@ test('scene rendering pauses when hidden or motion is disabled and releases GPU 
     observers[1].callback([{ isIntersecting: true }])
     media.matches = true; mediaListener(); runFrame(4300)
     assert.equal(frames.size, 0)
+    canvasListeners.get('webglcontextlost')({ preventDefault() {} })
+    assert.equal(canvas.dataset.ready, undefined)
+    assert.equal(canvas.dataset.failed, 'true', 'context loss activates the static fallback')
     dispose()
     assert.equal(texturesDeleted, 2)
     assert.equal(buffersDeleted, 1)
@@ -93,6 +100,7 @@ test('scene rendering pauses when hidden or motion is disabled and releases GPU 
     const fallback = { getContext: () => null, dataset: {}, style: {} }
     mountEarth(fallback, { surface: 'fixture:earth', clouds: 'fixture:clouds' })()
     assert.equal(fallback.dataset.ready, undefined)
+    assert.equal(fallback.dataset.failed, 'true')
   } finally {
     globals.forEach((key, i) => { if (originals[i]) Object.defineProperty(globalThis, key, originals[i]); else delete globalThis[key] })
   }

@@ -1,5 +1,9 @@
+import { repositoryStyles } from './repository-styles.ts'
 import React from 'react'
 import type { Context } from '@deepseek-ai/cordis'
+import { post } from './requests.ts'
+import { RepositoryMenu } from './repository-menu.ts'
+import type { RepositoryInventory } from './repository-tree.ts'
 import { splitUnifiedDiff, type SplitLine } from './diff-rows.ts'
 import { FloatingPanel, renderOnTabRow, useWorkspaceToolHost } from './tab-host.ts'
 
@@ -25,40 +29,16 @@ type HeaderProps = {
   ctx: Context
 }
 
-function workspaceOf(ctx: Context, sessionId?: string): { sessionId: string; cwd: string } | null {
-  const sessions = ctx.get('sessions') as { list?: { getSnapshot?: () => SessionSnap } } | undefined
-  const snap = sessions?.list?.getSnapshot?.()
-  const navigation = ctx.get('uiWorkspace') as { selection: { getSnapshot(): { sessionId?: string } } }
-  const id = sessionId || navigation.selection.getSnapshot().sessionId
-  if (!id) return null
-  const cwd = snap?.byId[id]?.cwd
-  if (!cwd) return null
-  return { sessionId: id, cwd }
+function useWorkspace(ctx: Context, sessionId?: string): { sessionId: string; cwd: string } | null {
+  type Store<T> = { subscribe(listener: () => void): () => void; getSnapshot(): T }
+  const sessions = ctx.get('sessions') as { list: Store<SessionSnap> }
+  const navigation = ctx.get('uiWorkspace') as { selection: Store<{ sessionId?: string }> }
+  const snap = React.useSyncExternalStore(sessions.list.subscribe.bind(sessions.list), sessions.list.getSnapshot.bind(sessions.list))
+  const selection = React.useSyncExternalStore(navigation.selection.subscribe.bind(navigation.selection), navigation.selection.getSnapshot.bind(navigation.selection))
+  const id = sessionId || selection.sessionId
+  const cwd = id ? snap.byId[id]?.cwd : undefined
+  return id && cwd ? { sessionId: id, cwd } : null
 }
-
-async function post<T>(path: string, body: Record<string, unknown>): Promise<T> {
-  const res = await fetch(path, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  const data = await res.json() as T & { error?: string }
-  if (!res.ok) throw new Error(data.error || res.statusText)
-  return data
-}
-
-function sendToAgent(ctx: Context, sessionId: string, text: string): Promise<void> {
-  const sessions = ctx.get('sessions') as {
-    scope?: (id: string) => Context | undefined
-  } | undefined
-  const scoped = sessions?.scope?.(sessionId)
-  const conversation = (scoped ?? ctx).get('conversation') as { send?: (value: string) => Promise<void> } | undefined
-  if (!conversation?.send) throw new Error('conversation service is unavailable')
-  return conversation.send(text)
-}
-
-
 
 function fileName(path: string): { base: string; dir: string } {
   const parts = path.replace(/\\/g, '/').split('/')
@@ -103,29 +83,72 @@ export function apply(ctx: Context): void {
 }
 
 function GitToolbar(props: HeaderProps): React.ReactElement {
-  const loc = workspaceOf(props.ctx, props.sessionId)
+  const loc = useWorkspace(props.ctx, props.sessionId)
+  return React.createElement(GitToolbarWorkspace, { key: JSON.stringify(loc), loc })
+}
+
+function GitToolbarWorkspace({ loc }: { loc: { sessionId: string; cwd: string } | null }): React.ReactElement {
   const { anchorRef, host, changesHost } = useWorkspaceToolHost()
   const [status, setStatus] = React.useState<StatusPayload | null>(null)
-  const [menu, setMenu] = React.useState<'commit' | 'branch' | null>(null)
+  const [menu, setMenu] = React.useState<'branch' | null>(null)
+  const [inventory, setInventory] = React.useState<RepositoryInventory | null>(null)
+  const [scanError, setScanError] = React.useState('')
+  const [loading, setLoading] = React.useState(false)
+  const active = React.useRef(true)
   const branchRef = React.useRef<Parameters<typeof FloatingPanel>[0]['anchor']>(null)
-  const commitRef = React.useRef<Parameters<typeof FloatingPanel>[0]['anchor']>(null)
+  const request = React.useRef(0)
+  React.useEffect(() => { active.current = true; return () => { active.current = false; request.current++ } }, [])
 
-  const reload = React.useCallback(async () => {
-    if (!loc) return
-    try {
-      setStatus(await post<StatusPayload>('/dsh-git-plus/status', loc))
-    } catch {
-      setStatus(null)
+  const reload = React.useCallback(async (refresh = false, background = false) => {
+    if (!loc || !active.current) return
+    // Keep the previous request reference: with only one request in flight per
+    // call, the epoch check would discard every answer that arrives after the
+    // next 15s tick — which on slow machines is ALL of them. Same-request
+    // retries (refresh) still cancel the previous flight via the epoch bump.
+    if (!background || request.current === 0) request.current++
+    const ticket = request.current
+    if (!background) setLoading(true)
+    const [statusResult, scanResult] = await Promise.allSettled([
+      post<StatusPayload>('/dsh-git-plus/status', loc),
+      post<RepositoryInventory>('/dsh-git-plus/repositories', { ...loc, refresh }),
+    ])
+    if (!active.current || ticket !== request.current) return
+    const nextStatus = statusResult.status === 'fulfilled' ? statusResult.value : null
+    // The summary arrives in one fast git call; line counts follow lazily so a
+    // slow machine still shows the branch immediately.
+    if (nextStatus?.ok === true && (nextStatus as { countsPending?: boolean }).countsPending && ticket === request.current) {
+      void post<StatusPayload>('/dsh-git-plus/counts', loc).then(counts => {
+        if (!active.current || ticket !== request.current) return
+        setStatus(previous => previous && JSON.stringify(previous) === JSON.stringify(counts) ? previous : counts)
+      }).catch(() => {})
     }
+    // Equal payloads keep the previous reference so the header does not re-render.
+    setStatus(previous => JSON.stringify(previous) === JSON.stringify(nextStatus) ? previous : nextStatus)
+    if (scanResult.status === 'fulfilled' && scanResult.value.ok) {
+      const nextInventory = scanResult.value
+      setInventory(previous => JSON.stringify(previous) === JSON.stringify(nextInventory) ? previous : nextInventory); setScanError('')
+    } else {
+      setScanError(scanResult.status === 'rejected' ? String(scanResult.reason?.message ?? scanResult.reason) : scanResult.value.error || '仓库检测失败')
+    }
+    if (!background) setLoading(false)
   }, [loc?.sessionId, loc?.cwd])
 
   React.useEffect(() => { void reload() }, [reload])
   React.useEffect(() => {
-    const timer = setInterval(() => { void reload() }, 15_000)
-    return () => clearInterval(timer)
+    const page = globalThis as unknown as { document: { hidden: boolean; addEventListener(type: string, listener: () => void): void; removeEventListener(type: string, listener: () => void): void } }
+    const tick = () => { if (!page.document.hidden) void reload(false, true) }
+    const timer = setInterval(tick, 15_000)
+    page.document.addEventListener('visibilitychange', tick)
+    return () => { clearInterval(timer); page.document.removeEventListener('visibilitychange', tick) }
   }, [reload])
 
-  const bar = React.createElement(
+  const repositories = inventory ?? { ok: true, truncated: false, repositories: status?.ok === true ? [{ path: '.', name: loc?.cwd.split('/').at(-1) || '.', branch: status.branch || 'HEAD', kind: 'repository' as const }] : [] }
+  const count = repositories.repositories.length
+  // A definitive ok:false answer outranks a truncated scan: no git button on
+  // non-git roots even if the directory walk hit its limits.
+  const nonGit = status !== null && status?.ok === false
+  const label = count > 1 || (count === 1 && repositories.repositories[0]!.path !== '.') ? `Git · ${count}` : count === 1 ? repositories.repositories[0]!.branch : !nonGit && (inventory?.truncated || status === null) ? 'Git · 检测未完' : status?.branch || 'Git'
+  const bar = (!nonGit && (count > 0 || status?.ok === true || inventory?.truncated || status === null)) ? React.createElement(
     'div',
     { className: 'dgp-toolbar' },
     React.createElement(
@@ -136,59 +159,31 @@ function GitToolbar(props: HeaderProps): React.ReactElement {
         ref: branchRef,
         'aria-expanded': menu === 'branch',
         'aria-haspopup': 'dialog',
-        title: status?.upstream ? `${status.branch} → ${status.upstream}` : (status?.branch || '切换分支'),
+        title: '管理当前目录及子目录中的 Git 仓库与分支',
         onClick: () => setMenu(menu === 'branch' ? null : 'branch'),
       },
       icon('M6 3v8M6 11a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM6 6a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM6 6h4.5A2.5 2.5 0 0 1 13 8.5V11'),
-      React.createElement('span', { className: 'dgp-chip-label' }, status?.branch || 'Git'),
-      icon('M4 6l4 4 4-4'),
-    ),
-    React.createElement(
-      'button',
-      {
-        type: 'button',
-        className: 'dgp-pill',
-        ref: commitRef,
-        'aria-expanded': menu === 'commit',
-        'aria-haspopup': 'dialog',
-        onClick: () => setMenu(menu === 'commit' ? null : 'commit'),
-      },
-      'Commit & Push',
+      React.createElement('span', { className: 'dgp-chip-label' }, label),
       icon('M4 6l4 4 4-4'),
     ),
     React.createElement(FloatingPanel, {
       open: menu === 'branch',
-      width: 280,
+      width: 460,
       anchor: branchRef.current,
       onClose: () => setMenu(null),
-      children: React.createElement(BranchMenu, {
-        loc,
-        current: status?.branch,
-        onSwitched: () => {
-          setMenu(null)
-          void reload()
-        },
-      }),
+      children: loc ? React.createElement(RepositoryMenu, {
+        loc, inventory: repositories, loading, error: scanError,
+        refresh: () => reload(true),
+      }) : React.createElement(React.Fragment),
     }),
-    React.createElement(FloatingPanel, {
-      open: menu === 'commit',
-      width: 360,
-      anchor: commitRef.current,
-      onClose: () => setMenu(null),
-      children: React.createElement(CommitMenu, {
-        ctx: props.ctx,
-        sessionId: props.sessionId,
-        onClose: () => setMenu(null),
-      }),
-    }),
-  )
+  ) : React.createElement(React.Fragment)
 
   return React.createElement(
     React.Fragment,
     null,
     React.createElement('span', { ref: anchorRef, className: 'dgp-anchor' }),
     renderOnTabRow(host, bar, bar),
-    changesHost ? renderOnTabRow(changesHost, React.createElement('span', { className: 'dgp-tab-counts', 'aria-hidden': true },
+    status?.ok === true && changesHost ? renderOnTabRow(changesHost, React.createElement('span', { className: 'dgp-tab-counts', 'aria-hidden': true },
       React.createElement('span', { className: 'dgp-ins' }, `+${status?.insertions ?? 0}`),
       React.createElement('span', { className: 'dgp-del' }, `-${status?.deletions ?? 0}`)), React.createElement(React.Fragment)) : null,
   )
@@ -205,7 +200,11 @@ function rememberChanges(key: string, snapshot: ChangesSnapshot): void {
 }
 
 function GitChangesView(props: HeaderProps): React.ReactElement {
-  const loc = workspaceOf(props.ctx, props.sessionId)
+  const loc = useWorkspace(props.ctx, props.sessionId)
+  return React.createElement(GitChangesWorkspace, { key: JSON.stringify(loc), loc })
+}
+
+function GitChangesWorkspace({ loc }: { loc: { sessionId: string; cwd: string } | null }): React.ReactElement {
   const cacheKey = JSON.stringify(loc)
   const cached = changesSnapshots.get(cacheKey)
   const [status, setStatus] = React.useState<StatusPayload | null>(() => cached?.status ?? null)
@@ -215,14 +214,27 @@ function GitChangesView(props: HeaderProps): React.ReactElement {
   const [selected, setSelected] = React.useState(() => cached?.selected ?? '')
   const [rows, setRows] = React.useState<SplitLine[]>(() => cached?.rows ?? [])
   const [busy, setBusy] = React.useState(false)
+  const request = React.useRef(0)
+  React.useEffect(() => () => { request.current++ }, [])
 
   const reload = React.useCallback(async () => {
     if (!loc) return
     setError('')
+    const ticket = ++request.current
     try {
       const next = await post<StatusPayload>('/dsh-git-plus/status', loc)
+      if (ticket !== request.current) return
       setStatus(next)
       latestStatus.current = next
+      if (next.ok === true && (next as { countsPending?: boolean }).countsPending) {
+        void post<StatusPayload>('/dsh-git-plus/counts', loc).then(counts => {
+          if (ticket !== request.current) return
+          setStatus(counts)
+          latestStatus.current = counts
+          const cached = changesSnapshots.get(cacheKey)
+          if (cached) rememberChanges(cacheKey, { ...cached, status: counts })
+        }).catch(() => {})
+      }
       const previous = changesSnapshots.get(cacheKey)
       if (previous) rememberChanges(cacheKey, { ...previous, status: next })
       setSelected((current) => {
@@ -230,7 +242,7 @@ function GitChangesView(props: HeaderProps): React.ReactElement {
         return next.files?.[0]?.path ?? ''
       })
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      if (ticket === request.current) setError(err instanceof Error ? err.message : String(err))
     }
   }, [loc?.sessionId, loc?.cwd])
 
@@ -279,7 +291,7 @@ function GitChangesView(props: HeaderProps): React.ReactElement {
         React.createElement('span', null, 'CHANGES'),
         React.createElement('span', { className: 'dgp-count' }, String(files.length)),
       ),
-      error ? React.createElement('p', { className: 'dgp-error' }, error) : null,
+      error ? React.createElement('p', { className: 'dgp-error', role: 'alert' }, error) : null,
       !loc ? React.createElement('p', { className: 'dgp-hint' }, '打开一个带工作目录的会话后再试。') : null,
       status && !status.ok ? React.createElement('p', { className: 'dgp-hint' }, status.error) : null,
       loc && status?.ok && files.length === 0
@@ -375,146 +387,11 @@ function DiffCell(props: { side: 'before' | 'after'; row: SplitLine }): React.Re
   )
 }
 
-function BranchMenu(props: {
-  loc: { sessionId: string; cwd: string } | null
-  current?: string
-  onSwitched: () => void
-}): React.ReactElement {
-  const [branches, setBranches] = React.useState<Array<{ name: string; current: boolean }>>([])
-  const [error, setError] = React.useState('')
-  const [busy, setBusy] = React.useState('')
-  const [ready, setReady] = React.useState(false)
-
-  React.useEffect(() => {
-    if (!props.loc) return
-    let cancelled = false
-    void post<{ ok?: boolean; error?: string; branches?: Array<{ name: string; current: boolean }> }>(
-      '/dsh-git-plus/branches',
-      props.loc,
-    ).then((next) => {
-      if (cancelled) return
-      setReady(true)
-      if (next.ok === false) setError(next.error || '无法列出分支')
-      else setBranches(next.branches ?? [])
-    }).catch((err: unknown) => {
-      if (cancelled) return
-      setReady(true)
-      setError(err instanceof Error ? err.message : String(err))
-    })
-    return () => { cancelled = true }
-  }, [props.loc?.sessionId, props.loc?.cwd])
-
-  const switchTo = async (branch: string) => {
-    if (!props.loc || branch === props.current) return
-    setBusy(branch)
-    setError('')
-    try {
-      const next = await post<{ ok?: boolean; error?: string }>('/dsh-git-plus/switch', { ...props.loc, branch })
-      if (next.ok === false) setError(next.error || `无法切换到 ${branch}`)
-      else props.onSwitched()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setBusy('')
-    }
-  }
-
-  return React.createElement(
-    React.Fragment,
-    null,
-    React.createElement('div', { className: 'dgp-menu-title' }, '切换分支'),
-    error ? React.createElement('p', { className: 'dgp-error' }, error) : null,
-    !props.loc ? React.createElement('p', { className: 'dgp-hint' }, '打开一个带工作目录的会话后再试。') : null,
-    React.createElement(
-      'div',
-      { className: 'dgp-branch-list' },
-      branches.length === 0
-        ? React.createElement('p', { className: 'dgp-hint' }, ready ? '没有本地分支' : '加载分支…')
-        : branches.map(branch => React.createElement(
-          'button',
-          {
-            key: branch.name,
-            type: 'button',
-            className: branch.current || branch.name === props.current ? 'dgp-branch dgp-branch-on' : 'dgp-branch',
-            'aria-current': branch.current || branch.name === props.current ? 'true' : undefined,
-            disabled: Boolean(busy) || branch.name === props.current,
-            onClick: () => { void switchTo(branch.name) },
-          },
-          React.createElement('span', null, branch.name),
-          branch.current || branch.name === props.current ? React.createElement('span', null, '当前') : null,
-        )),
-    ),
-  )
-}
-
-function CommitMenu(props: { ctx: Context; sessionId?: string; onClose: () => void }): React.ReactElement {
-  const loc = workspaceOf(props.ctx, props.sessionId)
-  const [message, setMessage] = React.useState('')
-  const [busy, setBusy] = React.useState('')
-  const [error, setError] = React.useState('')
-
-  const summarize = async () => {
-    if (!loc) return
-    setBusy('summary')
-    setError('')
-    try {
-      const next = await post<{ message?: string }>('/dsh-git-plus/summarize', loc)
-      setMessage(next.message || '')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setBusy('')
-    }
-  }
-
-  const commit = async (push: boolean) => {
-    if (!loc) return
-    const text = message.trim()
-    if (!text) {
-      setError('先生成或填写提交说明')
-      return
-    }
-    setBusy(push ? 'push' : 'commit')
-    setError('')
-    const instruction = push
-      ? `Commit all current git changes in this workspace using this exact message, then push to the current upstream. Do not invent extra files.\n\n${text}`
-      : `Commit all current git changes in this workspace using this exact message. Do not push.\n\n${text}`
-    try {
-      await sendToAgent(props.ctx, loc.sessionId, instruction)
-      props.onClose()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setBusy('')
-    }
-  }
-
-  return React.createElement(
-    'div',
-    { className: 'dgp-menu-content' },
-    error ? React.createElement('p', { className: 'dgp-error' }, error) : null,
-    React.createElement('textarea', {
-      value: message,
-      rows: 4,
-      placeholder: '提交说明，可点「生成说明」',
-      onChange: (event: { target: { value: string } }) => setMessage(event.target.value),
-    }),
-    React.createElement(
-      'footer',
-      { className: 'dgp-menu-foot' },
-      React.createElement('button', { type: 'button', disabled: !loc || Boolean(busy), onClick: () => { void summarize() } }, busy === 'summary' ? '生成中…' : '生成说明'),
-      React.createElement('button', { type: 'button', disabled: !loc || Boolean(busy), onClick: () => { void commit(false) } }, 'Commit'),
-      React.createElement('button', { type: 'button', className: 'dgp-primary', disabled: !loc || Boolean(busy), onClick: () => { void commit(true) } }, 'Commit & Push'),
-    ),
-  )
-}
-
+let stylesInjected = false
 declare const document: {
-  createElement(tag: 'style'): { dataset: Record<string, string>; textContent: string }
+  createElement(name: string): { dataset: Record<string, string>; textContent: string | null }
   head: { appendChild(node: unknown): void }
 }
-
-let stylesInjected = false
 function injectStyles(): void {
   if (stylesInjected || typeof document === 'undefined') return
   stylesInjected = true
@@ -539,7 +416,7 @@ header [role="tablist"] > [role="tab"][data-dsh-nav="trace"] { order:3; border-r
 header [role="tablist"] > [role="tab"][data-dsh-nav="other"] { order:4; }
 .dsh-ws-tools { display:inline-flex; align-items:center; order:100; gap:6px; min-width:0; max-width:calc(100% - 350px); margin:0 0 0 auto; padding-left:16px; flex:0 1 auto; flex-wrap:nowrap; }
 .dgp-tab-counts { display:inline-flex; gap:3px; font-size:10px; font-weight:400; }
-.dfp-path-chip { order:0; max-width:240px !important; cursor:default !important; }
+.dfp-path-chip { order:0; max-width:240px !important; }
 .dgp-toolbar { order:1; }
 .dgp-toolbar { display:inline-flex; align-items:center; gap:6px; min-width:0; flex-wrap:nowrap; }
 .dgp-chip, .dgp-pill { appearance:none; border:1px solid var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-layer-2); color:var(--dsw-alias-label-secondary); font:inherit; display:inline-flex; align-items:center; gap:5px; height:28px; box-sizing:border-box; max-width:168px; min-width:0; padding:0 8px; border-radius:8px; font-size:12px; line-height:1; white-space:nowrap; cursor:pointer; }
@@ -599,8 +476,9 @@ header [role="tablist"] > [role="tab"][data-dsh-nav="other"] { order:4; }
 .dgp-line-del { background:color-mix(in srgb, var(--dsw-alias-state-error-primary) 16%, transparent); }
 .dgp-line-add { background:color-mix(in srgb, #3c9 18%, transparent); }
 .dgp-line-empty { background:color-mix(in srgb, var(--dsw-alias-label-tertiary) 8%, transparent); }
-.dgp-error { color:var(--dsw-alias-state-error-primary); padding:8px 12px; font-size:12px; }
+.dgp-error { white-space:pre-wrap; overflow-wrap:anywhere; color:var(--dsw-alias-state-error-primary); padding:8px 12px; font-size:12px; }
 .dgp-hint { padding:8px 12px; font-size:12px; color:var(--dsw-alias-label-tertiary); }
 `
+  tag.textContent += repositoryStyles
   document.head.appendChild(tag)
 }

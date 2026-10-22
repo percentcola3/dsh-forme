@@ -21,7 +21,7 @@ function NavigationProbe() {
 }
 createRoot(document.getElementById('root')!).render(h(React.Fragment, null,
   h('aside', null, h('strong', null, 'DSH'), h('small', null, 'DESKTOP SIGNALS'), h('p', null, '工作区'), h('div', null, '后台任务提醒'), h(PreviewAccountMenu)),
-  h('main', null, h('span', { className: 'eyebrow' }, 'DESKTOP NOTIFICATIONS / 桌面提醒'), h('h1', null, '让任务找到你。'), h('p', null, '四种桌面位置，真实任务状态。前后台一致，不打断正在做的事。'),
-    h('div', { className: 'cards' }, ...['left', 'right', 'top', 'island'].map((position, i) => h('div', { key: position }, h('span', { className: 'dn-monitor', 'data-position': position }), h('b', null, ['屏幕左侧', '屏幕右侧', '屏幕顶部', '灵动岛'][i])))),
+  h('main', null, h('span', { className: 'eyebrow' }, 'DESKTOP NOTIFICATIONS / 桌面提醒'), h('h1', null, '让任务找到你。'), h('p', null, '八个边框锚点，木星状态徽标。前后台一致，不打断正在做的事。'),
+    h('div', { className: 'cards' }, ...['top-left', 'top', 'top-right', 'right', 'bottom-right', 'bottom', 'bottom-left', 'left'].map((position, i) => h('div', { key: position }, h('span', { className: 'dn-anchor-dot', 'data-position': position }), h('b', null, ['左上角', '顶部中央', '右上角', '右侧中央', '右下角', '底部中央', '左下角', '左侧中央'][i])))),
     h('div', { className: 'fixture' }, h('small', null, '事件链路验收 · 仅使用模拟会话'), ...['complete', 'decision', 'resolve', 'cancel'].map((kind, i) => h('button', { key: kind, onClick: () => { void fetch('/simulate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind }) }) } }, ['模拟正常完成', '模拟等待选择', '模拟已回答', '模拟取消任务'][i])), h(NavigationProbe)),
     h('p', { className: 'muted' }, '原生悬浮提醒会显示在桌面上，窗口和浏览器无需保持前台。'))))

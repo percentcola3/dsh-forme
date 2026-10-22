@@ -2,10 +2,11 @@ export const earthCSS = `
 /* ── Shared WebGL scene with a CSS fallback underneath ─────────── */
 .moss-scene { position:relative; display:block; overflow:hidden; width:100%; height:100%; isolation:isolate; }
 .moss-scene * { pointer-events:none; }
-.moss-scene-canvas { position:absolute; inset:0; width:100%; height:100%; display:block; opacity:0; transition:opacity .8s ease; }
+/* Keep loading transparent; reveal only a complete WebGL frame. */
+.moss-scene-canvas { position:absolute; inset:0; width:100%; height:100%; display:block; opacity:0; transition:opacity .18s ease; }
 .moss-scene-canvas[data-ready="true"] { opacity:1; }
-.moss-scene-fallback { position:absolute; inset:0; transition:opacity .8s ease; }
-.moss-scene:has(.moss-scene-canvas[data-ready="true"]) .moss-scene-fallback { opacity:0; }
+.moss-scene-fallback { position:absolute; inset:0; opacity:0; }
+.moss-scene:has(.moss-scene-canvas[data-failed="true"]) .moss-scene-fallback { opacity:1; }
 .moss-fallback-earth { position:absolute; aspect-ratio:1; border-radius:50%; transform:translate(-50%,-50%);
   background:radial-gradient(circle at 62% 34%,#effaff 0,#a6d9ec 20%,#62a8c9 45%,#3c7597 74%,#25485e 100%);
   box-shadow:0 0 0 1px #8cc8ff22, 0 0 24px #6fb6ff44, inset -10px -8px 24px #16344b66; }
@@ -30,7 +31,7 @@ export const earthCSS = `
 .moss-hero-subtitle::after { transform:scaleX(-1); }
 /* The host inserts a slot wrapper inside its mark span. Hide only the adjacent
    native headline/badge while our Earth owns that mark; theme-off restores it. */
-body[data-moss-theme="on"] span:has(.moss-hero) + span { display:none; }
+body[data-moss-theme="on"] [data-moss-hero-sibling] { display:none; }
 
 /* ── Chat running row: the host's "deep diving" line becomes a flight strip ── */
 body[data-moss-theme="on"] [data-chat-running][data-moss-run] { align-items:stretch; }

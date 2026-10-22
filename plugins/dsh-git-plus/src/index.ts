@@ -3,7 +3,9 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
 import Schema from '@deepseek-ai/schemastery'
 import { createGitRunner } from './git.ts'
-import { readStatus, readDiff, sessionOwnsCwd } from './repository.ts'
+import { parseStatus, readStatus, readDiff, sessionOwnsCwd } from './repository.ts'
+import { listBranches, switchBranch } from './branches.ts'
+import { createRepositoryDiscovery, resolveRepository } from './repositories.ts'
 import { drainSummary } from './summary.ts'
 
 export const name = 'dsh-git-plus'
@@ -93,26 +95,6 @@ async function parseJsonBody(req: IncomingMessage, res: ServerResponse): Promise
   }
 }
 
-function isSafeRef(name: string): boolean {
-  return name.length > 0
-    && name.length < 200
-    && !name.startsWith('-')
-    && !name.includes('..')
-    && !name.includes('\\')
-    && /^[A-Za-z0-9][A-Za-z0-9._/\-]*$/.test(name)
-}
-
-function parseLocalBranches(stdout: string): Array<{ name: string; current: boolean }> {
-  const branches: Array<{ name: string; current: boolean }> = []
-  for (const line of stdout.split('\n')) {
-    if (!line) continue
-    const [name, head] = line.split('\t')
-    if (!name || !isSafeRef(name)) continue
-    branches.push({ name, current: head === '*' })
-  }
-  return branches
-}
-
 async function readWorkspace(
   ctx: Context,
   req: IncomingMessage,
@@ -135,6 +117,16 @@ async function readWorkspace(
 
 export function apply(ctx: Context, config: Config): void {
   const git = createGitRunner(config)
+  const discoverRepositories = createRepositoryDiscovery(git)
+  const selectedRepository = async (loc: { cwd: string; body: Record<string, unknown> }, res: ServerResponse) => {
+    // Missing selection preserves the original root route behavior.
+    if (loc.body.repositoryPath === undefined) return loc.cwd
+    try { return await resolveRepository(git, loc.cwd, loc.body.repositoryPath) }
+    catch (error) {
+      sendJson(res, 400, { ok: false, error: error instanceof Error ? error.message : String(error) })
+      return null
+    }
+  }
   const webServer = Reflect.get(ctx, 'webServer') as {
     register: (route: { kind: string; path: string; handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void> }) => () => void
   }
@@ -166,12 +158,20 @@ export function apply(ctx: Context, config: Config): void {
       sendJson(res, 403, { error: 'cwd is not owned by the live session' })
       return
     }
-    const inside = await git(cwd, ['rev-parse', '--is-inside-work-tree'])
-    if (inside.code !== 0 || inside.stdout.trim() !== 'true') {
-      sendJson(res, 200, { ok: false, error: inside.stderr.trim() || 'not a git repository' })
+    // One git spawn answers the whole summary; slow-security machines pay once.
+    const summary = await git(cwd, ['status', '--porcelain=v1', '-z', '-b', '--untracked-files=all'])
+    if (summary.code !== 0) {
+      sendJson(res, 200, { ok: false, error: summary.stderr.trim() || 'not a git repository' })
       return
     }
-    sendJson(res, 200, { ok: true, ...await readStatus(git, cwd) })
+    sendJson(res, 200, { ok: true, ...parseStatus(summary.stdout), countsPending: true })
+  })
+
+  register('/dsh-git-plus/counts', async (req, res) => {
+    const loc = await readWorkspace(ctx, req, res)
+    if (!loc) return
+    if (!loc.body || typeof loc.body !== 'object' || typeof (loc.body as { cwd?: unknown }).cwd !== 'string') { sendJson(res, 400, {error:'需要工作目录'}); return }
+    sendJson(res, 200, { ok: true, ...await readStatus(git, (loc.body as { cwd: string }).cwd) })
   })
 
   register('/dsh-git-plus/diff', async (req, res) => {
@@ -181,39 +181,38 @@ export function apply(ctx: Context, config: Config): void {
     sendJson(res, 200, { ok: true, diff: await readDiff(git, loc.cwd, loc.body.path) })
   })
 
+  register('/dsh-git-plus/repositories', async (req, res) => {
+    const loc = await readWorkspace(ctx, req, res)
+    if (!loc) return
+    if (loc.body.refresh !== undefined && typeof loc.body.refresh !== 'boolean') {
+      sendJson(res, 400, { ok: false, error: 'refresh must be a boolean' })
+      return
+    }
+    sendJson(res, 200, await discoverRepositories(loc.cwd, loc.body.refresh === true))
+  })
+
   register('/dsh-git-plus/branches', async (req, res) => {
     const loc = await readWorkspace(ctx, req, res)
     if (!loc) return
-    const listed = await git(loc.cwd, [
-      'for-each-ref',
-      '--sort=-committerdate',
-      '--format=%(refname:short)%09%(HEAD)',
-      'refs/heads',
-    ])
-    if (listed.code !== 0) {
-      sendJson(res, 200, { ok: false, error: listed.stderr.trim() || 'unable to list branches' })
-      return
-    }
-    sendJson(res, 200, { ok: true, branches: parseLocalBranches(listed.stdout) })
+    const cwd = await selectedRepository(loc, res)
+    if (!cwd) return
+    sendJson(res, 200, await listBranches(git, cwd))
   })
 
   register('/dsh-git-plus/switch', async (req, res) => {
     const loc = await readWorkspace(ctx, req, res)
     if (!loc) return
-    const branch = String(loc.body.branch ?? '')
-    if (!isSafeRef(branch)) {
-      sendJson(res, 400, { error: 'invalid branch name' })
+    if (typeof loc.body.branch !== 'string') {
+      sendJson(res, 400, { error: 'branch must be a string' })
       return
     }
-    const switched = await git(loc.cwd, ['switch', '--', branch])
-    if (switched.code !== 0) {
-      sendJson(res, 200, {
-        ok: false,
-        error: (switched.stderr || switched.stdout).trim() || `unable to switch to ${branch}`,
-      })
+    if (loc.body.kind !== undefined && loc.body.kind !== 'local' && loc.body.kind !== 'remote') {
+      sendJson(res, 400, { error: 'kind must be local or remote' })
       return
     }
-    sendJson(res, 200, { ok: true, branch })
+    const cwd = await selectedRepository(loc, res)
+    if (!cwd) return
+    sendJson(res, 200, await switchBranch(git, cwd, loc.body.branch, loc.body.kind))
   })
 
   register('/dsh-git-plus/summarize', async (req, res) => {

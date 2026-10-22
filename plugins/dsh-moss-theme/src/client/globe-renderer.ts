@@ -222,9 +222,12 @@ const MAX_PIXELS = 1_000_000
 
 /** One full-scene shader per canvas. Pauses off-screen or when motion is off, and disposes every GPU resource. */
 export function mountEarth(canvas: HTMLCanvasElement, textures: Textures): () => void {
+  delete canvas.dataset.ready
+  delete canvas.dataset.failed
+  const fail = () => { delete canvas.dataset.ready; canvas.dataset.failed = 'true' }
   const gl = canvas.getContext('webgl', { alpha: true, antialias: false, premultipliedAlpha: true, powerPreference: 'low-power' })
-  // Without WebGL the CSS fallback scene in the DOM stays visible.
-  if (!gl) return () => {}
+  // Loading is transparent; show the static scene only on a rendering failure.
+  if (!gl) { fail(); return () => {} }
   const resources: (() => void)[] = []
   let disposed = false
   let frame = 0
@@ -267,7 +270,7 @@ export function mountEarth(canvas: HTMLCanvasElement, textures: Textures): () =>
   resize.observe(canvas)
   reduced.addEventListener('change', refresh)
   document.addEventListener('visibilitychange', refresh)
-  const lost = (event: Event) => { event.preventDefault(); ready = false; pause(); delete canvas.dataset.ready }
+  const lost = (event: Event) => { event.preventDefault(); ready = false; pause(); fail() }
   canvas.addEventListener('webglcontextlost', lost)
   void loadImagery(textures).then(images => {
     if (disposed) return
@@ -323,10 +326,12 @@ export function mountEarth(canvas: HTMLCanvasElement, textures: Textures): () =>
       gl.uniform3f(loc.earth, layout.anchor === 'left' ? -aspect + ex : layout.anchor === 'right' ? aspect - ex : ex, ey, er)
       gl.uniform2f(loc.thrust, layout.thrust[0], layout.thrust[1])
       gl.drawArrays(gl.TRIANGLES, 0, 6)
+      if (gl.isContextLost()) { fail(); return }
+      delete canvas.dataset.failed
       canvas.dataset.ready = 'true'
     }
     ready = true; refresh()
-  }).catch(() => { /* The CSS fallback scene remains visible. */ })
+  }).catch(() => { if (!disposed) fail() })
   return () => {
     disposed = true; pause(); observer.disconnect(); intersection.disconnect(); resize.disconnect()
     reduced.removeEventListener('change', refresh); document.removeEventListener('visibilitychange', refresh)

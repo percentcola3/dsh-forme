@@ -19,6 +19,9 @@ type El = {
   contains?: (node: unknown) => boolean
 }
 
+declare function requestAnimationFrame(callback: () => void): number
+declare function cancelAnimationFrame(handle: number): void
+
 declare const document: {
   createElement(tag: string): El
   body: unknown
@@ -34,7 +37,7 @@ declare const window: {
 }
 
 declare class MutationObserver {
-  constructor(callback: () => void)
+  constructor(callback: (records: Array<{ target: unknown }>) => void)
   observe(target: unknown, options: { childList: boolean; subtree: boolean; attributes?: boolean; attributeFilter?: string[] }): void
   disconnect(): void
 }
@@ -82,9 +85,16 @@ export function useWorkspaceToolHost(): {
       setHost(bar)
     }
     read()
-    const observer = new MutationObserver(read)
+    // One pass per frame; our own portal renders are not tab changes.
+    let frame = 0
+    const observer = new MutationObserver(records => {
+      if (frame) return
+      const bar = header.querySelector('[data-dsh-workspace-tools]') as unknown as { contains(node: unknown): boolean } | null
+      if (bar && records.every(record => bar.contains(record.target))) return
+      frame = requestAnimationFrame(() => { frame = 0; read() })
+    })
     observer.observe(header, { childList: true, subtree: true })
-    return () => observer.disconnect()
+    return () => { observer.disconnect(); if (frame) cancelAnimationFrame(frame) }
   }, [])
 
   return { anchorRef, host, changesHost }
@@ -114,7 +124,7 @@ export function FloatingPanel(props: {
     const place = () => {
       const rect = props.anchor?.getBoundingClientRect?.()
       if (!rect) return
-      const width = props.width
+      const width = Math.min(props.width, Math.max(0, window.innerWidth - 16))
       const left = Math.min(Math.max(8, rect.right - width), window.innerWidth - width - 8)
       const top = Math.min(rect.bottom + 6, window.innerHeight - 16)
       setStyle({

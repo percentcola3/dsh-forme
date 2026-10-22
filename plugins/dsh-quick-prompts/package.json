@@ -1,7 +1,7 @@
 {
   "name": "dsh-quick-prompts",
   "version": "0.1.0",
-  "description": "Saved shortcuts with live output cards for running background subagents in DeepSeek Harness.",
+  "description": "Saved shortcuts that launch lightweight independent conversations in DeepSeek Harness.",
   "type": "module",
   "main": "./lib/index.js",
   "exports": {
@@ -38,10 +38,6 @@
     "@deepseek-ai/cordis": "*",
     "react": "^18.0.0 || ^19.0.0",
     "react-dom": "^18.0.0 || ^19.0.0"
-  },
-  "dependencies": {
-    "@xterm/addon-fit": "^0.11.0",
-    "@xterm/xterm": "^6.0.0"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",

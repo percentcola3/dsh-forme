@@ -5,24 +5,47 @@ import { createTasks, ongoingRuns, type TaskStore } from './tasks.ts'
 import { shortName, currentSessionId } from './logic.ts'
 import { active, statusLabels, type Prompt, type TaskRun } from '../types.ts'
 import { styles } from './styles.ts'
+import { TaskModelPicker } from './model-picker.ts'
 import { installTaskDock } from './task-dock.ts'
 import { TerminalCard } from './terminal-card.ts'
-export const inject = ['slots', 'uiWorkspace']
+import { installDraftNavigation } from './draft-memory.ts'
+import { ConversationCard } from './conversation-card.ts'
+export const inject = ['slots', 'uiWorkspace', 'sidebarRight', 'webTerminals', 'sessions', 'workspaces']
 const h = React.createElement
 type Draft = Omit<Prompt, 'id'> & { id?: string }
 export function apply(ctx: Context): void {
   const tasks = createTasks()
+  ctx.effect(() => installDraftNavigation(
+    ctx.get('uiWorkspace') as Parameters<typeof installDraftNavigation>[0],
+    ctx.get('sessions') as Parameters<typeof installDraftNavigation>[1],
+    ctx.get('workspaces') as Parameters<typeof installDraftNavigation>[2],
+    localStorage,
+  ))
   const slots = ctx.get('slots') as { inject(name: string, register: () => () => void): () => void; register(options: { name: string; id: string; order: number }, render: (props: { sessionId?: string }) => React.ReactElement | null): () => void }
   ctx.effect(() => slots.inject('conversation.input.overlay', () => slots.register({ name: 'conversation.input.overlay', id: 'dsh-quick-prompts', order: 5 }, props => h(QuickPrompts, { ctx, tasks, sessionId: props.sessionId, key: props.sessionId }))))
-  ctx.effect(() => slots.inject('shell.overlay', () => slots.register({ name: 'shell.overlay', id: 'dsh-quick-prompts-panel', order: 95 }, () => h(TaskPanel, { tasks }))))
+  ctx.effect(() => slots.inject('shell.overlay', () => slots.register({ name: 'shell.overlay', id: 'dsh-quick-prompts-panel', order: 95 }, () => h(TaskPanel, { ctx, tasks }))))
   ctx.effect(() => { const style = document.createElement('style'); style.textContent = styles; document.head.appendChild(style); return () => style.remove() })
   ctx.effect(() => {
+    // Fast polling only while a task is live; idle sessions check every 3s and
+    // hidden windows pause entirely, so the composer is not re-rendered while typing.
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let stopped = false
     const poll = () => { void tasks.select(currentSessionId(ctx)).then(() => tasks.refresh()).catch(() => {}) }
-    poll(); const timer = setInterval(poll, 400)
-    window.addEventListener('focus', poll)
+    const tick = () => {
+      timer = undefined
+      if (stopped) return
+      if (!document.hidden) poll()
+      const live = tasks.getSnapshot().runs.some(run => active(run.status))
+      timer = setTimeout(tick, document.hidden ? 5000 : live ? 600 : 3000)
+    }
+    const wake = () => { if (timer !== undefined) clearTimeout(timer); tick() }
+    tick()
+    window.addEventListener('focus', wake)
+    document.addEventListener('visibilitychange', wake)
+    const unsubscribe = tasks.subscribe(() => { if (timer !== undefined && tasks.getSnapshot().runs.some(run => active(run.status))) { clearTimeout(timer); timer = setTimeout(tick, 600) } })
     const workspace = ctx.get('uiWorkspace') as { selection: { subscribe(listener: () => void): () => void } }
-    const unsubscribe = workspace.selection.subscribe(poll)
-    return () => { unsubscribe(); clearInterval(timer); window.removeEventListener('focus', poll) }
+    const unselect = workspace.selection.subscribe(poll)
+    return () => { stopped = true; unselect(); unsubscribe(); if (timer !== undefined) clearTimeout(timer); window.removeEventListener('focus', wake); document.removeEventListener('visibilitychange', wake) }
   })
 }
 export function QuickPrompts({ ctx, tasks, sessionId }: { ctx: Context; tasks: TaskStore; sessionId?: string }): React.ReactElement {
@@ -57,32 +80,37 @@ export function QuickPrompts({ ctx, tasks, sessionId }: { ctx: Context; tasks: T
   const modal = draft ? createPortal(h('div', { className: 'dqp-backdrop', onMouseDown: (event: React.MouseEvent) => { if (event.target === event.currentTarget) close() } },
     h('form', { className: 'dqp-dialog', role: 'dialog', 'aria-modal': true, 'aria-label': draft.id ? '编辑快捷任务' : '新增快捷任务', onSubmit: (event: React.FormEvent) => { event.preventDefault(); void save('save') }, onKeyDown: (event: React.KeyboardEvent) => {
       if (event.key !== 'Tab') return
-      const nodes = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('input,textarea,button:not(:disabled)'))
+      const nodes = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('input:not(:disabled),textarea:not(:disabled),select:not(:disabled),button:not(:disabled)'))
       const first = nodes[0], last = nodes[nodes.length - 1]
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
     } }, h('h3', null, draft.id ? '编辑快捷任务' : '新增快捷任务'),
-      h('small', null, '后台子 Agent · 主对话继续运行'),
+      h('small', null, '独立快捷对话 · 主对话继续运行'),
       h('label', null, '名称', h('input', { ref: nameInput, value: draft.name, maxLength: 100, disabled: saving, placeholder: '例如：检查代码', onChange: (event: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, name: event.target.value }) }), h('small', null, '按钮最多显示 5 个字，悬停查看全名。')),
-      h('label', null, '任务内容', h('textarea', { value: draft.text, maxLength: 32000, disabled: saving, placeholder: '描述要交给子 Agent 的任务，也可以填写需要 AI 执行的命令…', onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => setDraft({ ...draft, text: event.target.value }) })),
+      h(TaskModelPicker, { key: `${sessionId}:${state.projectId}`, tasks, value: draft.model, disabled: saving, onChange: model => setDraft({ ...draft, model }) }),
+      h('label', null, '任务内容', h('textarea', { value: draft.text, maxLength: 32000, disabled: saving, placeholder: '描述要在独立对话中执行的任务，也可以填写需要 AI 执行的命令…', onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => setDraft({ ...draft, text: event.target.value }) })),
       h('small', null, `使用当前项目目录：${state.cwd}。各任务独立运行，主对话可继续使用。`),
       error && h('p', { role: 'alert' }, error),
       h('footer', null, draft.id && h('button', { type: 'button', className: 'dqp-delete', disabled: saving, onClick: () => { void save('delete') } }, '删除'), h('button', { type: 'button', disabled: saving, onClick: close }, '取消'), h('button', { type: 'submit', className: 'dqp-save', disabled: saving || !draft.name.trim() || !draft.text.trim() }, saving ? '保存中…' : '保存')))), document.body) : null
   const running = selected ? ongoingRuns(state.runs).filter(run => active(run.status)).length : 0
-  const notice = error || (selected ? state.error || state.syncError : '')
+  const recoveryNotice = state.recovery?.state === 'reserved' || state.recovery?.state === 'failed'
+    ? '上次任务的自动续接未能确认。请检查本对话记录后发送「继续」；系统不会自动重复提交。' : ''
+  const notice = error || (selected ? state.error || state.syncError || recoveryNotice : '')
   return h(React.Fragment, null,
-    h('div', { className: 'dqp-bar', role: 'group', 'aria-label': '快捷任务' }, h('button', { type: 'button', className: 'dqp-add', 'aria-label': '新增快捷任务', disabled: saving || !selected || !state.ready, onClick: (event: React.MouseEvent<HTMLButtonElement>) => open(event) }, '+'),
+    h('div', { className: 'dqp-bar', role: 'group', 'aria-label': '快捷任务' },
       h('button', {
         type: 'button', className: 'dqp-terminal', 'aria-label': '打开项目终端', 'aria-pressed': state.terminalOpen,
         disabled: !selected || !sessionId, title: `${state.cwd || '当前项目'} 下打开终端小窗口`,
-        onClick: () => tasks.showTerminal(!state.terminalOpen),
-      }, h('svg', { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, 'aria-hidden': true },
-        h('path', { d: 'M4 5h16v14H4z' }), h('path', { d: 'M7.5 9.5l3 2.5-3 2.5' }), h('path', { d: 'M12.5 15h4' }))),
+        onClick: () => tasks.showTerminal(!state.terminalOpen, state.projectId),
+      }, h('svg', { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true },
+        h('path', { d: 'M5 6l6 6-6 6M13 18h6' }))),
+      h('button', { type: 'button', className: 'dqp-add', 'aria-label': '新增快捷任务', disabled: saving || !selected || !state.ready, onClick: (event: React.MouseEvent<HTMLButtonElement>) => open(event) },
+        h('svg', { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', 'aria-hidden': true }, h('path', { d: 'M12 4v16M4 12h16' }))),
       h('div', { className: 'dqp-items' }, ...items.map(item =>
         h('span', { className: 'dqp-task-chip', key: item.id },
           h('button', {
             type: 'button', disabled: !selected || !state.ready || !sessionId || tasks.busy(sessionId, item.id),
-            title: `${item.name} · 后台子 Agent\n点击执行 · 右键编辑`,
+            title: `${item.name} · 独立快捷对话\n${item.model ? `${item.model.provider} / ${item.model.model}` : '跟随当前会话模型'}\n点击执行 · 右键编辑`,
             onClick: () => start(item),
             onContextMenu: (event: React.MouseEvent<HTMLButtonElement>) => { event.preventDefault(); open(event, item) },
           }, shortName(item.name)),
@@ -93,43 +121,25 @@ export function QuickPrompts({ ctx, tasks, sessionId }: { ctx: Context; tasks: T
             h('path', { d: 'M15 5l4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15v5Z' }))),
         ))),
       selected && state.legacyAvailable && h('button', { type: 'button', title: '将旧版全局指令归入当前项目，仅可导入一次', onClick: () => { void tasks.save('import').catch(error => setError(String(error.message))) } }, '导入旧指令'),
-      running > 0 && h('button', { type: 'button', className: 'dqp-panel-trigger', 'aria-expanded': state.open, title: state.open ? '收起进行中的任务' : '显示进行中的任务', onClick: () => tasks.show(!state.open) }, `后台任务 ${running}`)),
+      selected && ongoingRuns(state.runs).length > 0 && h('button', { type: 'button', className: 'dqp-panel-trigger', 'aria-expanded': state.open, title: state.open ? '收起快捷对话' : '显示快捷对话', onClick: () => tasks.show(!state.open) }, `快捷对话 ${ongoingRuns(state.runs).length}${running ? ` · ${running} 运行中` : ''}`)),
     notice && !draft && h('div', { className: 'dqp-notice', role: 'alert', title: notice }, notice), modal)
 }
-export function TaskPanel({ tasks }: { tasks: TaskStore }): React.ReactPortal | null {
+export function TaskPanel({ ctx, tasks }: { ctx: Context; tasks: TaskStore }): React.ReactPortal | null {
   const state = React.useSyncExternalStore(tasks.subscribe, tasks.getSnapshot)
   const [seat, setSeat] = React.useState<HTMLElement | null>(null)
   React.useLayoutEffect(() => installTaskDock(document.body, setSeat), [])
-  const runs = ongoingRuns(state.runs)
-  if (!state.open || !seat || (!runs.length && !state.terminalOpen)) return null
-  return createPortal(h('aside', { className: 'dqp-dock', 'aria-label': '进行中的快捷任务' },
-    h('div', { className: 'dqp-dock-body', role: 'region', 'aria-label': '进行中的任务卡片', tabIndex: 0 },
-      state.terminalOpen && state.sessionId && h(TerminalCard, { key: `terminal:${state.sessionId}`, sessionId: state.sessionId, onClose: () => tasks.showTerminal(false) }),
-      ...runs.map(run => h(RunCard, { key: run.id, run, tasks })))), seat)
-}
-function RunCard({ run, tasks }: { run: TaskRun; tasks: TaskStore }): React.ReactElement {
-  const [acting, setActing] = React.useState(false)
-  const control = async (action: 'stop' | 'close') => { setActing(true); try { await tasks.control(action, run.id) } finally { setActing(false) } }
-  const output = run.liveOutput ?? run.output
-  const viewport = React.useRef<HTMLPreElement>(null)
-  const follow = React.useRef(true)
-  React.useLayoutEffect(() => {
-    const node = viewport.current
-    if (node && follow.current) node.scrollTop = node.scrollHeight
-  }, [output])
-  return h('section', { className: 'dqp-run-card', 'data-run-id': run.id, 'data-run-status': run.status, 'aria-label': run.name, title: run.name },
-    h('div', { className: 'dqp-run-actions' },
-      h('span', { className: 'dqp-run-name' }, run.name, !active(run.status) && h('em', { className: 'dqp-run-state' }, statusLabels[run.status])),
-      active(run.status) && h('button', { type: 'button', disabled: acting || run.status === 'stopping', title: '中断此任务', 'aria-label': `中断任务 ${run.name}`, onClick: () => { void control('stop') } }, run.status === 'stopping' ? '停止中' : '中断'),
-      h('button', { type: 'button', disabled: acting, title: run.status === 'failed' ? '关闭此异常卡片' : '停止并关闭此任务', 'aria-label': `关闭任务 ${run.name}`, onClick: () => { void control('close') } }, '×')),
-    run.status === 'failed' && h('p', { className: 'dqp-run-error', role: 'alert' }, run.error ?? '任务未能完成，请查看输出。'),
-    output ? h('pre', {
-      ref: viewport, className: 'dqp-live-output', role: 'log', tabIndex: 0,
-      'aria-label': `${run.name} 的实时输出`, 'aria-live': 'off',
-      onScroll: (event: React.UIEvent<HTMLPreElement>) => {
-        const node = event.currentTarget
-        follow.current = node.scrollHeight - node.scrollTop - node.clientHeight < 32
-      },
-    }, output) : h('div', { className: 'dqp-live-pending', role: 'status', 'aria-label': `${run.name} 等待输出` },
-      h('i'), h('i'), h('i')))
+  // A terminal belongs to its original project/session, even as navigation changes.
+  // Keep owned terminals mounted but hidden; switching projects is not "close".
+  const projects = [...new Set([state.projectId, ...state.terminalCards.map(card => card.projectId)])].filter(Boolean)
+  if (!seat) return null
+  return createPortal(h(React.Fragment, null, ...projects.map(projectId => {
+    const selected = state.ready && state.projectId === projectId
+    const runs = selected ? ongoingRuns(state.runs).filter(run => run.projectId === projectId) : []
+    const terminal = state.terminalCards.find(card => card.projectId === projectId)
+    const visible = selected && state.open && (!!runs.length || !!terminal)
+    return h('aside', { key: projectId, className: 'dqp-dock', hidden: !visible, 'data-dqp-project': projectId, 'aria-label': '快捷对话' },
+      h('div', { className: 'dqp-dock-body', role: 'region', 'aria-label': '快捷对话卡片', tabIndex: 0 },
+        terminal && h(TerminalCard, { ctx, key: `terminal:${projectId}`, sessionId: terminal.sessionId, active: visible, sourceSelected: state.sessionId === terminal.sessionId, onClose: () => tasks.showTerminal(false, projectId) }),
+        ...runs.map(run => h(ConversationCard, { key: run.id, ctx, run, tasks }))))
+  })), seat)
 }

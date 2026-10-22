@@ -41,8 +41,18 @@ export function installTaskDock(root: HTMLElement, onSeat: (seat: HTMLElement | 
     onSeat(seat)
   }
   const schedule = () => { if (!stopped && frame === undefined) frame = requestAnimationFrame(sync) }
-  const mutations = new MutationObserver(schedule)
-  mutations.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'aria-hidden', 'data-conversation-session', 'class'] })
+  // Ignore typing/streaming churn inside the current conversation: re-seat only
+  // when nodes outside it change, or when it detaches. Width is the ResizeObserver's job.
+  const mutations = new MutationObserver(records => {
+    if (!content || !content.isConnected || seat.parentElement !== content) return schedule()
+    for (const record of records) {
+      const target = record.target as Node
+      if (target === seat || seat.contains(target)) continue
+      if (content.contains(target) && record.type === 'childList') continue
+      return schedule()
+    }
+  })
+  mutations.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'aria-hidden', 'data-conversation-session'] })
   sync()
   return () => {
     stopped = true

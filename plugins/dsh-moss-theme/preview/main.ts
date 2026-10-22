@@ -82,7 +82,7 @@ function TransmissionExample({ replay }: { replay: number }) {
     offset += value.length
     return shown
   }
-  const title = text('领航员，对话界面方案已整理。')
+  const title = text('对话界面方案已整理。')
   const intro = text('以电影里的通讯终端为参考：用引文、编号和细线组织信息，让长篇回复也有清晰的阅读节奏。')
   const quote = text('尾流从大气层连续延伸，贴着球面绕流，再向后舒展。保留冷光和空间感，让动态服从阅读。')
   const heading = text('界面呈现')
@@ -111,7 +111,7 @@ function DetailsExample() {
   return h('aside', { className: 'fixture-details', 'aria-label': '界面细节预览' },
     h('div', { className: 'fixture-details-heading' }, h('span', null, h(MossIcon, { name: 'terminal' }), 'INSTRUMENT DETAILS / 交互细节'), h('small', null, '本地界面示例')),
     h('div', { className: 'fixture-detail-grid' },
-      h('div', { className: 'fixture-type-sample' }, h('small', null, 'TYPE / 字体层级'), h('strong', null, '550W / Aa 0129'), h('p', null, '领航员，保持前进。'), h('code', null, 'const signal = "550W";')),
+      h('div', { className: 'fixture-type-sample' }, h('small', null, 'TYPE / 字体层级'), h('strong', null, '550W / Aa 0129'), h('p', null, '保持前进。'), h('code', null, 'const signal = "550W";')),
       h('div', { className: 'fixture-icon-sample' }, h('small', null, 'GLYPHS / 仪表图标'),
         h('div', null, ...icons.map(([name, label]) => h('button', { key: name, 'aria-label': `${label}图标示例`, 'aria-pressed': selected === name, onClick: () => setSelected(name) }, h(MossIcon, { name }), h('span', null, label))))),
       h('div', { className: 'fixture-focus-sample' }, h('small', null, 'FOCUS / 输入焦点'), h('input', { 'aria-label': '焦点演示', placeholder: '点击输入，查看光标与边线' }),
@@ -154,15 +154,15 @@ function Preview() {
       h('div', { className: 'fixture-label' }, '工作空间 / WORKSPACES'),
       h('div', { className: 'fixture-project', role: 'treeitem', 'data-row-key': 'workspace:preview', 'aria-expanded': true }, h('span', null, h(MossIcon, { name: 'folder' })), 'dsh-forme'),
       h('div', { role: 'tree', 'aria-label': '示例任务列表' }, ...['550W 界面主题', '项目结构分析', '构建与验证'].map(label => h('button', { key: label, className: 'fixture-task', role: 'treeitem', 'aria-selected': selectedTask === label, onClick: () => setSelectedTask(label) }, h(MossIcon, { name: 'chat' }), label))),
-      h('div', { className: 'fixture-side-bottom' }, h(MossIcon, { name: 'orbit' }), '本地工作空间', h('small', null, '领航员终端 · LOCAL WORKSPACE'))),
-    h('main', { 'data-conversation-scroll': '' }, h('header', { 'data-window-drag': '' }, h('div', { 'data-conversation-header-leading': '' }, mounted && renderSlot('conversation.header.leading')), h('div', { className: 'fixture-session-title', 'data-slot': 'conversation.session.header' }, h('nav', { 'aria-label': '会话层级' }, h('strong', null, '550W 界面主题'))), h('nav', { role: 'tablist', 'aria-label': '工作视图' }, h('button', { role: 'tab', 'aria-selected': true }, h(MossIcon, { name: 'chat' }), '对话'), h('button', { role: 'tab', 'aria-selected': false }, h(MossIcon, { name: 'folder' }), '文件'), h('button', { role: 'tab', 'aria-selected': false }, h(MossIcon, { name: 'changes' }), '变更'))),
+      h('div', { className: 'fixture-side-bottom' }, h(MossIcon, { name: 'orbit' }), '本地工作空间', h('small', null, '本地终端 · LOCAL WORKSPACE'))),
+    h('main', { 'data-conversation-scroll': '' }, h('header', { 'data-window-drag': '' }, h('div', { 'data-conversation-header-leading': '' }, mounted && renderSlot('conversation.header.leading')), h('div', { className: 'fixture-mode-controls' }, h('span', { 'data-fixture-mode': '' }, h(MossIcon, { name: 'orbit' }), '标准模式'), h('span', null, '7 个子智能体', '⌄')), h('div', { className: 'fixture-session-title', 'data-slot': 'conversation.session.header' }, h('nav', { 'aria-label': '会话层级' }, h('strong', null, '550W 界面主题'))), h('nav', { role: 'tablist', 'aria-label': '工作视图' }, h('button', { role: 'tab', 'aria-selected': true }, h(MossIcon, { name: 'chat' }), '对话'), h('button', { role: 'tab', 'aria-selected': false }, h(MossIcon, { name: 'folder' }), '文件'), h('button', { role: 'tab', 'aria-selected': false }, h(MossIcon, { name: 'changes' }), '变更'))),
       details && h(DetailsExample),
       settings && h('section', { style: { margin: '24px auto', maxWidth: 560, padding: '0 24px' } }, mounted && renderSlot('settings.general.item')),
       hero ? h('div', { className: 'fixture-hero' }, h('div', null, h('span', null, h('span', { 'data-slot': 'conversation.hero.brand.mark' }, mounted && renderSlot('conversation.hero.brand.mark'))), h('span', {className:'fixture-native-title'}, '探索未至之境', h('small', null, '预览版')))) : h('article', { className: 'fixture-chat' }, h('div', { className: 'fixture-label' }, 'MISSION LOG / 任务记录'),
         h('div', { 'data-chat-flow-kind': 'user' }, h('div', { 'data-slot': 'conversation.chat.node' }, h('div', null, h('div', null, h('div', { className: 'fixture-user' }, h('span', null, '把这次界面方案整理成通讯简报，并给出下一步。')))))),
         h(TransmissionExample, { replay }),
         h(Running)),
-      h('div', { className: 'fixture-composer-stack' }, mounted && renderSlot('conversation.input.dock'), h('div', { className: 'fixture-composer', 'data-composer-card': '' }, h('textarea', { placeholder: '领航员，请下达指令…', 'aria-label': '示例输入框' }), h('div', null, h('span', null, h(MossIcon, { name: 'folder' }), '工作空间 / dsh-forme'), h('button', { disabled: true, 'aria-label': '示例发送按钮' }, h(MossIcon, { name: 'send' }))))),
+      h('div', { className: 'fixture-composer-stack' }, mounted && renderSlot('conversation.input.dock'), h('div', { className: 'fixture-composer', 'data-composer-card': '' }, h('textarea', { placeholder: '请输入指令…', 'aria-label': '示例输入框' }), h('div', null, h('span', null, h(MossIcon, { name: 'folder' }), '工作空间 / dsh-forme'), h('button', { disabled: true, 'aria-label': '示例发送按钮' }, h(MossIcon, { name: 'send' }))))),
       h('div', { className: 'fixture-controls' }, h('span', null, '开发预览 · 模拟会话'),
         h('button', {onClick:()=>setHero(value=>!value)}, hero ? '对话预览' : '首页预览'),
         h('button', { onClick: () => { setHero(false); setReplay(value => value + 1) } }, '文字演示'),

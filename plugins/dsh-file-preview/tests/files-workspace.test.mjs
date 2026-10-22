@@ -20,6 +20,7 @@ function fixture({ twoPanes = true, blockedSplits = 0, initiallyExpanded = false
   const button = element(), row = element({ filesPath: '/work/a b.md' })
   row.querySelector = () => button
   tree.querySelectorAll = () => [row]
+  tree.querySelector = selector => selector.includes('aria-selected') ? element({ dockkitTab: 'files-tab' }) : null
   preview.querySelector = selector => selector.includes('aria-selected') ? element({ dockkitTab: 'seed-files' }) : element()
   let panes = twoPanes ? [tree, preview] : [tree]
   const panel = element()
@@ -47,11 +48,12 @@ function fixture({ twoPanes = true, blockedSplits = 0, initiallyExpanded = false
     openTabIn() { expanded = true; layout.openRightbar(true, false) },
     isExpanded: () => expanded, toggleExpanded() { expanded = !expanded },
     active: () => ({ id: 'old-tab' }), focus(id) { calls.push({ focus: id }) },
+    closeIn(session, tabId) { calls.push({ closeIn: [session, tabId] }) },
     split(id) { assert.equal(id, 'tree'); splits++; if (splits <= blockedSplits) return; sandbox.setTimeout(() => { panes = [tree, preview] }); return 'preview' },
   }
   const original = sidebar.openResource, originalIn = sidebar.openResourceIn
   const workspace = sandbox.exports.installFilesWorkspace(sidebar, layout, () => current)
-  return { sidebar, layout, layoutCalls, workspace, calls, panel, preview, button, original, originalIn, originalPresentation,
+  return { sidebar, layout, layoutCalls, workspace, calls, panel, preview, button, tree, original, originalIn, originalPresentation,
     mount: () => workspace.mount(host, 'a'),
     switchSession() { current = 'b' },
     get measurements() { return measurements }, observed,
@@ -104,6 +106,24 @@ test('leaving or switching sessions cancels deferred previews', () => {
     assert.equal(f.calls.filter(call => call.address).length, 0)
   }
 })
+test('leaving Files collapses a previously open dock and returning reuses its panes', () => {
+  const f = fixture({ initiallyExpanded: true })
+  const leave = f.mount()
+  f.sidebar.openResource(file)
+  leave()
+  assert.equal(f.expanded, false)
+  assert.equal(f.layoutCalls.at(-1), 'close')
+  assert.ok(f.layoutCalls.every(call => call === 'close'), 'tab exit must never reopen the rightbar')
+  assert.equal(f.calls.some(call => call.focus), false, 'tab exit must not focus an old file tab')
+  assert.equal(f.panel.getAttribute('data-dfp-embedded'), null)
+  const leaveAgain = f.mount()
+  assert.equal(f.expanded, true)
+  assert.equal(f.panel.getAttribute('data-dfp-embedded'), '')
+  assert.equal(f.splits, 0, 'returning reuses the existing file and preview panes')
+  leaveAgain()
+  assert.equal(f.expanded, false)
+})
+
 test('disposal restores previous sidebar expansion and service methods', () => {
   const f = fixture({ initiallyExpanded: true }); f.mount(); f.workspace.dispose()
   assert.equal(f.expanded, true)
@@ -135,4 +155,42 @@ test('leaving cancels a queued animation-frame layout update', () => {
 test('preview stops 8px above the live composer card without a second height deduction', () => {
   const f = fixture({ composerTop: 550 }); f.mount()
   assert.equal(f.panel.style.getPropertyValue('--dfp-height'), '446px')
+})
+test('asks the official dock store for a narrow file tree once per visit and respects later drags', () => {
+  const f = fixture()
+  const resizes = []
+  let sizes = [.5, .5]
+  f.sidebar.mountedSurface = () => ({ layout: { rootId: 'split1', nodes: { split1: { kind: 'split', children: ['tree', 'preview'], sizes } } } })
+  f.sidebar.actionsFor = () => ({ resizeSplit(sessionId, splitId, next) { resizes.push([sessionId, splitId, next]); sizes = next } })
+  const leave = f.mount()
+  assert.equal(resizes.length, 1)
+  assert.deepEqual(resizes[0], ['a', 'split1', resizes[0][2]], 'store actions take sessionId first')
+  assert.ok(Math.abs(resizes[0][2][0] - .22) < 1e-9 && Math.abs(resizes[0][2][1] - .78) < 1e-9)
+  sizes = [.4, .6] // the user drags the divider
+  f.sync(); f.flush()
+  assert.equal(resizes.length, 1, 'a manual divider position is not reset while the tab stays open')
+  leave()
+  sizes = [.5, .5]
+  f.mount()
+  assert.equal(resizes.length, 2, 'the next visit narrows again')
+})
+test('tolerates hosts without the split-size API', () => {
+  const f = fixture()
+  f.sidebar.mountedSurface = () => ({ layout: { rootId: 'p', nodes: { p: { kind: 'pane' } } } })
+  assert.doesNotThrow(() => f.mount())
+})
+
+test('leaving the Files view closes the tab it opened; a reused user tab stays', () => {
+  const f = fixture()
+  const leave = f.mount()
+  f.flush()
+  leave()
+  const closes = f.calls.filter(call => call.closeIn)
+  assert.deepEqual(closes, [{ closeIn: ['a', 'files-tab'] }], 'our opened tree tab is closed so the sidebar settles back to the guide')
+  // A pre-existing user-owned files pane is never closed.
+  f.tree.querySelector = selector => selector.includes('files-state') ? element() : (selector.includes('aria-selected') ? element({ dockkitTab: 'user-tab' }) : null)
+  const again = f.mount()
+  f.flush()
+  again()
+  assert.equal(f.calls.filter(call => call.closeIn).length, 1, 'a user-owned files pane survives')
 })

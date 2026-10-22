@@ -1,16 +1,19 @@
 import { randomUUID } from 'node:crypto'
 import { LiveOutput, type AssistantFrame } from './live-output.ts'
 import type { Project } from './project-prompts.ts'
-import { active, type Prompt, type TaskRun } from './types.ts'
+import { validateModel } from './models.ts'
+import { active, type ModelSelection, type Prompt, type TaskRun } from './types.ts'
 export type Parent = { id: string; session: { header: { id: string; cwd?: string }; snapshotEvents?(): { type: string; data: Record<string, any> }[] } }
 export type Receipt = { childId: string; result: Promise<{ output?: { type: string; text?: string }[]; stopReason: string; diagnostic?: unknown }>; dispose(): Promise<unknown> }
 export type Runtime = {
+  kind?: 'conversation'
   getProvider(name: string): unknown
   resolveMaxDepth(config?: number): number | undefined
-  startActivation(spec: { provider: string; childId: string; label: string; request: { parent: Parent; cwd: string; prompt: { type: 'text'; text: string }[]; maxDepth?: number }; signal: AbortSignal; delivery: 'caller' }): Promise<Receipt>
+  startActivation(spec: { provider: string; childId: string; label: string; request: { parent: Parent; cwd: string; prompt: { type: 'text'; text: string }[]; maxDepth?: number; agentOptions?: ModelSelection }; signal: AbortSignal; delivery: 'caller' }): Promise<Receipt>
+  prompt(request: { requestId: string; parentSessionId: string; childSessionId: string; mode: 'continuable'; delivery: 'queue'; content: { type: 'text'; text: string }[] }, signal: AbortSignal): Promise<{ messageId: string }>
   interrupt(childId: string, authority: { kind: 'user'; parentSessionId: string }): void
 }
-type Entry = { run: TaskRun; controller: AbortController; receipt?: Receipt; admission?: Promise<void>; pending: Set<string>; parent: Parent; live: LiveOutput; settled?: boolean; turnActive?: boolean }
+type Entry = { run: TaskRun; controller: AbortController; receipt?: Receipt; admission?: Promise<void>; pending: Set<string>; parent: Parent; live: LiveOutput; chat: LiveOutput; replyId: string; replies: Map<string, string>; replying?: boolean; settled?: boolean; turnActive?: boolean }
 const textOf = (blocks: unknown): string => Array.isArray(blocks) ? blocks.filter(block => block?.type === 'text' && typeof block.text === 'string').map(block => block.text).join('\n').slice(-24000) : ''
 const messageOf = (error: unknown) => error instanceof Error ? error.message : String(error)
 const CONTEXT = '你正在执行用户从快捷指令栏启动的后台子任务。仅处理下面的任务内容，完成后给出清晰结果。主对话继续独立运行，不要调用 send_message 给主 Agent 发送进度或触发它继续执行。若内容是命令，请由你使用当前获准的工具执行并反馈结果；遵守继承的权限和审批规则，遇到限制明确说明。'
@@ -39,8 +42,8 @@ export class TaskManager {
     const now = Date.now()
     const parentTitle = parent.session.snapshotEvents?.().findLast(event => event.type === 'session/title')?.data.title
     const entry: Entry = {
-      run: { id: randomUUID(), projectId: project.id, cwd: project.cwd, requestId, promptId: prompt.id, name: prompt.name, parentId: parent.id, parentTitle: typeof parentTitle === 'string' ? parentTitle.slice(0, 100) : parent.session.header.cwd?.split(/[\\/]/).at(-1) ?? '主会话', childId: randomUUID(), status: 'starting', startedAt: now, updatedAt: now, output: '', progress: '正在创建原生子 Agent…', steps: 0, tools: [] },
-      controller: new AbortController(), pending: new Set(), parent, live: new LiveOutput(),
+      run: { sessionKind: this.runtime.kind, id: randomUUID(), projectId: project.id, cwd: project.cwd, requestId, promptId: prompt.id, name: prompt.name, parentId: parent.id, parentTitle: typeof parentTitle === 'string' ? parentTitle.slice(0, 100) : parent.session.header.cwd?.split(/[\\/]/).at(-1) ?? '主会话', childId: randomUUID(), status: 'starting', startedAt: now, updatedAt: now, output: '', messages: [{ id: `${requestId}:user`, role: 'user', text: prompt.text }], progress: '正在创建原生子 Agent…', steps: 0, tools: [] },
+      controller: new AbortController(), pending: new Set(), parent, live: new LiveOutput(), chat: new LiveOutput(), replyId: `${requestId}:assistant`, replies: new Map(),
     }
     this.entries.set(entry.run.id, entry)
     entry.admission = this.launch(entry, prompt, maxDepth)
@@ -48,7 +51,8 @@ export class TaskManager {
   }
   private async launch(entry: Entry, prompt: Prompt, maxDepth: number | undefined): Promise<void> {
     try {
-      const receipt = await this.runtime.startActivation({ provider: 'spawn', childId: entry.run.childId, label: prompt.name, request: { parent: entry.parent, cwd: entry.run.cwd, prompt: [{ type: 'text', text: CONTEXT }, { type: 'text', text: prompt.text }], ...maxDepth === undefined ? {} : { maxDepth } }, signal: entry.controller.signal, delivery: 'caller' })
+      const model = validateModel(prompt.model)
+      const receipt = await this.runtime.startActivation({ provider: 'spawn', childId: entry.run.childId, label: prompt.name, request: { parent: entry.parent, cwd: entry.run.cwd, prompt: [{ type: 'text', text: CONTEXT }, { type: 'text', text: prompt.text }], ...model ? { agentOptions: model } : {}, ...maxDepth === undefined ? {} : { maxDepth } }, signal: entry.controller.signal, delivery: 'caller' })
       entry.receipt = receipt; entry.run.childId = receipt.childId
       // Observe the result before teardown can reject it. Admission stays separate
       // from execution so unloading can await late receipts and release only ours.
@@ -63,6 +67,7 @@ export class TaskManager {
       const result = await receipt.result
       entry.settled = true
       entry.run.output = textOf(result.output) || entry.run.output
+      if (!entry.chat.text && entry.run.output) this.chatText(entry, entry.run.output)
       this.finish(entry, result.stopReason)
     } catch (error) { this.fail(entry, error) }
     finally {
@@ -79,7 +84,7 @@ export class TaskManager {
       return
     }
     if (reason === 'completed') { run.status = 'completed'; run.progress = '后台任务已完成' }
-    else if (['aborted', 'interrupted'].includes(reason)) { run.status = 'stopped'; run.progress = '后台任务已停止' }
+    else if (['aborted', 'interrupted'].includes(reason)) { entry.pending.clear(); run.status = 'stopped'; run.progress = '后台任务已停止' }
     else {
       run.status = 'failed'; run.progress = '任务未能完成'
       run.error = reason === 'blocked' ? '子 Agent 被权限或执行规则阻止，请查看结果中的说明。' : reason === 'max-tokens' ? '已达到输出上限，任务未完整完成。' : '子 Agent 执行失败，请查看结果或完整记录。'
@@ -94,25 +99,87 @@ export class TaskManager {
     for (const tool of entry.run.tools) if (tool.state === 'running') tool.state = 'ended'
     entry.run.endedAt = Date.now(); entry.run.updatedAt = Date.now()
   }
+  async reply(id: string, projectId: string, text: unknown, requestId: unknown): Promise<TaskRun> {
+    if (this.closed) throw new Error('快捷任务服务正在关闭。')
+    if (typeof text !== 'string' || !text.trim() || text.length > 32000 || text.includes('\0')) throw new Error('消息不能为空，且不能超过 32,000 字。')
+    if (typeof requestId !== 'string' || !requestId || requestId.length > 100) throw new Error('消息请求编号无效。')
+    const entry = this.entries.get(id)
+    if (!entry || entry.run.projectId !== projectId || entry.run.dismissed) throw new Error('对话不属于当前项目或已关闭。')
+    const previous = entry.replies.get(requestId)
+    if (previous !== undefined) {
+      if (previous !== text) throw new Error('请求编号已用于其他消息。')
+      // Concurrent HTTP retries wait for the same admission, never queue twice.
+      await entry.admission
+      return structuredClone(entry.run)
+    }
+    if (active(entry.run.status)) throw new Error(entry.run.status === 'waiting' ? '请先在完整对话中处理审批或选择。' : 'AI 正在回复，请等本轮结束后发送。')
+    if (!entry.receipt || !entry.settled) throw new Error('子会话尚未就绪，请重新启动此快捷任务。')
+    if (typeof this.runtime.prompt !== 'function') throw new Error('当前 DSH 版本不支持子会话续聊，请升级后重试。')
+    // Queue a real human message to the exact original child. Never spawn a new
+    // child or send a model-authored message to the parent/main conversation.
+    entry.replies.set(requestId, text)
+    while (entry.replies.size > 200) entry.replies.delete(entry.replies.keys().next().value!)
+    entry.controller = new AbortController()
+    entry.replying = true; entry.turnActive = false
+    entry.live = new LiveOutput(); entry.chat = new LiveOutput(); entry.replyId = `${requestId}:assistant`
+    const run = entry.run
+    run.messages ??= []
+    run.messages.push({ id: `${requestId}:user`, role: 'user', text })
+    run.output = ''; run.liveOutput = ''; run.error = undefined; run.endedAt = undefined
+    run.status = 'starting'; run.progress = '正在发送消息…'; run.updatedAt = Date.now()
+    entry.admission = (async () => {
+      try {
+        await this.runtime.prompt({ requestId, parentSessionId: run.parentId, childSessionId: run.childId, mode: 'continuable', delivery: 'queue', content: [{ type: 'text', text }] }, entry.controller.signal)
+        if (entry.controller.signal.aborted || this.closed || run.dismissed) {
+          this.runtime.interrupt(run.childId, { kind: 'user', parentSessionId: run.parentId })
+          if (!entry.turnActive) this.finish(entry, 'aborted')
+        } else if (run.status === 'starting') { run.status = 'running'; run.progress = 'AI 正在回复…' }
+      } catch (error) {
+        // Admission failed: retain the typed draft in the client and do not show
+        // an unsent user bubble. A retry carries the same native request ID.
+        entry.replies.delete(requestId)
+        run.messages = run.messages?.filter(message => message.id !== `${requestId}:user`)
+        this.fail(entry, error)
+        throw error
+      } finally { entry.replying = false; run.updatedAt = Date.now() }
+    })()
+    await entry.admission
+    return structuredClone(run)
+  }
   close(id: string, projectId: string): void {
     this.stop(id, projectId)
-    this.entries.get(id)!.run.dismissed = true
+    const entry = this.entries.get(id)!
+    entry.run.dismissed = true
+    // Release scoped model hooks and ownership even when the card is closed
+    // before its admission finishes. Durable conversation history stays intact.
+    void Promise.resolve(entry.admission).catch(() => {}).then(() => entry.receipt?.dispose()).catch(error => console.warn('dsh-quick-prompts: conversation cleanup failed', error))
   }
   stop(id: string, projectId?: string): void {
     const entry = this.entries.get(id)
     if (!entry || (projectId !== undefined && entry.run.projectId !== projectId)) throw new Error('后台任务不属于当前项目或已结束。')
     if (!active(entry.run.status) || entry.run.status === 'stopping') return
+    if (entry.replying) entry.controller.abort()
     if (entry.settled && entry.run.status === 'waiting' && !entry.turnActive) {
-      entry.controller.abort(); this.finish(entry, 'aborted'); return
+      entry.controller.abort(); this.runtime.interrupt(entry.run.childId, { kind: 'user', parentSessionId: entry.run.parentId }); this.finish(entry, 'aborted'); return
     }
     if (entry.receipt) this.runtime.interrupt(entry.run.childId, { kind: 'user', parentSessionId: entry.run.parentId })
     else entry.controller.abort()
     entry.run.status = 'stopping'; entry.run.progress = '正在停止子 Agent…'; entry.run.updatedAt = Date.now()
   }
+  private chatText(entry: Entry, text: string): void {
+    const messages = entry.run.messages ??= []
+    const previous = messages.find(message => message.id === entry.replyId)
+    if (previous) previous.text = text
+    else if (text) messages.push({ id: entry.replyId, role: 'assistant', text })
+    // The durable child owns the full transcript. Keep a bounded card projection.
+    let size = messages.reduce((total, message) => total + message.text.length, 0)
+    while (messages.length > 2 && (messages.length > 48 || size > 96000)) size -= messages.shift()!.text.length
+  }
   stream(sessionId: string, frame: AssistantFrame): void {
     const entry = [...this.entries.values()].find(entry => entry.run.childId === sessionId && active(entry.run.status))
     if (!entry) return
     entry.live.frame(frame)
+    entry.chat.frame(frame); this.chatText(entry, entry.chat.text)
     entry.run.liveOutput = entry.live.text
     entry.run.updatedAt = Date.now()
   }
@@ -148,8 +215,9 @@ export class TaskManager {
       case 'approval/decided': pending.delete(`approval:${data.id}`); break
       case 'user/message': if (data.source?.kind === 'user-question-reply') { pending.delete(`question:${data.source.callId}`); run.progress = '已收到回复，继续执行…' } break
       case 'assistant/message': {
+        if (data.message?.channel === 'analysis') return
         const text = textOf(data.message?.content)
-        if (text) { run.output = text; entry.live.message(text); run.liveOutput = entry.live.text }
+        if (text) { run.output = text; entry.live.message(text); entry.chat.message(text); this.chatText(entry, entry.chat.text); run.liveOutput = entry.live.text }
         break
       }
       case 'turn/end':

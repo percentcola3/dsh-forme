@@ -37,18 +37,7 @@ var NativeNotices = class {
 		this.onStatus();
 		try {
 			const source = await readFile(fileURLToPath(new URL("../native/DSHNotices.swift", import.meta.url)));
-			const textures = await Promise.all([
-				"earth-day.jpg",
-				"earth-clouds.jpg",
-				"moon-color.jpg",
-				"moon-height.jpg"
-			].map(async (name) => ({
-				name,
-				data: await readFile(fileURLToPath(new URL(`../native/textures/${name}`, import.meta.url)))
-			})));
-			const digest = createHash("sha256").update(source).update(process.arch);
-			for (const texture of textures) digest.update(texture.name).update(texture.data);
-			const hash = digest.digest("hex").slice(0, 20);
+			const hash = createHash("sha256").update(source).update(process.arch).digest("hex").slice(0, 20);
 			const app = join(homedir(), ".dsh", "cache", "desktop-notify", hash, "DSH Notices.app");
 			const bin = join(app, "Contents", "MacOS", "DSHNotices");
 			try {
@@ -58,12 +47,6 @@ var NativeNotices = class {
 					recursive: true,
 					mode: 448
 				});
-				const resources = join(app, "Contents", "Resources", "textures");
-				await mkdir(resources, {
-					recursive: true,
-					mode: 448
-				});
-				for (const texture of textures) await writeFile(join(resources, texture.name), texture.data);
 				const temporary = `${bin}.${process.pid}`;
 				await exec("/usr/bin/xcrun", [
 					"swiftc",
@@ -297,10 +280,14 @@ var TaskMonitor = class {
 //#endregion
 //#region src/preferences.ts
 const positions = [
-	"left",
-	"right",
+	"top-left",
 	"top",
-	"island"
+	"top-right",
+	"right",
+	"bottom-right",
+	"bottom",
+	"bottom-left",
+	"left"
 ];
 const defaults = {
 	enabled: true,
@@ -311,14 +298,18 @@ const defaults = {
 	display: "main",
 	duration: 4
 };
+/** Earlier releases offered left/right/top/island; map them onto the closest border anchor. */
+const legacy = { island: "top" };
 function parsePreferences(value) {
 	const data = value && typeof value === "object" ? value : {};
+	const stored = typeof data.position === "string" ? data.position : "";
+	const position = positions.includes(stored) ? stored : legacy[stored] ?? defaults.position;
 	return {
 		enabled: typeof data.enabled === "boolean" ? data.enabled : defaults.enabled,
 		completion: typeof data.completion === "boolean" ? data.completion : defaults.completion,
 		decisions: typeof data.decisions === "boolean" ? data.decisions : defaults.decisions,
 		sound: typeof data.sound === "boolean" ? data.sound : defaults.sound,
-		position: positions.includes(data.position) ? data.position : defaults.position,
+		position,
 		display: data.display === "pointer" ? "pointer" : "main",
 		duration: typeof data.duration === "number" && Number.isFinite(data.duration) ? Math.min(30, Math.max(3, Math.round(data.duration))) : defaults.duration
 	};

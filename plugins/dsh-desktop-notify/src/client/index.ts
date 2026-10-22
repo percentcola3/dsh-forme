@@ -7,7 +7,13 @@ import type { Notice } from '../monitor.ts'
 import { installAccountMenu } from './account-menu.ts'
 export const inject = ['slots', 'uiWorkspace']
 type Response = { preferences: Preferences; native: { status: string; error: string; platform: string }; recent: (Notice & { at: number })[] }
-const labels = { left: '屏幕左侧', right: '屏幕右侧', top: '屏幕顶部', island: '灵动岛' }
+const labels: Record<string, string> = { 'top-left': '左上角', top: '顶部中央', 'top-right': '右上角', right: '右侧中央', 'bottom-right': '右下角', bottom: '底部中央', 'bottom-left': '左下角', left: '左侧中央' }
+// Anchor dots sit on the preview frame: corners and edge midpoints.
+const anchors: Record<string, { left: string; top: string }> = {
+  'top-left': { left: '0%', top: '0%' }, top: { left: '50%', top: '0%' }, 'top-right': { left: '100%', top: '0%' },
+  right: { left: '100%', top: '50%' }, 'bottom-right': { left: '100%', top: '100%' }, bottom: { left: '50%', top: '100%' },
+  'bottom-left': { left: '0%', top: '100%' }, left: { left: '0%', top: '50%' },
+}
 export async function request(action: string, body: Record<string, unknown> = {}): Promise<any> {
   const res = await fetch('/dsh-desktop-notify', { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, ...body }) })
   const value = await res.json()
@@ -97,13 +103,17 @@ export function NotifySettings({ close }: { close(): void }): React.ReactPortal 
       h('div', { className: 'dn-body' },
         toggle('enabled', '开启桌面提醒', 'DSH 在前台或后台运行时均提醒，不抢占焦点。'),
         h('div', { className: 'dn-label' }, '提醒位置 / PLACEMENT'),
-        h('div', { className: 'dn-positions', role: 'group', 'aria-label': '提醒位置' }, ...positions.map(position => h('button', { type: 'button', key: position, disabled: busy || !state, 'aria-pressed': value.position === position, onClick: () => patch({ position }) }, h('span', { className: 'dn-monitor', 'data-position': position, 'aria-hidden': true }), labels[position]))),
+        h('div', { className: 'dn-screen', role: 'group', 'aria-label': '提醒位置：屏幕边框的角点与中点' }, ...positions.map(position => h('button', {
+          type: 'button', key: position, className: 'dn-anchor', style: anchors[position], disabled: busy || !state,
+          'aria-pressed': value.position === position, 'aria-label': labels[position], title: labels[position],
+          onClick: () => patch({ position }),
+        }, h('i', null))), h('span', { className: 'dn-screen-name', 'aria-hidden': true }, labels[value.position] ?? '')),
         h('div', { className: 'dn-options' }, h('label', null, '显示器', h('select', { 'aria-label': '显示器', value: value.display, disabled: busy || !state, onChange: (event: React.ChangeEvent<HTMLSelectElement>) => patch({ display: event.target.value as Preferences['display'] }) }, h('option', { value: 'main' }, '主显示器'), h('option', { value: 'pointer' }, '鼠标所在显示器'))),
           h('label', null, '自动收起时长', h('select', { 'aria-label': '自动收起时长', value: value.duration, disabled: busy || !state, onChange: (event: React.ChangeEvent<HTMLSelectElement>) => patch({ duration: Number(event.target.value) }) }, ...[...new Set([3, 4, 5, 8, 12, 20, 30, value.duration])].sort((a, b) => a - b).map(seconds => h('option', { value: seconds, key: seconds }, `${seconds} 秒`))))),
         toggle('completion', '任务完成', '仅正常结束时提醒，取消和中断不会显示为完成。'),
         toggle('decisions', '需要选择或审批', '轻动画提示后自动收起，问题和审批仍在任务内等你处理。异常也会提醒。'),
         toggle('sound', '提示音', '每条新提醒播放一次轻提示音。'),
-        h('p', { className: 'dn-note' }, '完成时显示淡蓝色自转地球，需要审批或选择时切换为黑红月球。仅显示星球，到时自动消失；点击返回任务。'),
+        h('p', { className: 'dn-note' }, '完成时显示缓慢自转的木星，需要审批或选择时整颗泛红并加速。仅显示木星，到时自动消失；点击返回任务。'),
         h('div', { className: 'dn-status', role: 'status' }, busy ? '正在保存或准备原生提醒，首次编译可能需要片刻…' : state?.native.status === 'ready' ? '原生提醒已就绪 · 覆盖所有会话 · 前后台均有效' : state?.native.status === 'unavailable' ? state.native.error : '首次保存或测试会准备原生提醒，无需系统通知权限。'),
         error && h('div', { className: 'dn-error', role: 'alert' }, error),
         !!state?.recent.length && h('details', { className: 'dn-recent' }, h('summary', null, '最近提醒'), h('ol', null, ...state.recent.map((notice, i) => h('li', { key: `${notice.id}:${i}` }, h('span', { className: 'dn-pill', 'data-kind': notice.kind }, notice.kind === 'complete' ? '完成' : notice.kind === 'error' ? '异常' : '待选择'), h('span', null, notice.title), h('time', null, new Date(notice.at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }))))))

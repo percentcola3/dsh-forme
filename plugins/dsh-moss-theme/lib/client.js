@@ -114,7 +114,7 @@ window.__ModuleLoader__.load({
 			standby: {
 				label: "待命",
 				code: "STANDBY",
-				message: "领航员，550W 已就绪。请下达指令。"
+				message: "550W 已就绪。请输入指令。"
 			},
 			connecting: {
 				label: "建立连接",
@@ -152,6 +152,344 @@ window.__ModuleLoader__.load({
 			const [hours, minutes, seconds] = parts;
 			const pad = (value) => String(value).padStart(2, "0");
 			return hours ? `T+${hours}:${pad(minutes)}:${pad(seconds)}` : `T+${pad(minutes)}:${pad(seconds)}`;
+		}
+		//#endregion
+		//#region src/client/engine-renderer.ts
+		const vertex$1 = `attribute vec2 position; varying vec2 uv;
+void main(){uv=position*.5+.5;gl_Position=vec4(position,0.,1.);}`;
+		const fragment$1 = `
+precision highp float;
+varying vec2 uv;
+uniform float time, state, pixel, aspect;
+float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),mix(hash(i+vec2(0.,1.)),hash(i+1.),f.x),f.y);}
+float fbm(vec2 p){return noise(p)*.6+noise(p*2.3+7.1)*.4;}
+void main(){
+ vec2 p=(uv*2.-1.)*vec2(aspect,1.);
+ float connecting=1.-step(.5,abs(state-1.));
+ float working=1.-step(.5,abs(state-2.));
+ float waiting=1.-step(.5,abs(state-3.));
+ float error=1.-step(.5,abs(state-4.));
+ float offline=step(4.5,state);
+ // Rotation speed is the activity signal; low-frequency bands avoid dizziness.
+ float spin=(.32+connecting*.36+working*1.95+waiting*.5+error*.4)*(1.-offline);
+ // Saturn ring disc, same geometry as the desktop notification: plane rises to
+ // the right, ry/rx = .3, C/B/A bands in planet radii with a Cassini gap.
+ float planetR=.5;
+ float tilt=-.3,cs=cos(tilt),sn=sin(tilt);
+ vec2 rq=vec2(p.x*cs-p.y*sn,p.x*sn+p.y*cs);
+ float ringE=length(vec2(rq.x,rq.y/.3))/planetR;
+ float w=.07;
+ float bandC=smoothstep(1.32-w,1.32+w,ringE)*(1.-smoothstep(1.52-w,1.52+w,ringE));
+ float bandB=smoothstep(1.52-w,1.52+w,ringE)*(1.-smoothstep(1.86-w,1.86+w,ringE));
+ float bandA=smoothstep(1.93-w,1.93+w,ringE)*(1.-smoothstep(2.18-w,2.18+w,ringE));
+ float ringPattern=.88+.12*noise(vec2(ringE*18.,3.7));
+ float ringA=(bandC*.3+bandB*.92+bandA*.66)*ringPattern;
+ float r=length(p);
+ float disc=1.-smoothstep(0.,pixel*1.5,r-planetR);
+ float behind=step(0.,rq.y);
+ // Far half is dimmer and hidden by the sphere; near half crosses in front.
+ float ringVis=ringA*mix(1.,.62*(1.-disc),behind);
+ vec3 ringCol=vec3(.97,.96,.93);
+ ringCol=mix(ringCol,vec3(1.,.68,.64),error);
+ ringCol=mix(ringCol,vec3(.98,.9,.78),waiting*.5);
+ ringCol=mix(ringCol,vec3(.62,.68,.74),offline*.8);
+ vec3 col=ringCol; float alpha=0.;
+ if(disc>0.){
+  vec2 sp=p/planetR;
+  vec3 n=vec3(sp,sqrt(max(0.,1.-dot(sp,sp))));
+  float lon=atan(n.x,n.z)+time*spin*2.2;
+  float lat=asin(clamp(n.y,-1.,1.));
+  float warp=fbm(vec2(lon*1.05,lat*3.4));
+  float stripes=.5+.5*sin(lat*6.+warp*2.9+sin(lon*.7)*.35);
+  col=mix(vec3(.66,.55,.4),vec3(.94,.88,.75),.26+stripes*.52);
+  float stormA=mod(lon-1.2+3.14159265,6.2831853)-3.14159265;
+  float stormD=length(vec2(stormA,lat-.12)*vec2(1.,2.4));
+  col=mix(col,vec3(.99,.96,.88),smoothstep(.27,.1,stormD)*.8);
+  float stormB=mod(lon-3.9+3.14159265,6.2831853)-3.14159265;
+  col=mix(col,vec3(.55,.44,.33),smoothstep(.22,.08,length(vec2(stormB,lat+.3)*vec2(1.,2.)))*.7);
+  float stormC=mod(lon-.4+3.14159265,6.2831853)-3.14159265;
+  col=mix(col,vec3(.9,.82,.66),smoothstep(.2,.07,length(vec2(stormC,lat-.38)*vec2(1.,2.6)))*.55);
+  float light=clamp(.34+.78*dot(n,normalize(vec3(-.5,.45,.74))),0.,1.);
+  col*=.44+.62*light;
+  col=mix(col,col*vec3(1.35,.5,.42),error*.72);
+  col=mix(col,col*vec3(1.05,.92,.75),waiting*.28);
+  col=mix(col,vec3(.42,.47,.54)*(.5+.5*light),offline*.82);
+  col=mix(col,ringCol,ringA*(1.-behind));
+  alpha=disc;
+ }
+ float halo=exp(-pow((r-planetR)*10.,2.))*.1*(1.-offline*.6);
+ vec3 hc=mix(vec3(.82,.74,.58),vec3(.9,.4,.34),error);
+ float a2=max(max(alpha,ringVis),halo);
+ vec3 outCol=(col*max(alpha,ringVis)+hc*halo)/max(a2,.001);
+ outCol=mix(outCol,vec3(dot(outCol,vec3(.33))),offline*.35);
+ gl_FragColor=vec4(min(outCol,vec3(a2)),a2);
+}`;
+		const statuses = [
+			"standby",
+			"connecting",
+			"working",
+			"waiting",
+			"error",
+			"offline"
+		];
+		const FRAME_MS$1 = 1e3 / 30;
+		const IDLE_FRAME_MS = 1e3 / 12;
+		/** Transparent procedural engine. data-engine-ready gates the parent's SVG fallback. */
+		function mountEngine(canvas) {
+			canvas.dataset.engineReady = "false";
+			let gl;
+			try {
+				gl = canvas.getContext("webgl", {
+					alpha: true,
+					antialias: false,
+					premultipliedAlpha: true,
+					powerPreference: "low-power"
+				});
+			} catch {
+				return () => {};
+			}
+			if (!gl) return () => {};
+			const context = gl;
+			let disposed = false, lost = false, visible = true;
+			let frame;
+			let last;
+			let clock = 0;
+			let draw;
+			const resources = [];
+			const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+			const moving = () => document.body.dataset.mossMotion !== "off" && document.body.dataset.mossTheme !== "off" && !reduced.matches;
+			const pause = () => {
+				if (frame !== void 0) cancelAnimationFrame(frame);
+				frame = void 0;
+				last = void 0;
+			};
+			const release = () => {
+				draw = void 0;
+				for (const dispose of resources.splice(0).reverse()) try {
+					dispose();
+				} catch {}
+			};
+			const fail = () => {
+				pause();
+				release();
+				canvas.dataset.engineReady = "false";
+			};
+			const render = () => {
+				if (disposed || lost || !draw) return false;
+				try {
+					draw();
+					if (context.isContextLost() || context.getError() !== context.NO_ERROR) throw new Error("Engine draw failed");
+					if (canvas.dataset.engineReady !== "true") canvas.dataset.engineReady = "true";
+					return true;
+				} catch {
+					fail();
+					return false;
+				}
+			};
+			const animate = (now) => {
+				frame = void 0;
+				if (disposed || lost || !draw || !visible || document.hidden || !moving()) {
+					last = void 0;
+					return;
+				}
+				const busy = canvas.dataset.status === "working" || canvas.dataset.status === "connecting";
+				if (last === void 0 || now - last >= (busy ? FRAME_MS$1 : IDLE_FRAME_MS)) {
+					if (last !== void 0) clock += Math.min((now - last) / 1e3, .1);
+					last = now;
+					if (!render()) return;
+				}
+				frame = requestAnimationFrame(animate);
+			};
+			const refresh = () => {
+				pause();
+				if (disposed || lost || !visible || document.hidden || !draw) return;
+				if (render() && moving()) frame = requestAnimationFrame(animate);
+			};
+			const initialize = () => {
+				release();
+				try {
+					const compile = (kind, source) => {
+						const shader = context.createShader(kind);
+						if (!shader) throw new Error("Engine shader unavailable");
+						resources.push(() => context.deleteShader(shader));
+						context.shaderSource(shader, source);
+						context.compileShader(shader);
+						if (!context.getShaderParameter(shader, context.COMPILE_STATUS)) throw new Error("Engine shader compilation failed");
+						return shader;
+					};
+					const vs = compile(context.VERTEX_SHADER, vertex$1), fs = compile(context.FRAGMENT_SHADER, fragment$1);
+					const program = context.createProgram();
+					if (!program) throw new Error("Engine program unavailable");
+					resources.push(() => context.deleteProgram(program));
+					context.attachShader(program, vs);
+					context.attachShader(program, fs);
+					context.linkProgram(program);
+					if (!context.getProgramParameter(program, context.LINK_STATUS)) throw new Error("Engine program link failed");
+					const buffer = context.createBuffer();
+					if (!buffer) throw new Error("Engine buffer unavailable");
+					resources.push(() => context.deleteBuffer(buffer));
+					context.useProgram(program);
+					context.bindBuffer(context.ARRAY_BUFFER, buffer);
+					context.bufferData(context.ARRAY_BUFFER, new Float32Array([
+						-1,
+						-1,
+						1,
+						-1,
+						-1,
+						1,
+						-1,
+						1,
+						1,
+						-1,
+						1,
+						1
+					]), context.STATIC_DRAW);
+					const position = context.getAttribLocation(program, "position");
+					if (position < 0) throw new Error("Engine position unavailable");
+					context.enableVertexAttribArray(position);
+					context.vertexAttribPointer(position, 2, context.FLOAT, false, 0, 0);
+					const uniforms = Object.fromEntries([
+						"time",
+						"state",
+						"pixel",
+						"aspect"
+					].map((name) => [name, context.getUniformLocation(program, name)]));
+					draw = () => {
+						const ratio = Math.min(2, Math.max(1, globalThis.devicePixelRatio || 1));
+						const width = Math.max(1, Math.min(128, Math.round((canvas.clientWidth || 32) * ratio)));
+						const height = Math.max(1, Math.min(128, Math.round((canvas.clientHeight || 32) * ratio)));
+						if (canvas.width !== width) canvas.width = width;
+						if (canvas.height !== height) canvas.height = height;
+						context.viewport(0, 0, width, height);
+						context.uniform1f(uniforms.time, clock);
+						context.uniform1f(uniforms.state, Math.max(0, statuses.indexOf(canvas.dataset.status || "standby")));
+						context.uniform1f(uniforms.pixel, 2 / height);
+						context.uniform1f(uniforms.aspect, width / height);
+						context.drawArrays(context.TRIANGLES, 0, 6);
+					};
+					refresh();
+				} catch {
+					fail();
+				}
+			};
+			const onLost = (event) => {
+				event.preventDefault();
+				lost = true;
+				fail();
+			};
+			const onRestored = () => {
+				if (!disposed) {
+					lost = false;
+					initialize();
+				}
+			};
+			const attributes = new MutationObserver(refresh);
+			attributes.observe(canvas, {
+				attributes: true,
+				attributeFilter: ["data-status"]
+			});
+			attributes.observe(document.body, {
+				attributes: true,
+				attributeFilter: ["data-moss-motion", "data-moss-theme"]
+			});
+			const intersection = new IntersectionObserver((entries) => {
+				if (disposed) return;
+				visible = entries.some((entry) => entry.isIntersecting);
+				refresh();
+			});
+			intersection.observe(canvas);
+			const resize = new ResizeObserver(refresh);
+			resize.observe(canvas);
+			document.addEventListener("visibilitychange", refresh);
+			reduced.addEventListener("change", refresh);
+			canvas.addEventListener("webglcontextlost", onLost);
+			canvas.addEventListener("webglcontextrestored", onRestored);
+			initialize();
+			return () => {
+				if (disposed) return;
+				disposed = true;
+				fail();
+				attributes.disconnect();
+				intersection.disconnect();
+				resize.disconnect();
+				document.removeEventListener("visibilitychange", refresh);
+				reduced.removeEventListener("change", refresh);
+				canvas.removeEventListener("webglcontextlost", onLost);
+				canvas.removeEventListener("webglcontextrestored", onRestored);
+			};
+		}
+		//#endregion
+		//#region src/client/engine.ts
+		const h$2 = react.default.createElement;
+		/** A small industrial engine, driven only by the selected session's real status. */
+		function EngineIndicator({ status }) {
+			const canvas = react.default.useRef(null);
+			react.default.useEffect(() => canvas.current ? mountEngine(canvas.current) : void 0, []);
+			const description = `土星状态 · ${statusText[status].label}。${statusText[status].message}`;
+			return h$2("span", {
+				className: "moss-status-indicator moss-engine",
+				"data-status": status,
+				role: "img",
+				"aria-label": description,
+				title: description
+			}, h$2("canvas", {
+				ref: canvas,
+				className: "moss-engine-canvas",
+				width: 64,
+				height: 64,
+				"data-status": status,
+				"aria-hidden": true
+			}), h$2("svg", {
+				className: "moss-engine-art",
+				viewBox: "0 0 40 32",
+				width: 40,
+				height: 32,
+				fill: "none",
+				"aria-hidden": true,
+				focusable: false
+			}, h$2("circle", {
+				className: "moss-engine-corona",
+				cx: 20,
+				cy: 16,
+				r: 10.5
+			}), h$2("g", { transform: "rotate(-17.2 20 16)" }, h$2("ellipse", {
+				className: "moss-engine-ring-back",
+				cx: 20,
+				cy: 16,
+				rx: 13.5,
+				ry: 4.05
+			}), h$2("ellipse", {
+				className: "moss-engine-ring-outer",
+				cx: 20,
+				cy: 16,
+				rx: 16.4,
+				ry: 4.9
+			})), h$2("circle", {
+				className: "moss-engine-plasma",
+				cx: 20,
+				cy: 16,
+				r: 8
+			}), h$2("path", {
+				className: "moss-engine-filament",
+				d: "M13.2 13.4Q20 12.2 26.8 13.4M12.6 15.8Q20 15 27.4 15.8M13.4 18.4Q20 17.7 26.6 18.4"
+			}), h$2("g", { transform: "rotate(-17.2 20 16)" }, h$2("path", {
+				className: "moss-engine-ring-front",
+				d: "M6.5 16A13.5 4.05 0 0 0 33.5 16"
+			}), h$2("path", {
+				className: "moss-engine-ring-outer",
+				d: "M3.6 16A16.4 4.9 0 0 0 36.4 16"
+			})), h$2("g", {
+				className: "moss-engine-pause",
+				transform: "translate(28 2.5) scale(.5)"
+			}, h$2("path", { d: "M4 2V10M10 2V10" })), h$2("g", {
+				className: "moss-engine-fault",
+				transform: "translate(28 2.5) scale(.5)"
+			}, h$2("path", { d: "M7 1L13 11H1Z" }), h$2("path", { d: "M7 4.4V7.2M7 8.8V9" })), h$2("path", {
+				className: "moss-engine-disconnected",
+				transform: "translate(28 2.5) scale(.5)",
+				d: "M1 2L5.5 6.5M8.5 9.5L13 14M3 8L11 2"
+			})));
 		}
 		//#endregion
 		//#region src/client/icons.ts
@@ -370,8 +708,22 @@ window.__ModuleLoader__.load({
 				}
 			};
 			const containsRow = (node) => node.nodeType === 1 && (node.matches(selector) || !!node.querySelector(selector));
+			let frame = 0;
+			const raf = doc.defaultView?.requestAnimationFrame?.bind(doc.defaultView);
+			const schedule = () => {
+				if (!raf) return sync();
+				if (!frame) frame = raf(() => {
+					frame = 0;
+					sync();
+				});
+			};
 			const observer = new Observer((records) => {
-				if (records.some((record) => record.type === "attributes" || [...record.addedNodes, ...record.removedNodes].some(containsRow))) sync();
+				if (frame) return;
+				for (const record of records) {
+					if (record.type === "attributes") return schedule();
+					for (const node of record.addedNodes) if (containsRow(node)) return schedule();
+					for (const node of record.removedNodes) if (node.nodeType === 1 && decorated.size && [...decorated.keys()].some((row) => node === row || node.contains(row))) return schedule();
+				}
 			});
 			observer.observe(doc.body, {
 				subtree: true,
@@ -382,6 +734,7 @@ window.__ModuleLoader__.load({
 			sync();
 			return () => {
 				observer.disconnect();
+				if (frame) doc.defaultView?.cancelAnimationFrame?.(frame);
 				for (const [row, previous] of decorated) if (previous === null) row.removeAttribute(attribute);
 				else row.setAttribute(attribute, previous);
 				decorated.clear();
@@ -702,31 +1055,52 @@ ${live}::after {
 }
 `}
 
-/* A passive breathing light leaves the header free of extra controls. */
-.moss-status-indicator { display:inline-flex; align-items:center; justify-content:center; width:24px; height:28px; }
+/* Preserve the existing mode-selector placement around the engine status slot. */
 [data-conversation-header-leading]:has(.moss-status-indicator) { padding-inline-start:max(0px,calc(var(--dsh-frame-leading-clearance,0px) - 20px)); }
-[data-conversation-header-leading]:has(.moss-status-indicator) + * { padding-inline-start:12px; }
-.moss-status-indicator .moss-eye { --eye:10px; }
+[data-conversation-header-leading]:has(.moss-status-indicator) + * { padding-inline-start:4px; }
 
-/* A single diffused LED, without the old camera housing or glass highlights.
-   Silver = idle, white = connecting, blue = work, red = attention. */
-.moss-eye { --eye:12px; --lamp:#a5b3c3; --breath-time:4.8s; --breath-low:.25; --breath-high:.6;
-  position:relative; display:inline-block; flex-shrink:0; width:var(--eye); height:var(--eye); border-radius:50%; corner-shape:round;
-  background:none; box-shadow:none; }
-.moss-eye::before { content:''; position:absolute; inset:-35%; border-radius:50%; pointer-events:none;
-  background:var(--lamp); filter:blur(4px); animation:moss-lamp-halo var(--breath-time) ease-in-out infinite; }
-.moss-eye::after { content:''; position:absolute; inset:10%; border-radius:50%; pointer-events:none;
-  background:var(--lamp); box-shadow:0 0 4px color-mix(in srgb,var(--lamp) 30%,transparent);
-  animation:moss-lamp-core var(--breath-time) ease-in-out infinite; }
-.moss-eye[data-status="working"] { --lamp:#79bcff; --breath-time:1.6s; --breath-low:.42; --breath-high:1; }
-.moss-eye[data-status="connecting"] { --lamp:#e4edf7; --breath-time:1s; --breath-low:.2; --breath-high:.85; }
-.moss-eye[data-status="waiting"] { --lamp:#f08086; --breath-time:3.2s; --breath-low:.4; --breath-high:.9; }
-.moss-eye[data-status="error"] { --lamp:#ff4f5e; --breath-time:2.8s; --breath-low:.25; --breath-high:1; }
-.moss-eye[data-status="error"]::after { animation-name:moss-lamp-alert; }
-.moss-eye[data-status="error"]::before { animation-name:moss-lamp-alert-halo; }
-.moss-eye[data-status="offline"] { --lamp:#667384; }
-.moss-eye[data-status="offline"]::before { animation:none; opacity:0; }
-.moss-eye[data-status="offline"]::after { animation:none; opacity:.18; box-shadow:none; }
+/* The square box aligns with the mode controls; GPU content has no inline baseline. */
+.moss-status-indicator.moss-engine { --engine:#c8b184; position:relative; display:inline-flex; align-items:center; justify-content:center; align-self:center; width:40px; height:32px; flex:0 0 40px; line-height:0; vertical-align:middle; }
+.moss-engine-canvas,.moss-engine-art { position:absolute; inset:0; display:block; width:40px; height:32px; pointer-events:none; }
+.moss-engine-canvas { opacity:0; }
+.moss-engine-canvas[data-engine-ready="true"] { opacity:1; }
+.moss-engine-art { overflow:visible; color:var(--engine); }
+.moss-engine-art * { animation:none !important; transition:none !important; }
+.moss-engine-canvas[data-engine-ready="true"] + .moss-engine-art > * { visibility:hidden; }
+.moss-engine-canvas[data-engine-ready="true"] + .moss-engine-art > .moss-engine-pause,.moss-engine-canvas[data-engine-ready="true"] + .moss-engine-art > .moss-engine-fault,.moss-engine-canvas[data-engine-ready="true"] + .moss-engine-art > .moss-engine-disconnected { visibility:visible; }
+[data-conversation-header-leading]:has(.moss-engine) { align-self:center; align-items:center; }
+.moss-engine-corona { fill:currentColor; opacity:.16; filter:blur(1.4px); }
+.moss-engine-plasma { fill:currentColor; opacity:.92; }
+.moss-engine-filament { fill:none; stroke:#f6efdc; stroke-width:.9; stroke-linecap:round; opacity:.4; }
+.moss-engine-ring-back { fill:none; stroke:#f4f1ea; stroke-width:2.6; opacity:.42; }
+.moss-engine-ring-outer { fill:none; stroke:#f4f1ea; stroke-width:1.3; opacity:.5; }
+.moss-engine-ring-front { fill:none; stroke:#f8f6f0; stroke-width:2.6; opacity:.92; }
+.moss-engine[data-status="error"] .moss-engine-ring-back,.moss-engine[data-status="error"] .moss-engine-ring-front,.moss-engine[data-status="error"] .moss-engine-ring-outer { stroke:#ffaea4; }
+.moss-engine-pause,.moss-engine-fault,.moss-engine-disconnected { display:none; stroke:#eef4fa; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; filter:drop-shadow(0 0 1px #0a1420); }
+.moss-engine[data-status="connecting"] { --engine:#e0c89c; }
+.moss-engine[data-status="working"] { --engine:#e8d5a0; }
+.moss-engine[data-status="waiting"] { --engine:#e8b96e; }
+.moss-engine[data-status="waiting"] .moss-engine-pause { display:block; }
+.moss-engine[data-status="error"] { --engine:#ff6870; }
+.moss-engine[data-status="error"] .moss-engine-fault { display:block; }
+.moss-engine[data-status="error"] .moss-engine-fault path:first-child { fill:#ff687026; stroke-width:1.2; }
+.moss-engine[data-status="offline"] { --engine:#8193a1; }
+.moss-engine[data-status="offline"] .moss-engine-plasma { opacity:.35; }
+.moss-engine[data-status="offline"] .moss-engine-filament { opacity:.25; }
+.moss-engine[data-status="offline"] .moss-engine-ring-back { opacity:.2; }
+.moss-engine[data-status="offline"] .moss-engine-ring-front { opacity:.35; }
+.moss-engine[data-status="offline"] .moss-engine-disconnected { display:block; }
+body[data-moss-motion="off"] .moss-engine *,body[data-moss-theme="off"] .moss-engine * { animation:none !important; transition:none !important; }
+@media (prefers-reduced-motion:reduce) { .moss-engine * { animation:none !important; transition:none !important; } }
+@media (forced-colors:active) {
+  .moss-engine-canvas { display:none; }
+  .moss-engine-canvas[data-engine-ready="true"] + .moss-engine-art > * { visibility:visible; }
+  .moss-status-indicator.moss-engine { --engine:Canvas; }
+  .moss-engine-corona,.moss-engine-plasma { fill:Canvas; }
+  .moss-engine-filament { stroke:CanvasText; }
+  .moss-engine-ring-back,.moss-engine-ring-front,.moss-engine-ring-outer { stroke:CanvasText; }
+}
+
 
 /* Theme preferences live inline in the host's General settings. */
 .moss-settings { margin-block:20px; color:var(--dsw-alias-label-primary); font:13px/1.6 var(--moss-text,sans-serif); }
@@ -741,17 +1115,6 @@ ${live}::after {
 .moss-setting input:checked::after { transform:translateX(14px); background:#f5f5f7; }
 .moss-setting input:focus-visible { outline:2px solid var(--moss-signal,#df4e54); outline-offset:3px; }
 
-@keyframes moss-lamp-core { 0%,100% { opacity:var(--breath-low); } 50% { opacity:var(--breath-high); } }
-@keyframes moss-lamp-halo { 0%,100% { opacity:.04; } 50% { opacity:.22; } }
-@keyframes moss-lamp-alert { 0%,32%,64%,100% { opacity:.25; } 16%,48% { opacity:1; } }
-@keyframes moss-lamp-alert-halo { 0%,32%,64%,100% { opacity:.02; } 16%,48% { opacity:.3; } }
-body[data-moss-motion="off"] .moss-eye::before, body[data-moss-motion="off"] .moss-eye::after { animation:none !important; }
-@media (prefers-reduced-motion:reduce) { .moss-eye::before,.moss-eye::after { animation:none !important; } }
-body[data-moss-motion="off"] .moss-eye:not([data-status="offline"])::after { opacity:.85; }
-@media (prefers-reduced-motion:reduce) { .moss-eye:not([data-status="offline"])::after { opacity:.85; } }
-body[data-moss-motion="off"] .moss-eye::before { opacity:.1; }
-@media (prefers-reduced-motion:reduce) { .moss-eye::before { opacity:.1; } }
-body[data-moss-motion="off"] .moss-eye[data-status="offline"]::before { opacity:0; }
 ${interfaceCSS}
 
 .moss-brand-logo { display:block; width:86px; height:auto; object-fit:contain; }
@@ -786,6 +1149,22 @@ body[data-moss-theme="on"] div[data-window-drag]:has([data-slot="sidebar.brand.n
 body[data-moss-theme="on"] div[data-window-drag]:has([data-slot="sidebar.brand.name"]) + button > span:first-child { mask-image:none; }
 body[data-moss-theme="on"] div[data-window-drag]:has([data-slot="sidebar.brand.name"]) + button > span:first-child > span { width:100%; justify-content:center; }
 body[data-moss-theme="on"] div[data-window-drag]:has([data-slot="sidebar.brand.name"]) + button > span[aria-hidden="true"] { position:absolute; right:12px; top:50%; transform:translateY(-50%); }
+/* The official right-panel expand button is only 28px wide; misses around it
+   start a window drag. Enlarge its hit area and keep its container clickable. */
+html[data-moss-window-carrier="electron"] body[data-moss-theme="on"] [data-conversation-header-corner] { -webkit-app-region:no-drag !important; app-region:no-drag !important; }
+html[data-moss-window-carrier="electron"] body[data-moss-theme="on"] [data-sidebar-right-expand] { min-width:40px !important; min-height:34px !important; margin:0 !important; }
+html[data-moss-window-carrier="electron"] body[data-moss-theme="on"] [data-sidebar-right-expand]::before { content:''; position:absolute; inset:-6px; }
+html[data-moss-window-carrier="electron"] body[data-moss-theme="on"] [data-sidebar-right-expand] { position:relative; }
+
+/* Panel chrome buttons (fullscreen / collapse) are 28px icons on a 28px strip;
+   give them the same comfortable hit area as the expand button. */
+body[data-moss-theme="on"] [data-dockkit-strip-chrome] { pointer-events:auto; }
+body[data-moss-theme="on"] [data-sidebar-right-toggle],
+body[data-moss-theme="on"] [data-sidebar-right-mode] { min-width:40px !important; min-height:34px !important; position:relative; }
+body[data-moss-theme="on"] [data-sidebar-right-toggle]::before,
+body[data-moss-theme="on"] [data-sidebar-right-mode]::before { content:''; position:absolute; inset:-6px; }
+body[data-moss-theme="on"] [data-dockkit-strip-chrome] { height:34px; align-items:center; }
+
 /* Keep the host's macOS traffic-light clearance above the sidebar identity. */
 html[data-platform="darwin"]:not([data-fullscreen]) body[data-moss-theme="on"] div[data-window-drag]:has(+ div[data-window-drag] [data-slot="sidebar.brand.name"]) { min-height:48px; }
 /* Hide the session breadcrumb, retaining mode/actions and the sidebar title. */
@@ -799,10 +1178,11 @@ body[data-moss-theme="on"] header [data-slot="conversation.session.header"] nav[
 /* ── Shared WebGL scene with a CSS fallback underneath ─────────── */
 .moss-scene { position:relative; display:block; overflow:hidden; width:100%; height:100%; isolation:isolate; }
 .moss-scene * { pointer-events:none; }
-.moss-scene-canvas { position:absolute; inset:0; width:100%; height:100%; display:block; opacity:0; transition:opacity .8s ease; }
+/* Keep loading transparent; reveal only a complete WebGL frame. */
+.moss-scene-canvas { position:absolute; inset:0; width:100%; height:100%; display:block; opacity:0; transition:opacity .18s ease; }
 .moss-scene-canvas[data-ready="true"] { opacity:1; }
-.moss-scene-fallback { position:absolute; inset:0; transition:opacity .8s ease; }
-.moss-scene:has(.moss-scene-canvas[data-ready="true"]) .moss-scene-fallback { opacity:0; }
+.moss-scene-fallback { position:absolute; inset:0; opacity:0; }
+.moss-scene:has(.moss-scene-canvas[data-failed="true"]) .moss-scene-fallback { opacity:1; }
 .moss-fallback-earth { position:absolute; aspect-ratio:1; border-radius:50%; transform:translate(-50%,-50%);
   background:radial-gradient(circle at 62% 34%,#effaff 0,#a6d9ec 20%,#62a8c9 45%,#3c7597 74%,#25485e 100%);
   box-shadow:0 0 0 1px #8cc8ff22, 0 0 24px #6fb6ff44, inset -10px -8px 24px #16344b66; }
@@ -827,7 +1207,7 @@ body[data-moss-theme="on"] header [data-slot="conversation.session.header"] nav[
 .moss-hero-subtitle::after { transform:scaleX(-1); }
 /* The host inserts a slot wrapper inside its mark span. Hide only the adjacent
    native headline/badge while our Earth owns that mark; theme-off restores it. */
-body[data-moss-theme="on"] span:has(.moss-hero) + span { display:none; }
+body[data-moss-theme="on"] [data-moss-hero-sibling] { display:none; }
 
 /* ── Chat running row: the host's "deep diving" line becomes a flight strip ── */
 body[data-moss-theme="on"] [data-chat-running][data-moss-run] { align-items:stretch; }
@@ -989,13 +1369,22 @@ body[data-moss-motion="off"] .moss-scene-canvas { transition:none; }
 		}
 		/** One full-scene shader per canvas. Pauses off-screen or when motion is off, and disposes every GPU resource. */
 		function mountEarth$1(canvas, textures) {
+			delete canvas.dataset.ready;
+			delete canvas.dataset.failed;
+			const fail = () => {
+				delete canvas.dataset.ready;
+				canvas.dataset.failed = "true";
+			};
 			const gl = canvas.getContext("webgl", {
 				alpha: true,
 				antialias: false,
 				premultipliedAlpha: true,
 				powerPreference: "low-power"
 			});
-			if (!gl) return () => {};
+			if (!gl) {
+				fail();
+				return () => {};
+			}
 			const resources = [];
 			let disposed = false;
 			let frame = 0;
@@ -1062,7 +1451,7 @@ body[data-moss-motion="off"] .moss-scene-canvas { transition:none; }
 				event.preventDefault();
 				ready = false;
 				pause();
-				delete canvas.dataset.ready;
+				fail();
 			};
 			canvas.addEventListener("webglcontextlost", lost);
 			loadImagery(textures).then((images) => {
@@ -1146,11 +1535,18 @@ body[data-moss-motion="off"] .moss-scene-canvas { transition:none; }
 					gl.uniform3f(loc.earth, layout.anchor === "left" ? -aspect + ex : layout.anchor === "right" ? aspect - ex : ex, ey, er);
 					gl.uniform2f(loc.thrust, layout.thrust[0], layout.thrust[1]);
 					gl.drawArrays(gl.TRIANGLES, 0, 6);
+					if (gl.isContextLost()) {
+						fail();
+						return;
+					}
+					delete canvas.dataset.failed;
 					canvas.dataset.ready = "true";
 				};
 				ready = true;
 				refresh();
-			}).catch(() => {});
+			}).catch(() => {
+				if (!disposed) fail();
+			});
 			return () => {
 				disposed = true;
 				pause();
@@ -1413,7 +1809,7 @@ void main(){
 		};
 		/**
 		* One full-scene WebGL canvas: starfield and Earth, its atmosphere peeling from the limb and converging into a tapered, flowing wake.
-		* A CSS-only scene underneath stays visible until the first frame, or permanently without WebGL.
+		* The CSS-only scene is reserved for renderer failures, never used as a loading frame.
 		*/
 		function EarthScene({ status, scene }) {
 			const canvas = react.default.useRef(null);
@@ -1422,7 +1818,9 @@ void main(){
 				let stop;
 				Promise.resolve().then(() => (init_earth_assets(), earth_assets_exports)).then(({ mountEarth }) => {
 					if (!disposed && canvas.current) stop = mountEarth(canvas.current);
-				}).catch(() => {});
+				}).catch(() => {
+					if (!disposed && canvas.current) canvas.current.dataset.failed = "true";
+				});
 				return () => {
 					disposed = true;
 					stop?.();
@@ -1490,9 +1888,12 @@ void main(){
 					return;
 				}
 				let frame = 0;
+				let found;
 				const scan = () => {
 					frame = 0;
-					setHost(document.querySelector(HOST) ?? void 0);
+					if (found?.isConnected && found.matches(HOST)) return;
+					found = document.querySelector(HOST) ?? void 0;
+					setHost(found);
 				};
 				const observer = new MutationObserver(() => {
 					if (!frame) frame = requestAnimationFrame(scan);
@@ -1775,7 +2176,17 @@ void main(){
 		function EarthHero({ services }) {
 			const status = useStatus(services);
 			const h = react.default.createElement;
-			return h("span", { className: "moss-hero" }, h("span", { className: "moss-hero-stage" }, h(EarthScene, {
+			const ref = react.default.useRef(null);
+			react.default.useLayoutEffect(() => {
+				const sibling = ref.current?.parentElement?.nextElementSibling;
+				if (!sibling || sibling.tagName !== "SPAN") return;
+				sibling.setAttribute("data-moss-hero-sibling", "");
+				return () => sibling.removeAttribute("data-moss-hero-sibling");
+			}, []);
+			return h("span", {
+				className: "moss-hero",
+				ref
+			}, h("span", { className: "moss-hero-stage" }, h(EarthScene, {
 				status,
 				scene: "hero"
 			})), h("span", { className: "moss-hero-subtitle" }, "带着地球，继续前进 · THE WANDERING EARTH"));
@@ -1829,16 +2240,7 @@ void main(){
 		}
 		/** A passive live indicator: no control panel, menu or extra wordmark. */
 		function StatusLight({ status }) {
-			return react.default.createElement("span", {
-				className: "moss-status-indicator",
-				role: "img",
-				"aria-label": `550W · ${statusText[status].label}`,
-				title: `550W · ${statusText[status].label}`
-			}, react.default.createElement("span", {
-				className: "moss-eye",
-				"data-status": status,
-				"aria-hidden": true
-			}));
+			return react.default.createElement(EngineIndicator, { status });
 		}
 		function MossSurface({ preferences, services }) {
 			const settings = react.default.useSyncExternalStore(preferences.subscribe, preferences.getSnapshot);
@@ -1863,7 +2265,7 @@ void main(){
 			return h("section", {
 				className: "moss-settings",
 				"aria-label": "550W 主题设置"
-			}, h("h3", null, "550W / 流浪地球"), setting("enabled", "流浪地球主题", "深蓝终端与信号红强调"), setting("ambient", "环境纹理", "仪表网格与冷光反射"), setting("motion", "界面动效", "地球航行与实时状态呼吸灯"));
+			}, h("h3", null, "550W / 流浪地球"), setting("enabled", "流浪地球主题", "深蓝终端与信号红强调"), setting("ambient", "环境纹理", "仪表网格与冷光反射"), setting("motion", "界面动效", "地球航行与土星状态动画"));
 		}
 		//#endregion
 		exports.StatusLight = StatusLight;

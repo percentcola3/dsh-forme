@@ -45,9 +45,10 @@ export function installAccountMenu(doc: Document, open: () => void): () => void 
     } else return
     event.preventDefault(); event.stopPropagation(); items[next]?.focus()
   }
-  const observer = new MutationObserver(sync)
+  let frame = 0
+  const observer = new MutationObserver(() => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; sync() }) })
   observer.observe(doc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-expanded'] })
   doc.addEventListener('keydown', keydown, true)
   sync()
-  return () => { observer.disconnect(); doc.removeEventListener('keydown', keydown, true); entry?.remove() }
+  return () => { observer.disconnect(); if (frame) cancelAnimationFrame(frame); doc.removeEventListener('keydown', keydown, true); entry?.remove() }
 }

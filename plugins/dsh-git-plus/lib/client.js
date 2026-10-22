@@ -29,6 +29,298 @@ window.__ModuleLoader__.load({
 		let react = require("react");
 		react = __toESM(react, 1);
 		let react_dom = require("react-dom");
+		//#region src/client/repository-styles.ts
+		const repositoryStyles = `
+.dgp-repository-menu { min-width:0; max-height:min(70vh,620px); overflow:auto; }
+.dgp-repository-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:2px 4px 6px; font-size:12px; }
+.dgp-repository-heading button { border:0; background:transparent; color:var(--dsw-alias-label-secondary); font:inherit; font-size:11px; cursor:pointer; }
+.dgp-repository-menu .dgp-hint,.dgp-repository-menu .dgp-error { margin:3px 0; padding:3px 5px; font-size:11px; line-height:1.4; }
+.dgp-repository-tree,.dgp-repository-tree ul { list-style:none; padding:0; margin:0; }
+.dgp-repository-tree ul { margin-left:6px; padding-left:6px; border-left:1px solid var(--dsw-alias-border-l2); }
+.dgp-repository-row { display:flex; align-items:center; gap:4px; min-width:0; height:25px; padding:0 3px; }
+.dgp-repository-row:hover { background:var(--dsw-alias-interactive-bg-hover); }
+.dgp-repository-toggle { appearance:none; flex:1; min-width:0; height:25px; display:flex; align-items:center; gap:4px; padding:0; border:0; background:transparent; color:var(--dsw-alias-label-secondary); text-align:left; font:inherit; font-size:12px; cursor:pointer; }
+.dgp-repository-chevron { width:10px; flex:none; font-size:10px; }
+.dgp-repository-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dgp-repository-kind { flex:none; font-size:10px; color:var(--dsw-alias-label-tertiary); }
+.dgp-repository-current { appearance:none; display:flex; align-items:center; gap:4px; height:23px; max-width:46%; padding:0 4px; border:0; border-radius:3px; background:transparent; color:var(--dsw-alias-label-secondary); font:inherit; font-size:11px; cursor:pointer; }
+.dgp-repository-current span:first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dgp-repository-current:hover:not(:disabled) { background:var(--dsw-alias-bg-layer-2); color:var(--dsw-alias-label-primary); }
+.dgp-repository-current:disabled { opacity:.6; cursor:default; }
+.dgp-repository-branches { margin:2px 0 4px 13px; padding:4px; border:1px solid var(--dsw-alias-border-l2); border-radius:4px; }
+.dgp-repository-branches .dgp-branch-results { max-height:220px; overflow:auto; margin:0; padding:0; border:0; }
+.dgp-repository-branches .dgp-branch { width:100%; min-width:0; min-height:24px; padding:3px 5px; border-radius:3px; font-size:11px; line-height:18px; font-weight:400; box-shadow:none; background:transparent; color:var(--dsw-alias-label-secondary); }
+.dgp-repository-branches .dgp-branch:hover:not(:disabled) { background:var(--dsw-alias-interactive-bg-hover); }
+.dgp-repository-branches .dgp-branch span:first-child { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dgp-repository-branches .dgp-branch span:last-child { flex:none; color:var(--dsw-alias-label-tertiary); }
+.dgp-repository-branches .dgp-branch:disabled { opacity:1; }
+.dgp-branch-search { box-sizing:border-box; width:100%; height:26px; margin:0 0 3px; padding:3px 6px; border:1px solid var(--dsw-alias-border-l2); border-radius:3px; background:var(--dsw-alias-bg-layer-2); color:var(--dsw-alias-label-primary); font:inherit; font-size:11px; }
+.dgp-repository-toggle:focus-visible,.dgp-repository-current:focus-visible,.dgp-branch-search:focus-visible { outline:1px solid var(--dsw-alias-label-secondary); outline-offset:-1px; }
+`;
+		//#endregion
+		//#region src/client/requests.ts
+		async function post(path, body) {
+			const res = await fetch(path, {
+				method: "POST",
+				credentials: "include",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify(body)
+			});
+			const text = await res.text();
+			let data;
+			try {
+				data = JSON.parse(text);
+			} catch {
+				throw new Error(`Git request failed (${res.status} ${res.statusText || "invalid response"}). Try refreshing the session.`);
+			}
+			if (!res.ok) throw new Error(data?.error || `Git request failed (${res.status} ${res.statusText})`);
+			return data;
+		}
+		//#endregion
+		//#region src/client/repository-tree.ts
+		/** Keep directory boundaries, even when a repository contains other repositories. */
+		function repositoryTree(repositories, rootName) {
+			const root = {
+				path: ".",
+				name: rootName,
+				children: []
+			};
+			for (const repository of repositories) {
+				if (repository.path === ".") {
+					root.repository = repository;
+					continue;
+				}
+				const parts = repository.path.split("/");
+				if (parts.some((part) => !part || part === "." || part === "..")) continue;
+				let parent = root;
+				for (let index = 0; index < parts.length; index++) {
+					const path = parts.slice(0, index + 1).join("/");
+					let child = parent.children.find((item) => item.path === path);
+					if (!child) {
+						child = {
+							path,
+							name: parts[index],
+							children: []
+						};
+						parent.children.push(child);
+					}
+					parent = child;
+				}
+				parent.repository = repository;
+			}
+			const sort = (node) => {
+				node.children.sort((a, b) => a.name.localeCompare(b.name));
+				node.children.forEach(sort);
+			};
+			sort(root);
+			return root;
+		}
+		//#endregion
+		//#region src/client/repository-menu.ts
+		const h = react.default.createElement;
+		function RepositoryMenu({ loc, inventory, loading, error, refresh }) {
+			const tree = repositoryTree(inventory?.repositories ?? [], loc.cwd.split("/").filter(Boolean).at(-1) || loc.cwd);
+			const [pickerPath, setPickerPath] = react.default.useState(null);
+			const [busy, setBusy] = react.default.useState(false);
+			const lock = react.default.useRef(false);
+			const active = react.default.useRef(true);
+			react.default.useEffect(() => {
+				active.current = true;
+				return () => {
+					active.current = false;
+				};
+			}, []);
+			const acquire = () => {
+				if (lock.current) return false;
+				lock.current = true;
+				setBusy(true);
+				return true;
+			};
+			const release = () => {
+				lock.current = false;
+				if (active.current) setBusy(false);
+			};
+			return h("div", { className: "dgp-repository-menu" }, h("div", { className: "dgp-repository-heading" }, h("strong", null, `仓库与分支 · ${inventory?.repositories.length ?? 0}`), h("button", {
+				type: "button",
+				disabled: busy || loading,
+				onClick: () => {
+					refresh();
+				}
+			}, loading ? "检测中…" : "重新检测")), error && h("p", {
+				className: "dgp-error",
+				role: "alert"
+			}, error), inventory?.truncated && h("p", {
+				className: "dgp-hint",
+				role: "status"
+			}, "检测达到范围或时间限制，仅显示已发现的仓库；可进入子目录继续查看。"), !!inventory?.errors?.length && h("p", {
+				className: "dgp-hint",
+				title: inventory.errors.map((item) => `${item.path}: ${item.error}`).join("\n")
+			}, "部分目录无法读取，检测结果可能不完整。"), inventory?.repositories.length ? h("ul", {
+				className: "dgp-repository-tree",
+				"aria-label": "目录、仓库与分支"
+			}, h(TreeNode, {
+				node: tree,
+				loc,
+				root: true,
+				busy,
+				acquire,
+				release,
+				refresh,
+				pickerPath,
+				setPickerPath
+			})) : h("p", { className: "dgp-hint" }, loading ? "正在检测仓库…" : "当前目录范围内没有发现可管理的 Git 仓库。"), h("p", { className: "dgp-hint" }, "点击右侧分支名切换分支，仅作用于该仓库。"));
+		}
+		function TreeNode(props) {
+			const { node, loc, root, busy, acquire, release, refresh, pickerPath, setPickerPath } = props;
+			const [expanded, setExpanded] = react.default.useState(Boolean(root) || !node.repository);
+			const trigger = react.default.useRef(null);
+			const repo = node.repository;
+			const hasChildren = node.children.length > 0;
+			const open = !!repo && pickerPath === repo.path;
+			const wasOpen = react.default.useRef(open);
+			react.default.useEffect(() => {
+				if (busy) return;
+				if (wasOpen.current && !open) trigger.current?.focus();
+				wasOpen.current = open;
+			}, [open, busy]);
+			const close = () => setPickerPath(null);
+			return h("li", { className: "dgp-repository-node" }, h("div", { className: "dgp-repository-row" }, h("button", {
+				type: "button",
+				className: "dgp-repository-toggle",
+				disabled: busy,
+				"aria-expanded": hasChildren ? expanded : void 0,
+				title: node.path,
+				onClick: () => hasChildren ? setExpanded((value) => !value) : repo && setPickerPath(open ? null : repo.path)
+			}, h("span", {
+				className: "dgp-repository-chevron",
+				"aria-hidden": true
+			}, hasChildren ? expanded ? "▾" : "▸" : "·"), h("span", { className: "dgp-repository-name" }, node.name), repo && h("span", { className: "dgp-repository-kind" }, repo.kind === "submodule" ? "子模块" : repo.kind === "worktree" ? "工作树" : "Git")), repo && h("button", {
+				ref: trigger,
+				type: "button",
+				className: "dgp-repository-current",
+				disabled: busy,
+				"aria-label": `切换 ${node.name} 的分支，当前 ${repo.branch}`,
+				"aria-expanded": open,
+				title: `${node.path} · ${repo.branch} · 点击切换分支`,
+				onClick: () => setPickerPath(open ? null : repo.path)
+			}, h("span", null, repo.branch), h("span", { "aria-hidden": true }, "⌄"))), open && repo && h(RepositoryBranches, {
+				key: repo.path,
+				repositoryPath: repo.path,
+				branch: repo.branch,
+				loc,
+				busy,
+				acquire,
+				release,
+				refresh,
+				close
+			}), expanded && hasChildren && h("ul", null, ...node.children.map((child) => h(TreeNode, {
+				...props,
+				key: child.path,
+				node: child,
+				root: false
+			}))));
+		}
+		function RepositoryBranches({ repositoryPath, branch, loc, busy, acquire, release, refresh, close }) {
+			const [query, setQuery] = react.default.useState("");
+			const [branches, setBranches] = react.default.useState([]);
+			const [error, setError] = react.default.useState("");
+			const [ready, setReady] = react.default.useState(false);
+			const [switching, setSwitching] = react.default.useState("");
+			const active = react.default.useRef(true);
+			const sequence = react.default.useRef(0);
+			react.default.useEffect(() => {
+				active.current = true;
+				return () => {
+					active.current = false;
+					sequence.current++;
+				};
+			}, []);
+			const reload = react.default.useCallback(async () => {
+				const ticket = ++sequence.current;
+				setReady(false);
+				try {
+					const value = await post("/dsh-git-plus/branches", {
+						...loc,
+						repositoryPath
+					});
+					if (!active.current || ticket !== sequence.current) return;
+					if (!value.ok) throw new Error(value.error || "无法读取分支");
+					setBranches(value.branches ?? []);
+					setError("");
+				} catch (reason) {
+					if (active.current && ticket === sequence.current) setError(reason instanceof Error ? reason.message : String(reason));
+				} finally {
+					if (active.current && ticket === sequence.current) setReady(true);
+				}
+			}, [
+				loc.sessionId,
+				loc.cwd,
+				repositoryPath
+			]);
+			react.default.useEffect(() => {
+				reload();
+			}, [reload, branch]);
+			const switchTo = async (target) => {
+				if (!acquire()) return;
+				setSwitching(`${target.kind ?? "local"}:${target.name}`);
+				setError("");
+				try {
+					const result = await post("/dsh-git-plus/switch", {
+						...loc,
+						repositoryPath,
+						branch: target.name,
+						kind: target.kind ?? "local"
+					});
+					if (!result.ok) throw new Error(result.error || "分支切换失败");
+					if (active.current) await reload();
+					await refresh();
+					if (active.current) close();
+				} catch (reason) {
+					if (active.current) setError(reason instanceof Error ? reason.message : String(reason));
+				} finally {
+					release();
+					if (active.current) setSwitching("");
+				}
+			};
+			const filtered = branches.filter((item) => item.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
+			return h("div", {
+				className: "dgp-repository-branches",
+				onKeyDown: (event) => {
+					if (event.key === "Escape" && !busy) {
+						event.preventDefault();
+						event.stopPropagation();
+						close();
+					}
+				}
+			}, h("input", {
+				className: "dgp-branch-search",
+				type: "search",
+				value: query,
+				disabled: busy,
+				placeholder: "搜索本地 / 远程分支…",
+				"aria-label": `搜索 ${repositoryPath} 的分支`,
+				onChange: (event) => setQuery(event.target.value)
+			}), error && h("p", {
+				className: "dgp-error",
+				role: "alert"
+			}, error), !ready ? h("p", { className: "dgp-hint" }, "加载分支…") : branches.length === 0 ? h("p", { className: "dgp-hint" }, "暂无分支（可能尚未创建首次提交）") : !filtered.length ? h("p", { className: "dgp-hint" }, "没有匹配的分支") : h("ul", { className: "dgp-branch-results" }, ...filtered.map((item) => h("li", { key: `${item.kind ?? "local"}:${item.name}` }, h("button", {
+				type: "button",
+				className: "dgp-branch",
+				"aria-current": item.current ? "true" : void 0,
+				title: `${repositoryPath} → ${item.name}${item.kind === "remote" ? "（创建本地跟踪分支并切换）" : ""}`,
+				disabled: busy || item.current,
+				onClick: () => {
+					switchTo(item);
+				}
+			}, h("span", null, item.name), h("span", null, switching === `${item.kind ?? "local"}:${item.name}` ? "切换中…" : item.current ? "当前" : item.kind === "remote" ? "远程 · 检出" : "切换"))))), ready && branches.some((item) => item.kind === "remote") && h("p", { className: "dgp-hint" }, "远程分支检出时创建本地跟踪分支。"), error && h("button", {
+				type: "button",
+				disabled: busy,
+				onClick: () => {
+					reload();
+				}
+			}, "重试读取分支"));
+		}
+		//#endregion
 		//#region src/client/diff-rows.ts
 		function splitUnifiedDiff(diff) {
 			const rows = [];
@@ -148,12 +440,24 @@ window.__ModuleLoader__.load({
 					setHost(bar);
 				};
 				read();
-				const observer = new MutationObserver(read);
+				let frame = 0;
+				const observer = new MutationObserver((records) => {
+					if (frame) return;
+					const bar = header.querySelector("[data-dsh-workspace-tools]");
+					if (bar && records.every((record) => bar.contains(record.target))) return;
+					frame = requestAnimationFrame(() => {
+						frame = 0;
+						read();
+					});
+				});
 				observer.observe(header, {
 					childList: true,
 					subtree: true
 				});
-				return () => observer.disconnect();
+				return () => {
+					observer.disconnect();
+					if (frame) cancelAnimationFrame(frame);
+				};
 			}, []);
 			return {
 				anchorRef,
@@ -173,7 +477,7 @@ window.__ModuleLoader__.load({
 				const place = () => {
 					const rect = props.anchor?.getBoundingClientRect?.();
 					if (!rect) return;
-					const width = props.width;
+					const width = Math.min(props.width, Math.max(0, window.innerWidth - 16));
 					const left = Math.min(Math.max(8, rect.right - width), window.innerWidth - width - 8);
 					const top = Math.min(rect.bottom + 6, window.innerHeight - 16);
 					setStyle({
@@ -225,33 +529,17 @@ window.__ModuleLoader__.load({
 			"sessions",
 			"uiWorkspace"
 		];
-		function workspaceOf(ctx, sessionId) {
-			const snap = ctx.get("sessions")?.list?.getSnapshot?.();
+		function useWorkspace(ctx, sessionId) {
+			const sessions = ctx.get("sessions");
 			const navigation = ctx.get("uiWorkspace");
-			const id = sessionId || navigation.selection.getSnapshot().sessionId;
-			if (!id) return null;
-			const cwd = snap?.byId[id]?.cwd;
-			if (!cwd) return null;
-			return {
+			const snap = react.default.useSyncExternalStore(sessions.list.subscribe.bind(sessions.list), sessions.list.getSnapshot.bind(sessions.list));
+			const selection = react.default.useSyncExternalStore(navigation.selection.subscribe.bind(navigation.selection), navigation.selection.getSnapshot.bind(navigation.selection));
+			const id = sessionId || selection.sessionId;
+			const cwd = id ? snap.byId[id]?.cwd : void 0;
+			return id && cwd ? {
 				sessionId: id,
 				cwd
-			};
-		}
-		async function post(path, body) {
-			const res = await fetch(path, {
-				method: "POST",
-				credentials: "include",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify(body)
-			});
-			const data = await res.json();
-			if (!res.ok) throw new Error(data.error || res.statusText);
-			return data;
-		}
-		function sendToAgent(ctx, sessionId, text) {
-			const conversation = (ctx.get("sessions")?.scope?.(sessionId) ?? ctx).get("conversation");
-			if (!conversation?.send) throw new Error("conversation service is unavailable");
-			return conversation.send(text);
+			} : null;
 		}
 		function fileName(path) {
 			const parts = path.replace(/\\/g, "/").split("/");
@@ -302,72 +590,105 @@ window.__ModuleLoader__.load({
 			})));
 		}
 		function GitToolbar(props) {
-			const loc = workspaceOf(props.ctx, props.sessionId);
+			const loc = useWorkspace(props.ctx, props.sessionId);
+			return react.default.createElement(GitToolbarWorkspace, {
+				key: JSON.stringify(loc),
+				loc
+			});
+		}
+		function GitToolbarWorkspace({ loc }) {
 			const { anchorRef, host, changesHost } = useWorkspaceToolHost();
 			const [status, setStatus] = react.default.useState(null);
 			const [menu, setMenu] = react.default.useState(null);
+			const [inventory, setInventory] = react.default.useState(null);
+			const [scanError, setScanError] = react.default.useState("");
+			const [loading, setLoading] = react.default.useState(false);
+			const active = react.default.useRef(true);
 			const branchRef = react.default.useRef(null);
-			const commitRef = react.default.useRef(null);
-			const reload = react.default.useCallback(async () => {
-				if (!loc) return;
-				try {
-					setStatus(await post("/dsh-git-plus/status", loc));
-				} catch {
-					setStatus(null);
-				}
+			const request = react.default.useRef(0);
+			react.default.useEffect(() => {
+				active.current = true;
+				return () => {
+					active.current = false;
+					request.current++;
+				};
+			}, []);
+			const reload = react.default.useCallback(async (refresh = false, background = false) => {
+				if (!loc || !active.current) return;
+				if (!background || request.current === 0) request.current++;
+				const ticket = request.current;
+				if (!background) setLoading(true);
+				const [statusResult, scanResult] = await Promise.allSettled([post("/dsh-git-plus/status", loc), post("/dsh-git-plus/repositories", {
+					...loc,
+					refresh
+				})]);
+				if (!active.current || ticket !== request.current) return;
+				const nextStatus = statusResult.status === "fulfilled" ? statusResult.value : null;
+				if (nextStatus?.ok === true && nextStatus.countsPending && ticket === request.current) post("/dsh-git-plus/counts", loc).then((counts) => {
+					if (!active.current || ticket !== request.current) return;
+					setStatus((previous) => previous && JSON.stringify(previous) === JSON.stringify(counts) ? previous : counts);
+				}).catch(() => {});
+				setStatus((previous) => JSON.stringify(previous) === JSON.stringify(nextStatus) ? previous : nextStatus);
+				if (scanResult.status === "fulfilled" && scanResult.value.ok) {
+					const nextInventory = scanResult.value;
+					setInventory((previous) => JSON.stringify(previous) === JSON.stringify(nextInventory) ? previous : nextInventory);
+					setScanError("");
+				} else setScanError(scanResult.status === "rejected" ? String(scanResult.reason?.message ?? scanResult.reason) : scanResult.value.error || "仓库检测失败");
+				if (!background) setLoading(false);
 			}, [loc?.sessionId, loc?.cwd]);
 			react.default.useEffect(() => {
 				reload();
 			}, [reload]);
 			react.default.useEffect(() => {
-				const timer = setInterval(() => {
-					reload();
-				}, 15e3);
-				return () => clearInterval(timer);
+				const page = globalThis;
+				const tick = () => {
+					if (!page.document.hidden) reload(false, true);
+				};
+				const timer = setInterval(tick, 15e3);
+				page.document.addEventListener("visibilitychange", tick);
+				return () => {
+					clearInterval(timer);
+					page.document.removeEventListener("visibilitychange", tick);
+				};
 			}, [reload]);
-			const bar = react.default.createElement("div", { className: "dgp-toolbar" }, react.default.createElement("button", {
+			const repositories = inventory ?? {
+				ok: true,
+				truncated: false,
+				repositories: status?.ok === true ? [{
+					path: ".",
+					name: loc?.cwd.split("/").at(-1) || ".",
+					branch: status.branch || "HEAD",
+					kind: "repository"
+				}] : []
+			};
+			const count = repositories.repositories.length;
+			const nonGit = status !== null && status?.ok === false;
+			const label = count > 1 || count === 1 && repositories.repositories[0].path !== "." ? `Git · ${count}` : count === 1 ? repositories.repositories[0].branch : !nonGit && (inventory?.truncated || status === null) ? "Git · 检测未完" : status?.branch || "Git";
+			const bar = !nonGit && (count > 0 || status?.ok === true || inventory?.truncated || status === null) ? react.default.createElement("div", { className: "dgp-toolbar" }, react.default.createElement("button", {
 				type: "button",
 				className: "dgp-chip",
 				ref: branchRef,
 				"aria-expanded": menu === "branch",
 				"aria-haspopup": "dialog",
-				title: status?.upstream ? `${status.branch} → ${status.upstream}` : status?.branch || "切换分支",
+				title: "管理当前目录及子目录中的 Git 仓库与分支",
 				onClick: () => setMenu(menu === "branch" ? null : "branch")
-			}, icon("M6 3v8M6 11a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM6 6a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM6 6h4.5A2.5 2.5 0 0 1 13 8.5V11"), react.default.createElement("span", { className: "dgp-chip-label" }, status?.branch || "Git"), icon("M4 6l4 4 4-4")), react.default.createElement("button", {
-				type: "button",
-				className: "dgp-pill",
-				ref: commitRef,
-				"aria-expanded": menu === "commit",
-				"aria-haspopup": "dialog",
-				onClick: () => setMenu(menu === "commit" ? null : "commit")
-			}, "Commit & Push", icon("M4 6l4 4 4-4")), react.default.createElement(FloatingPanel, {
+			}, icon("M6 3v8M6 11a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM6 6a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM6 6h4.5A2.5 2.5 0 0 1 13 8.5V11"), react.default.createElement("span", { className: "dgp-chip-label" }, label), icon("M4 6l4 4 4-4")), react.default.createElement(FloatingPanel, {
 				open: menu === "branch",
-				width: 280,
+				width: 460,
 				anchor: branchRef.current,
 				onClose: () => setMenu(null),
-				children: react.default.createElement(BranchMenu, {
+				children: loc ? react.default.createElement(RepositoryMenu, {
 					loc,
-					current: status?.branch,
-					onSwitched: () => {
-						setMenu(null);
-						reload();
-					}
-				})
-			}), react.default.createElement(FloatingPanel, {
-				open: menu === "commit",
-				width: 360,
-				anchor: commitRef.current,
-				onClose: () => setMenu(null),
-				children: react.default.createElement(CommitMenu, {
-					ctx: props.ctx,
-					sessionId: props.sessionId,
-					onClose: () => setMenu(null)
-				})
-			}));
+					inventory: repositories,
+					loading,
+					error: scanError,
+					refresh: () => reload(true)
+				}) : react.default.createElement(react.default.Fragment)
+			})) : react.default.createElement(react.default.Fragment);
 			return react.default.createElement(react.default.Fragment, null, react.default.createElement("span", {
 				ref: anchorRef,
 				className: "dgp-anchor"
-			}), renderOnTabRow(host, bar, bar), changesHost ? renderOnTabRow(changesHost, react.default.createElement("span", {
+			}), renderOnTabRow(host, bar, bar), status?.ok === true && changesHost ? renderOnTabRow(changesHost, react.default.createElement("span", {
 				className: "dgp-tab-counts",
 				"aria-hidden": true
 			}, react.default.createElement("span", { className: "dgp-ins" }, `+${status?.insertions ?? 0}`), react.default.createElement("span", { className: "dgp-del" }, `-${status?.deletions ?? 0}`)), react.default.createElement(react.default.Fragment)) : null);
@@ -379,7 +700,13 @@ window.__ModuleLoader__.load({
 			if (changesSnapshots.size > 8) changesSnapshots.delete(changesSnapshots.keys().next().value);
 		}
 		function GitChangesView(props) {
-			const loc = workspaceOf(props.ctx, props.sessionId);
+			const loc = useWorkspace(props.ctx, props.sessionId);
+			return react.default.createElement(GitChangesWorkspace, {
+				key: JSON.stringify(loc),
+				loc
+			});
+		}
+		function GitChangesWorkspace({ loc }) {
 			const cacheKey = JSON.stringify(loc);
 			const cached = changesSnapshots.get(cacheKey);
 			const [status, setStatus] = react.default.useState(() => cached?.status ?? null);
@@ -389,13 +716,29 @@ window.__ModuleLoader__.load({
 			const [selected, setSelected] = react.default.useState(() => cached?.selected ?? "");
 			const [rows, setRows] = react.default.useState(() => cached?.rows ?? []);
 			const [busy, setBusy] = react.default.useState(false);
+			const request = react.default.useRef(0);
+			react.default.useEffect(() => () => {
+				request.current++;
+			}, []);
 			const reload = react.default.useCallback(async () => {
 				if (!loc) return;
 				setError("");
+				const ticket = ++request.current;
 				try {
 					const next = await post("/dsh-git-plus/status", loc);
+					if (ticket !== request.current) return;
 					setStatus(next);
 					latestStatus.current = next;
+					if (next.ok === true && next.countsPending) post("/dsh-git-plus/counts", loc).then((counts) => {
+						if (ticket !== request.current) return;
+						setStatus(counts);
+						latestStatus.current = counts;
+						const cached = changesSnapshots.get(cacheKey);
+						if (cached) rememberChanges(cacheKey, {
+							...cached,
+							status: counts
+						});
+					}).catch(() => {});
 					const previous = changesSnapshots.get(cacheKey);
 					if (previous) rememberChanges(cacheKey, {
 						...previous,
@@ -406,7 +749,7 @@ window.__ModuleLoader__.load({
 						return next.files?.[0]?.path ?? "";
 					});
 				} catch (err) {
-					setError(err instanceof Error ? err.message : String(err));
+					if (ticket === request.current) setError(err instanceof Error ? err.message : String(err));
 				}
 			}, [loc?.sessionId, loc?.cwd]);
 			react.default.useEffect(() => {
@@ -454,7 +797,10 @@ window.__ModuleLoader__.load({
 			return react.default.createElement("div", {
 				className: "dgp-page",
 				"data-conversation-composer-overlay": ""
-			}, react.default.createElement("aside", { className: "dgp-page-files" }, react.default.createElement("div", { className: "dgp-page-head" }, react.default.createElement("span", null, "CHANGES"), react.default.createElement("span", { className: "dgp-count" }, String(files.length))), error ? react.default.createElement("p", { className: "dgp-error" }, error) : null, !loc ? react.default.createElement("p", { className: "dgp-hint" }, "打开一个带工作目录的会话后再试。") : null, status && !status.ok ? react.default.createElement("p", { className: "dgp-hint" }, status.error) : null, loc && status?.ok && files.length === 0 ? react.default.createElement("p", { className: "dgp-hint" }, "没有未提交的变更") : files.map((file) => {
+			}, react.default.createElement("aside", { className: "dgp-page-files" }, react.default.createElement("div", { className: "dgp-page-head" }, react.default.createElement("span", null, "CHANGES"), react.default.createElement("span", { className: "dgp-count" }, String(files.length))), error ? react.default.createElement("p", {
+				className: "dgp-error",
+				role: "alert"
+			}, error) : null, !loc ? react.default.createElement("p", { className: "dgp-hint" }, "打开一个带工作目录的会话后再试。") : null, status && !status.ok ? react.default.createElement("p", { className: "dgp-hint" }, status.error) : null, loc && status?.ok && files.length === 0 ? react.default.createElement("p", { className: "dgp-hint" }, "没有未提交的变更") : files.map((file) => {
 				const parts = fileName(file.path);
 				return react.default.createElement("button", {
 					key: file.path,
@@ -488,119 +834,6 @@ window.__ModuleLoader__.load({
 			const tone = before ? props.row.kind === "del" || props.row.kind === "replace" ? "dgp-line-del" : text ? "" : "dgp-line-empty" : props.row.kind === "add" || props.row.kind === "replace" ? "dgp-line-add" : text ? "" : "dgp-line-empty";
 			return react.default.createElement("div", { className: `dgp-line ${tone}` }, react.default.createElement("span", { className: "dgp-no" }, no ?? ""), react.default.createElement("pre", null, text || " "));
 		}
-		function BranchMenu(props) {
-			const [branches, setBranches] = react.default.useState([]);
-			const [error, setError] = react.default.useState("");
-			const [busy, setBusy] = react.default.useState("");
-			const [ready, setReady] = react.default.useState(false);
-			react.default.useEffect(() => {
-				if (!props.loc) return;
-				let cancelled = false;
-				post("/dsh-git-plus/branches", props.loc).then((next) => {
-					if (cancelled) return;
-					setReady(true);
-					if (next.ok === false) setError(next.error || "无法列出分支");
-					else setBranches(next.branches ?? []);
-				}).catch((err) => {
-					if (cancelled) return;
-					setReady(true);
-					setError(err instanceof Error ? err.message : String(err));
-				});
-				return () => {
-					cancelled = true;
-				};
-			}, [props.loc?.sessionId, props.loc?.cwd]);
-			const switchTo = async (branch) => {
-				if (!props.loc || branch === props.current) return;
-				setBusy(branch);
-				setError("");
-				try {
-					const next = await post("/dsh-git-plus/switch", {
-						...props.loc,
-						branch
-					});
-					if (next.ok === false) setError(next.error || `无法切换到 ${branch}`);
-					else props.onSwitched();
-				} catch (err) {
-					setError(err instanceof Error ? err.message : String(err));
-				} finally {
-					setBusy("");
-				}
-			};
-			return react.default.createElement(react.default.Fragment, null, react.default.createElement("div", { className: "dgp-menu-title" }, "切换分支"), error ? react.default.createElement("p", { className: "dgp-error" }, error) : null, !props.loc ? react.default.createElement("p", { className: "dgp-hint" }, "打开一个带工作目录的会话后再试。") : null, react.default.createElement("div", { className: "dgp-branch-list" }, branches.length === 0 ? react.default.createElement("p", { className: "dgp-hint" }, ready ? "没有本地分支" : "加载分支…") : branches.map((branch) => react.default.createElement("button", {
-				key: branch.name,
-				type: "button",
-				className: branch.current || branch.name === props.current ? "dgp-branch dgp-branch-on" : "dgp-branch",
-				"aria-current": branch.current || branch.name === props.current ? "true" : void 0,
-				disabled: Boolean(busy) || branch.name === props.current,
-				onClick: () => {
-					switchTo(branch.name);
-				}
-			}, react.default.createElement("span", null, branch.name), branch.current || branch.name === props.current ? react.default.createElement("span", null, "当前") : null))));
-		}
-		function CommitMenu(props) {
-			const loc = workspaceOf(props.ctx, props.sessionId);
-			const [message, setMessage] = react.default.useState("");
-			const [busy, setBusy] = react.default.useState("");
-			const [error, setError] = react.default.useState("");
-			const summarize = async () => {
-				if (!loc) return;
-				setBusy("summary");
-				setError("");
-				try {
-					const next = await post("/dsh-git-plus/summarize", loc);
-					setMessage(next.message || "");
-				} catch (err) {
-					setError(err instanceof Error ? err.message : String(err));
-				} finally {
-					setBusy("");
-				}
-			};
-			const commit = async (push) => {
-				if (!loc) return;
-				const text = message.trim();
-				if (!text) {
-					setError("先生成或填写提交说明");
-					return;
-				}
-				setBusy(push ? "push" : "commit");
-				setError("");
-				const instruction = push ? `Commit all current git changes in this workspace using this exact message, then push to the current upstream. Do not invent extra files.\n\n${text}` : `Commit all current git changes in this workspace using this exact message. Do not push.\n\n${text}`;
-				try {
-					await sendToAgent(props.ctx, loc.sessionId, instruction);
-					props.onClose();
-				} catch (err) {
-					setError(err instanceof Error ? err.message : String(err));
-				} finally {
-					setBusy("");
-				}
-			};
-			return react.default.createElement("div", { className: "dgp-menu-content" }, error ? react.default.createElement("p", { className: "dgp-error" }, error) : null, react.default.createElement("textarea", {
-				value: message,
-				rows: 4,
-				placeholder: "提交说明，可点「生成说明」",
-				onChange: (event) => setMessage(event.target.value)
-			}), react.default.createElement("footer", { className: "dgp-menu-foot" }, react.default.createElement("button", {
-				type: "button",
-				disabled: !loc || Boolean(busy),
-				onClick: () => {
-					summarize();
-				}
-			}, busy === "summary" ? "生成中…" : "生成说明"), react.default.createElement("button", {
-				type: "button",
-				disabled: !loc || Boolean(busy),
-				onClick: () => {
-					commit(false);
-				}
-			}, "Commit"), react.default.createElement("button", {
-				type: "button",
-				className: "dgp-primary",
-				disabled: !loc || Boolean(busy),
-				onClick: () => {
-					commit(true);
-				}
-			}, "Commit & Push")));
-		}
 		let stylesInjected = false;
 		function injectStyles() {
 			if (stylesInjected || typeof document === "undefined") return;
@@ -626,7 +859,7 @@ header [role="tablist"] > [role="tab"][data-dsh-nav="trace"] { order:3; border-r
 header [role="tablist"] > [role="tab"][data-dsh-nav="other"] { order:4; }
 .dsh-ws-tools { display:inline-flex; align-items:center; order:100; gap:6px; min-width:0; max-width:calc(100% - 350px); margin:0 0 0 auto; padding-left:16px; flex:0 1 auto; flex-wrap:nowrap; }
 .dgp-tab-counts { display:inline-flex; gap:3px; font-size:10px; font-weight:400; }
-.dfp-path-chip { order:0; max-width:240px !important; cursor:default !important; }
+.dfp-path-chip { order:0; max-width:240px !important; }
 .dgp-toolbar { order:1; }
 .dgp-toolbar { display:inline-flex; align-items:center; gap:6px; min-width:0; flex-wrap:nowrap; }
 .dgp-chip, .dgp-pill { appearance:none; border:1px solid var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-layer-2); color:var(--dsw-alias-label-secondary); font:inherit; display:inline-flex; align-items:center; gap:5px; height:28px; box-sizing:border-box; max-width:168px; min-width:0; padding:0 8px; border-radius:8px; font-size:12px; line-height:1; white-space:nowrap; cursor:pointer; }
@@ -686,9 +919,10 @@ header [role="tablist"] > [role="tab"][data-dsh-nav="other"] { order:4; }
 .dgp-line-del { background:color-mix(in srgb, var(--dsw-alias-state-error-primary) 16%, transparent); }
 .dgp-line-add { background:color-mix(in srgb, #3c9 18%, transparent); }
 .dgp-line-empty { background:color-mix(in srgb, var(--dsw-alias-label-tertiary) 8%, transparent); }
-.dgp-error { color:var(--dsw-alias-state-error-primary); padding:8px 12px; font-size:12px; }
+.dgp-error { white-space:pre-wrap; overflow-wrap:anywhere; color:var(--dsw-alias-state-error-primary); padding:8px 12px; font-size:12px; }
 .dgp-hint { padding:8px 12px; font-size:12px; color:var(--dsw-alias-label-tertiary); }
 `;
+			tag.textContent += repositoryStyles;
 			document.head.appendChild(tag);
 		}
 		//#endregion

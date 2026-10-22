@@ -5,6 +5,10 @@ import type { createGitRunner } from './git.ts'
 type Git = ReturnType<typeof createGitRunner>
 type ChangedFile = { path: string; status: string; oldPath?: string }
 
+/** Partial counts are acceptable: the badge is a hint, not an audit. */
+export const COUNT_BUDGET_MS = 2_500
+export const MAX_COUNTED_FILES = 200
+
 export function parseStatus(output: string) {
   const records = output.split('\0')
   let branch = '', upstream = ''
@@ -65,7 +69,13 @@ export async function readStatus(git: Git, cwd: string) {
     if (result.code !== 0) throw new Error(result.stderr)
     stats = result.stdout
   }
-  for (const file of parsed.files.filter(f => !hasHead || f.status === '??')) {
+  // Untracked-file counting spawns one git diff per file. On machines where a
+  // git spawn costs seconds (security agents), a big untracked tree would pin
+  // the CPU forever and the status answer would never arrive. Budget it.
+  const untracked = parsed.files.filter(f => !hasHead || f.status === '??')
+  const countDeadline = Date.now() + COUNT_BUDGET_MS
+  for (const file of untracked.slice(0, MAX_COUNTED_FILES)) {
+    if (Date.now() >= countDeadline) break
     const result = await git(cwd, ['diff', '--no-index', '--numstat', '-z', '--', '/dev/null', file.path])
     // Deletions in an unborn index have no current file to count.
     if (result.code <= 1) stats += result.stdout

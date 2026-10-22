@@ -1,7 +1,8 @@
 import React from 'react'
 import { createPortal } from 'react-dom'
 import type { Context } from '@deepseek-ai/cordis'
-import { createPreferences, sessionStatus, statusText, type MossStatus, type PreferenceStore, type SessionActivity, type SessionSnapshot, type SessionSummary } from './state.ts'
+import { EngineIndicator } from './engine.ts'
+import { createPreferences, sessionStatus, type MossStatus, type PreferenceStore, type SessionActivity, type SessionSnapshot, type SessionSummary } from './state.ts'
 import { installStyles, installTheme } from './runtime.ts'
 import { EarthScene } from './earth.ts'
 import { RunningFlight } from './running.ts'
@@ -128,7 +129,16 @@ const idleSelection: Store<{ sessionId?: string }> = {
 function EarthHero({ services }: { services: Services }): React.ReactElement {
   const status = useStatus(services)
   const h = React.createElement
-  return h('span', { className: 'moss-hero' },
+  // Mark the host's sibling once instead of a document-wide `span:has()` rule,
+  // which the browser re-evaluates on every DOM change (including typing).
+  const ref = React.useRef<HTMLSpanElement>(null)
+  React.useLayoutEffect(() => {
+    const sibling = ref.current?.parentElement?.nextElementSibling
+    if (!sibling || sibling.tagName !== 'SPAN') return
+    sibling.setAttribute('data-moss-hero-sibling', '')
+    return () => sibling.removeAttribute('data-moss-hero-sibling')
+  }, [])
+  return h('span', { className: 'moss-hero', ref },
     h('span', { className: 'moss-hero-stage' },
       h(EarthScene, { status, scene: 'hero' }),
     ),
@@ -172,8 +182,7 @@ function useStatus({ selection, sessions, activity }: Services): MossStatus {
 
 /** A passive live indicator: no control panel, menu or extra wordmark. */
 export function StatusLight({ status }: { status: MossStatus }): React.ReactElement {
-  return React.createElement('span', { className: 'moss-status-indicator', role: 'img', 'aria-label': `550W · ${statusText[status].label}`, title: `550W · ${statusText[status].label}` },
-    React.createElement('span', { className: 'moss-eye', 'data-status': status, 'aria-hidden': true }))
+  return React.createElement(EngineIndicator, { status })
 }
 function MossSurface({ preferences, services }: { preferences: PreferenceStore; services: Services }): React.ReactElement {
   const settings = React.useSyncExternalStore(preferences.subscribe, preferences.getSnapshot)
@@ -193,5 +202,5 @@ function ThemeSettings({ preferences }: { preferences: PreferenceStore }): React
     h('h3', null, '550W / 流浪地球'),
     setting('enabled', '流浪地球主题', '深蓝终端与信号红强调'),
     setting('ambient', '环境纹理', '仪表网格与冷光反射'),
-    setting('motion', '界面动效', '地球航行与实时状态呼吸灯'))
+    setting('motion', '界面动效', '地球航行与土星状态动画'))
 }

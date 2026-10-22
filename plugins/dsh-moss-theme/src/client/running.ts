@@ -42,7 +42,9 @@ function useHost(active: boolean): HTMLElement | undefined {
   React.useEffect(() => {
     if (!active) { setHost(undefined); return }
     let frame = 0
-    const scan = () => { frame = 0; setHost(document.querySelector<HTMLElement>(HOST) ?? undefined) }
+    let found: HTMLElement | undefined
+    // While the found row is still attached, streaming churn needs no lookup.
+    const scan = () => { frame = 0; if (found?.isConnected && found.matches(HOST)) return; found = document.querySelector<HTMLElement>(HOST) ?? undefined; setHost(found) }
     // Coalesce streaming DOM churn into at most one lookup per frame.
     const observer = new MutationObserver(() => { if (!frame) frame = requestAnimationFrame(scan) })
     observer.observe(document.body, { childList: true, subtree: true })

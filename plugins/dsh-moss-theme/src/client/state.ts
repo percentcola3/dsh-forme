@@ -50,7 +50,7 @@ export function sessionStatus(sessionId?: string, snapshot?: SessionSnapshot, fa
   return 'standby'
 }
 export const statusText: Record<MossStatus, { label: string; code: string; message: string }> = {
-  standby: { label: '待命', code: 'STANDBY', message: '领航员，550W 已就绪。请下达指令。' },
+  standby: { label: '待命', code: 'STANDBY', message: '550W 已就绪。请输入指令。' },
   connecting: { label: '建立连接', code: 'CONNECTING', message: '正在同步当前任务，请稍候。' },
   working: { label: '处理中', code: 'PROCESSING', message: '指令处理中。请以对话中的实际输出为准。' },
   waiting: { label: '等待确认', code: 'AWAITING INPUT', message: '任务正在等待你的审批或回答，请查看对话中的请求。' },
@@ -66,8 +66,6 @@ export function presetOf(summary?: SessionSummary): string | undefined {
   const value = summary?.projectionValues?.agentPreset
   return typeof value === 'string' ? value : undefined
 }
-
-export const MOSS_PROMPT = '请以《流浪地球》中 550W 的克制、冷静、简洁的表达风格与我交流，称呼我为“领航员”。先给结论，再给必要依据和可执行步骤。明确区分事实、推测和未知；任务状态、风险和执行结果必须如实报告，不编造监测数据或完成情况。保持正常的安全边界与审批流程。本条仅约定表达风格，不代表你具有 550W 的身份、权限或能力。'
 
 /**
  * Mission clock from the host's localized running label ("用时 2分41秒", "for 2m 41s").

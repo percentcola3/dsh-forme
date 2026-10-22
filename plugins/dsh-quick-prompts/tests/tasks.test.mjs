@@ -149,10 +149,10 @@ test('stopping an idle child waiting for a late answer does not stick at stoppin
   await f.manager.dispose()
 })
 
-test('visible cards keep active tasks and failures until dismissed; completed settle away', () => {
+test('conversation cards keep completed results and stopped turns available for follow-up until dismissed', () => {
   const runs = ['completed', 'stopped', 'failed', 'starting', 'running', 'waiting', 'stopping'].map((status, i) => ({ id: String(i), status, startedAt: i }))
-  assert.deepEqual(ongoingRuns(runs).map(run => run.status), ['stopping', 'waiting', 'running', 'starting', 'failed'])
-  assert.equal(ongoingRuns(runs.map(run => ({ ...run, status: 'completed' }))).length, 0)
+  assert.deepEqual(ongoingRuns(runs).map(run => run.status), ['stopping', 'waiting', 'running', 'starting', 'failed', 'stopped', 'completed'])
+  assert.equal(ongoingRuns(runs.map(run => ({ ...run, status: 'completed' }))).length, runs.length)
   assert.equal(ongoingRuns(runs.map(run => ({ ...run, dismissed: true }))).length, 0)
 })
 test('native assistant frames are visible before settlement, tool text joins once, and late frames are ignored', async () => {
@@ -241,4 +241,70 @@ test('overlapping controls on different cards never resurrect a closed task', as
   close.resolve({ runs: [runs[0]] }); await closing
   stop.resolve({ runs: [{ ...runs[0], status: 'stopping' }, runs[1]] }); await stopping
   assert.deepEqual(tasks.getSnapshot().runs.map(run => [run.id, run.status]), [['A', 'stopping']])
+})
+
+test('uncertain restart recovery notice is scoped to its current conversation and clears on switch', async () => {
+  const tasks = createTasks(async (action, body) => action === 'list'
+    ? { projectId: body.sessionId, cwd: '/code/' + body.sessionId, prompts: [] }
+    : { projectId: body.sessionId, runs: [], recovery: body.sessionId === 'A' ? { state: 'reserved' } : null })
+  await tasks.select('A'); await tasks.refresh()
+  assert.equal(tasks.getSnapshot().recovery.state, 'reserved')
+  await tasks.select('B')
+  assert.equal(tasks.getSnapshot().recovery, null)
+  await tasks.refresh()
+  assert.equal(tasks.getSnapshot().recovery, null)
+})
+
+
+test('catalog refresh is throttled and detects Git changes without changing sessions', async () => {
+  let now = 0, prompts = [], lists = 0
+  const tasks = createTasks(async action => {
+    if (action === 'list') { lists++; return { projectId: 'project', cwd: '/code/project', prompts } }
+    return { projectId: 'project', runs: [] }
+  }, () => now)
+  await tasks.select('main')
+  prompts = [{ id: 'commit', name: '提交', gitOnly: true }]
+  for (now = 400; now < 15_000; now += 400) await tasks.refresh()
+  assert.equal(lists, 1)
+  now = 15_000; await tasks.refresh()
+  assert.equal(lists, 2); assert.equal(tasks.getSnapshot().prompts[0].id, 'commit')
+  prompts = []; now = 30_000; await tasks.refresh()
+  assert.deepEqual(tasks.getSnapshot().prompts, [])
+})
+
+test('late catalog response cannot undo prompt edits or restore a different session catalog', async () => {
+  for (const action of ['save', 'switch']) {
+    let now = 0, hold = false
+    const late = deferred()
+    const tasks = createTasks(async (type, body) => {
+      if (type === 'list' && body.sessionId === 'A' && hold) return late.promise
+      if (type === 'list') return { projectId: body.sessionId, cwd: '/code/' + body.sessionId, prompts: [{ id: body.sessionId }] }
+      if (type === 'save') return { projectId: body.projectId, prompts: [{ id: 'edited' }] }
+      return { projectId: body.projectId, runs: [] }
+    }, () => now)
+    await tasks.select('A'); hold = true; now = 15_000
+    const refreshing = tasks.refresh()
+    if (action === 'save') await tasks.save('save', { id: 'A', name: 'edited', text: 'edited' })
+    else await tasks.select('B')
+    late.resolve({ projectId: 'A', cwd: '/code/A', prompts: [{ id: 'stale' }] })
+    await refreshing
+    assert.deepEqual(tasks.getSnapshot().prompts.map(p => p.id), [action === 'save' ? 'edited' : 'B'])
+  }
+})
+
+test('same-session cwd changes invalidate pending mutations and clear old task cards', async () => {
+  let now = 0, project = 'A'
+  const late = deferred()
+  const tasks = createTasks(async (action, body) => {
+    if (action === 'list') return { projectId: project, cwd: '/code/' + project, prompts: [{ id: project }] }
+    if (action === 'save') return late.promise
+    return { projectId: body.projectId, runs: [{ id: 'old' }] }
+  }, () => now)
+  await tasks.select('main'); await tasks.refresh()
+  const save = tasks.save('save', { id: 'A', name: 'changed', text: 'changed' })
+  project = 'B'; now = 15_000; await tasks.refresh()
+  assert.equal(tasks.getSnapshot().projectId, 'B')
+  assert.deepEqual(tasks.getSnapshot().runs, [])
+  late.resolve({ projectId: 'A', prompts: [{ id: 'late' }] }); await save
+  assert.deepEqual(tasks.getSnapshot().prompts.map(p => p.id), ['B'])
 })

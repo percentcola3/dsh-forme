@@ -31,17 +31,12 @@ export class NativeNotices {
     this.status = 'preparing'; this.error = ''; this.onStatus()
     try {
       const source = await readFile(fileURLToPath(new URL('../native/DSHNotices.swift', import.meta.url)))
-      const textures = await Promise.all(['earth-day.jpg', 'earth-clouds.jpg', 'moon-color.jpg', 'moon-height.jpg'].map(async name => ({ name, data: await readFile(fileURLToPath(new URL(`../native/textures/${name}`, import.meta.url))) })))
-      const digest = createHash('sha256').update(source).update(process.arch)
-      for (const texture of textures) digest.update(texture.name).update(texture.data)
-      const hash = digest.digest('hex').slice(0, 20)
+      // Jupiter bands are generated procedurally inside the native app; no textures ship.
+      const hash = createHash('sha256').update(source).update(process.arch).digest('hex').slice(0, 20)
       const app = join(homedir(), '.dsh', 'cache', 'desktop-notify', hash, 'DSH Notices.app')
       const bin = join(app, 'Contents', 'MacOS', 'DSHNotices')
       try { await access(bin) } catch {
         await mkdir(join(app, 'Contents', 'MacOS'), { recursive: true, mode: 0o700 })
-        const resources = join(app, 'Contents', 'Resources', 'textures')
-        await mkdir(resources, { recursive: true, mode: 0o700 })
-        for (const texture of textures) await writeFile(join(resources, texture.name), texture.data)
         const temporary = `${bin}.${process.pid}`
         await exec('/usr/bin/xcrun', ['swiftc', '-O', '-swift-version', '5', '-framework', 'AppKit', '-framework', 'SwiftUI', '-framework', 'SceneKit', fileURLToPath(new URL('../native/DSHNotices.swift', import.meta.url)), '-o', temporary], { timeout: 120000, maxBuffer: 1024 * 1024, signal: this.lifetime.signal })
         await writeFile(join(app, 'Contents', 'Info.plist'), '<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>dev.dsh.desktop-notify</string><key>CFBundleName</key><string>DSH Notices</string><key>CFBundleExecutable</key><string>DSHNotices</string><key>LSUIElement</key><true/><key>NSHighResolutionCapable</key><true/></dict></plist>')

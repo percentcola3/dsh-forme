@@ -55,7 +55,8 @@ test('subagent noise and malformed questions do not create misleading choices', 
 })
 test('preferences reject wrong types, preserve all positions and bound durations', () => {
   assert.deepEqual(parsePreferences(null), defaults)
-  for (const position of ['left', 'right', 'top', 'island']) assert.equal(parsePreferences({ position }).position, position)
+  for (const position of ['top-left', 'top', 'top-right', 'right', 'bottom-right', 'bottom', 'bottom-left', 'left']) assert.equal(parsePreferences({ position }).position, position)
+  assert.equal(parsePreferences({ position: 'island' }).position, 'top')
   assert.equal(parsePreferences({ position: 'offscreen', enabled: 'false', duration: Infinity }).enabled, true)
   assert.equal(parsePreferences({ duration: 0 }).duration, 3); assert.equal(parsePreferences({ duration: 9000 }).duration, 30)
 })

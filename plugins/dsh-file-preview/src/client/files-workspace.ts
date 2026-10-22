@@ -5,18 +5,25 @@ export type Sidebar = {
   openResourceIn(sessionId: string, address: string, options?: Placement): void
   split(paneId?: string): string | undefined
   isExpanded(): boolean
+  /** Optional: the official per-session store actions and committed layout. */
+  actionsFor?(sessionId: string): { resizeSplit?(sessionId: string, splitId: string, sizes: number[]): void } | undefined
+  mountedSurface?(): { layout: { rootId: string; nodes: Record<string, { kind: string; children?: string[]; sizes?: number[] }> } } | undefined
   toggleExpanded(): void
   active(): { id: string } | undefined
   focus(tabId: string): void
+  closeIn(sessionId: string, tabId: string): void
 }
 export type Layout = { openRightbar(track: boolean, fullscreen: boolean): void; closeRightbar(): void }
+
+/** File tree share of the Files tab; DockKit refuses panes under 20%. */
+export const TREE_FRACTION = .22
 
 /** Official components stay in their React-owned dock; only their viewport changes. */
 export function installFilesWorkspace(sidebar: Sidebar, layout: Layout, currentSession: () => string | undefined) {
   const originalOpen = sidebar.openResource
   const originalOpenIn = sidebar.openResourceIn
   const originalPresentation = layout.openRightbar
-  let leave: (() => void) | undefined
+  let leave: ((restorePrevious?: boolean) => void) | undefined
   let active: { session: string; route: (address: string, options?: Placement) => void } | undefined
   const wrappedOpen: Sidebar['openResource'] = (address, options) => {
     if (active && currentSession() === active.session && address.startsWith('dsh-resource://file/')) active.route(address, options)
@@ -39,6 +46,7 @@ export function installFilesWorkspace(sidebar: Sidebar, layout: Layout, currentS
       let stopped = false
       let pending: { address: string; options?: Placement } | undefined
       let splitPending = false
+      let openedTabId: string | undefined
       let timer: ReturnType<typeof setTimeout> | undefined
       let frame: number | undefined
       let ready = false
@@ -79,6 +87,10 @@ export function installFilesWorkspace(sidebar: Sidebar, layout: Layout, currentS
         const tree = panes[0]
         if (!tree) return
         mark(tree, 'data-dfp-tree')
+        if (openedFilesTab && !openedTabId) {
+          const tab = tree.querySelector<HTMLElement>('[data-dockkit-tab][aria-selected="true"]')?.dataset.dockkitTab
+          if (tab) openedTabId = tab
+        }
         const preview = panes[1]
         if (!preview) {
           // Retry after DockSurface has measured the bounded viewport.
@@ -86,6 +98,7 @@ export function installFilesWorkspace(sidebar: Sidebar, layout: Layout, currentS
           return
         }
         splitPending = false
+        narrowTree(tree)
         ready = true
         clearTimeout(timer)
         mark(preview, 'data-dfp-preview')
@@ -110,6 +123,24 @@ export function installFilesWorkspace(sidebar: Sidebar, layout: Layout, currentS
           }
         }
       }
+      // DockKit owns pane geometry and re-applies its split sizes on every layout
+      // pass, so CSS alone keeps snapping back to 50/50. Ask the official store
+      // for a narrow tree column instead (DockKit's minimum pane fraction is .2).
+      // Applied once per Files visit so a user's own divider drag is respected.
+      let narrowed = false
+      const narrowTree = (tree: HTMLElement) => {
+        if (narrowed) return
+        const layoutState = sidebar.mountedSurface?.()?.layout
+        const root = layoutState?.nodes[layoutState.rootId]
+        if (!root || root.kind !== 'split' || root.children?.length !== 2 || !root.sizes) return
+        const treeFirst = root.children[0] === tree.dataset.dockkitPane
+        const target = treeFirst ? [TREE_FRACTION, 1 - TREE_FRACTION] : [1 - TREE_FRACTION, TREE_FRACTION]
+        narrowed = true
+        if (root.sizes.every((size, index) => Math.abs(size - target[index]!) < .005)) return
+        // Store actions take the sessionId first: resizeSplit(sessionId, splitId, sizes).
+        try { sidebar.actionsFor?.(session)?.resizeSplit?.(session, layoutState!.rootId, target) }
+        catch (error) { console.warn('dsh-file-preview: could not narrow the file tree', error) }
+      }
       active = { session, route(address, options) {
         pending = { address, options }
         // Resolve official workspace-relative addresses against the tree root.
@@ -121,10 +152,12 @@ export function installFilesWorkspace(sidebar: Sidebar, layout: Layout, currentS
         } catch { selectedPath = undefined }
         sync()
       } }
+      let openedFilesTab = false
       const firstPane = panel()?.querySelector<HTMLElement>('[data-dockkit-pane]')
       if (firstPane?.querySelector('[data-files-state]')) {
         if (!sidebar.isExpanded()) sidebar.toggleExpanded()
       } else {
+        openedFilesTab = true
         sidebar.openTabIn(session, 'files', { paneId: firstPane?.dataset.dockkitPane, revealIfOpened: false })
       }
       // Coalesce preview mutations/highlighting into one update per frame.
@@ -151,7 +184,7 @@ export function installFilesWorkspace(sidebar: Sidebar, layout: Layout, currentS
         if (!stopped && !ready && ++attempts < 20) timer = setTimeout(retry, 80)
       }
       retry()
-      const cleanup = () => {
+      const cleanup = (restorePrevious = false) => {
         if (stopped) return
         stopped = true
         active = undefined
@@ -166,11 +199,23 @@ export function installFilesWorkspace(sidebar: Sidebar, layout: Layout, currentS
           for (const key of ['left', 'top', 'width', 'height']) el.style.removeProperty(`--dfp-${key}`)
         }
         if (layout.openRightbar === presentationOverride) layout.openRightbar = originalPresentation
+        // A leftover tree pane in the native sidebar duplicates the Files tab.
+        // Closing our tab lets the official settle rule restore the Guide page.
+        if (openedFilesTab && openedTabId) {
+          try { sidebar.closeIn(session, openedTabId) } catch { /* The session may already be gone. */ }
+        }
         if (currentSession() === session) {
-          if (previousTab) sidebar.focus(previousTab)
-          if (sidebar.isExpanded() !== wasExpanded) sidebar.toggleExpanded()
-          if (wasExpanded) originalPresentation.call(layout, ...presentation)
-          else layout.closeRightbar()
+          if (restorePrevious) {
+            if (previousTab) sidebar.focus(previousTab)
+            if (sidebar.isExpanded() !== wasExpanded) sidebar.toggleExpanded()
+            if (wasExpanded) originalPresentation.call(layout, ...presentation)
+            else layout.closeRightbar()
+          } else {
+            // Leaving Files must not reopen its borrowed dock alongside Terminal
+            // or Chat. Collapse without deleting tabs or their preview state.
+            if (sidebar.isExpanded()) sidebar.toggleExpanded()
+            layout.closeRightbar()
+          }
         }
         if (leave === cleanup) leave = undefined
       }
@@ -178,7 +223,7 @@ export function installFilesWorkspace(sidebar: Sidebar, layout: Layout, currentS
       return cleanup
     },
     dispose() {
-      leave?.()
+      leave?.(true)
       if (sidebar.openResource === wrappedOpen) sidebar.openResource = originalOpen
       if (sidebar.openResourceIn === wrappedOpenIn) sidebar.openResourceIn = originalOpenIn
     },

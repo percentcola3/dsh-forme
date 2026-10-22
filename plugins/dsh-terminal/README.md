@@ -1,19 +1,10 @@
 # dsh-terminal
 
-An independent interactive terminal tab for DeepSeek Harness task conversations.
+Terminal entry points backed by DeepSeek Harness's built-in terminal.
 
-- Opens an interactive zsh in the current Session's canonical cwd. A task therefore starts in its independent output directory.
-- Retains terminal state when switching tabs, with resize, clear, close and reconnect controls.
-- Scopes terminal identifiers to the exact Session/cwd pair; the browser cannot supply an arbitrary starting directory.
-- Limits concurrent terminals to 16 and retained output to 200,000 characters per terminal. Plugin/app shutdown closes its PTYs.
-- Includes no project startup commands, automatic service management, updater or performance recorder.
+- The quick-prompts terminal icon is the only plugin entry; there is no conversation Terminal tab or launcher page. The card's Expand button docks and focuses the same running terminal in the official sidebar without changing the conversation view.
+- Quick prompts present one official floating terminal pane inside a small card. DSH retains ownership of its renderer, PTY, authentication, session directory, output, input, resize and recovery.
+- Interrupt sends Ctrl+C through the official terminal model. Closing a card closes only its own tab. Using the native dock action transfers that terminal back to the sidebar without ending it.
+- There is no custom terminal HTTP route, node-pty runtime, duplicate xterm renderer or independent process inventory.
 
-This is a **local user terminal**, with the app user's OS permissions. Its starting-directory check is not a filesystem sandbox, and task read/write bindings do not restrict commands entered here. Agent file tools continue using the separate task resource policy. A task-resource directory selector and isolated Agent command execution are future integrations.
-
-```sh
-pnpm run build
-pnpm exec tsc --noEmit
-pnpm test
-```
-
-The five tests cover live/persisted Session directory resolution, invalid Session metadata, PTY state reuse, cross-session handle rejection, resizing, close and child-process cleanup. Native desktop validation executes `pwd` and a marker command inside a task.
+Run `pnpm run build` and `pnpm test`. Adapter tests cover sidebar launch, card ownership, interrupt, close, transfer to sidebar and failure cleanup. Actual pane geometry depends on the installed DSH DockKit floating-pane contract and must be checked after loading the plugin in the desktop app.

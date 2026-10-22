@@ -76,14 +76,25 @@ export function installWorkspaceIcons(storage?: StorageLike, doc: Document = doc
     }
   }
   const containsRow = (node: Node) => node.nodeType === 1 && ((node as Element).matches(selector) || !!(node as Element).querySelector(selector))
+  // Rows only change with the sidebar; skip text/streaming churn cheaply and
+  // coalesce real changes into one pass per frame.
+  let frame = 0
+  const raf = doc.defaultView?.requestAnimationFrame?.bind(doc.defaultView)
+  const schedule = () => { if (!raf) return sync(); if (!frame) frame = raf(() => { frame = 0; sync() }) }
   const observer = new Observer(records => {
-    if (records.some(record => record.type === 'attributes' || [...record.addedNodes, ...record.removedNodes].some(containsRow))) sync()
+    if (frame) return
+    for (const record of records) {
+      if (record.type === 'attributes') return schedule()
+      for (const node of record.addedNodes) if (containsRow(node)) return schedule()
+      for (const node of record.removedNodes) if (node.nodeType === 1 && decorated.size && [...decorated.keys()].some(row => node === row || node.contains(row))) return schedule()
+    }
   })
   // Exclude our own attribute so decoration never triggers a feedback loop.
   observer.observe(doc.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-row-key'] })
   sync()
   return () => {
     observer.disconnect()
+    if (frame) doc.defaultView?.cancelAnimationFrame?.(frame)
     for (const [row, previous] of decorated) {
       if (previous === null) row.removeAttribute(attribute)
       else row.setAttribute(attribute, previous)

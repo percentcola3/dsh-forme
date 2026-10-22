@@ -26,7 +26,8 @@ test('server activation authenticates settings, persists them, cancels stale del
     const plugin = ctx.plugin({ inject: ['webServer', 'connection', 'sessions'], apply: scope => apply(scope, {}, { directory, native: callback => { onOpen = callback; return bridge } }) })
     await plugin
     assert.equal((await call({ action: 'get' }, { denied: 'yes' })).code, 403)
-    assert.equal((await call({ action: 'update', preferences: { position: 'island', duration: 12 } })).body.preferences.position, 'island')
+    assert.equal((await call({ action: 'update', preferences: { position: 'bottom-left', duration: 12 } })).body.preferences.position, 'bottom-left')
+    assert.equal((await call({ action: 'update', preferences: { position: 'island' } })).body.preferences.position, 'top', 'legacy island maps to the top anchor')
     const session = { id: 'background', header: { cwd: '/code/demo' } }; let seq = 0
     const event = (type, data) => ctx.emit('session/event', session, { type, data, seq: seq++ })
     event('approval/asked', { id: 'stale' }); await wait(230)

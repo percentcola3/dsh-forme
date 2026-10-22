@@ -9,7 +9,7 @@ export const thrustFor: Record<MossStatus, number> = { standby: .38, connecting:
 
 /**
  * One full-scene WebGL canvas: starfield and Earth, its atmosphere peeling from the limb and converging into a tapered, flowing wake.
- * A CSS-only scene underneath stays visible until the first frame, or permanently without WebGL.
+ * The CSS-only scene is reserved for renderer failures, never used as a loading frame.
  */
 export function EarthScene({ status, scene }: { status: MossStatus; scene: SceneName }): React.ReactElement {
   const canvas = React.useRef<HTMLCanvasElement>(null)
@@ -19,7 +19,7 @@ export function EarthScene({ status, scene }: { status: MossStatus; scene: Scene
     // Texture data URLs stay out of server rendering and load only with a live canvas.
     void import('./earth-assets.ts').then(({ mountEarth }) => {
       if (!disposed && canvas.current) stop = mountEarth(canvas.current)
-    }).catch(() => { /* The CSS scene remains. */ })
+    }).catch(() => { if (!disposed && canvas.current) canvas.current.dataset.failed = 'true' })
     return () => { disposed = true; stop?.() }
   }, [])
   return h('span', { className: `moss-scene moss-scene-${scene}`, 'data-status': status, 'aria-hidden': true },

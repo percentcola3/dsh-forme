@@ -21,13 +21,15 @@ test('authenticated API explicitly imports legacy shortcuts into one project, ad
     await ctx.plugin(provider => {
       provider.provide('connection', { requestRejection: req => req.headers.denied ? 403 : undefined })
       provider.provide('webServer', { register: route => { handler = route.handler; return () => { handler = undefined } } })
+      provider.provide('sessionController', {})
+      provider.provide('workspaceRegistry', { archivedSessionIds: [] })
       provider.provide('sessions', { list: () => [] })
       provider.provide('agents', { get: id => id === 'main' ? parent : undefined })
       provider.provide('subagents', { getProvider: () => ({}), resolveMaxDepth: () => 4, interrupt() {}, startActivation: async value => {
         spec = value; return { childId: value.childId, result: new Promise(resolve => { settle = resolve }), dispose: async () => { disposed++; settle({ stopReason: 'aborted' }) } }
       } })
     })
-    const plugin = ctx.plugin({ inject, apply: scope => apply(scope, {}, { directory }) }); await plugin
+    const plugin = ctx.plugin({ inject, apply: scope => apply(scope, {}, { directory, runtime: scope.get('subagents') }) }); await plugin
     assert.equal((await call({ action: 'start', sessionId: 'main', id: 'p', requestId: 'denied' }, { denied: 'yes' })).code, 403)
     assert.equal(spec, undefined)
     assert.deepEqual((await call({ action: 'list' })).body.prompts, [])
@@ -38,7 +40,7 @@ test('authenticated API explicitly imports legacy shortcuts into one project, ad
     const started = await call({ action: 'start', sessionId: 'main', id, requestId: 'one' })
     assert.equal(started.code, 202); assert.equal(spec.request.parent, parent); assert.equal(spec.delivery, 'caller'); assert.equal(spec.request.prompt.at(-1).text, text)
     assert.equal((await call({ action: 'start', sessionId: 'main', id, requestId: 'one' })).body.run.id, started.body.run.id)
-    ctx.emit('session/event', { id: spec.childId }, { type: 'step/start', data: {} })
+    ctx.emit('session/event', { id: spec.childId, header: { origin: 'subagent' } }, { type: 'step/start', data: {} })
     assert.equal((await call({ action: 'runs' })).body.runs[0].steps, 1)
     ctx.emit('agent/assistant-stream', { agent: { session: { id: spec.childId } }, frame: { type: 'start', attemptId: 'live' } })
     ctx.emit('agent/assistant-stream', { agent: { session: { id: spec.childId } }, frame: { type: 'chunk', attemptId: 'live', index: 0, chunk: { type: 'text-delta', text: 'live token' } } })

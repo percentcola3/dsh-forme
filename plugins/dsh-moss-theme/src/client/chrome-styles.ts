@@ -31,6 +31,22 @@ body[data-moss-theme="on"] div[data-window-drag]:has([data-slot="sidebar.brand.n
 body[data-moss-theme="on"] div[data-window-drag]:has([data-slot="sidebar.brand.name"]) + button > span:first-child { mask-image:none; }
 body[data-moss-theme="on"] div[data-window-drag]:has([data-slot="sidebar.brand.name"]) + button > span:first-child > span { width:100%; justify-content:center; }
 body[data-moss-theme="on"] div[data-window-drag]:has([data-slot="sidebar.brand.name"]) + button > span[aria-hidden="true"] { position:absolute; right:12px; top:50%; transform:translateY(-50%); }
+/* The official right-panel expand button is only 28px wide; misses around it
+   start a window drag. Enlarge its hit area and keep its container clickable. */
+html[data-moss-window-carrier="electron"] body[data-moss-theme="on"] [data-conversation-header-corner] { -webkit-app-region:no-drag !important; app-region:no-drag !important; }
+html[data-moss-window-carrier="electron"] body[data-moss-theme="on"] [data-sidebar-right-expand] { min-width:40px !important; min-height:34px !important; margin:0 !important; }
+html[data-moss-window-carrier="electron"] body[data-moss-theme="on"] [data-sidebar-right-expand]::before { content:''; position:absolute; inset:-6px; }
+html[data-moss-window-carrier="electron"] body[data-moss-theme="on"] [data-sidebar-right-expand] { position:relative; }
+
+/* Panel chrome buttons (fullscreen / collapse) are 28px icons on a 28px strip;
+   give them the same comfortable hit area as the expand button. */
+body[data-moss-theme="on"] [data-dockkit-strip-chrome] { pointer-events:auto; }
+body[data-moss-theme="on"] [data-sidebar-right-toggle],
+body[data-moss-theme="on"] [data-sidebar-right-mode] { min-width:40px !important; min-height:34px !important; position:relative; }
+body[data-moss-theme="on"] [data-sidebar-right-toggle]::before,
+body[data-moss-theme="on"] [data-sidebar-right-mode]::before { content:''; position:absolute; inset:-6px; }
+body[data-moss-theme="on"] [data-dockkit-strip-chrome] { height:34px; align-items:center; }
+
 /* Keep the host's macOS traffic-light clearance above the sidebar identity. */
 html[data-platform="darwin"]:not([data-fullscreen]) body[data-moss-theme="on"] div[data-window-drag]:has(+ div[data-window-drag] [data-slot="sidebar.brand.name"]) { min-height:48px; }
 /* Hide the session breadcrumb, retaining mode/actions and the sidebar title. */

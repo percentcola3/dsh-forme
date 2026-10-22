@@ -1,10 +1,11 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { realpath } from 'node:fs/promises'
 import { isAbsolute, join } from 'node:path'
+import { gitDefaults, isGitWorktree } from './git-defaults.ts'
 import { PromptStore } from './prompt-store.ts'
 import type { Prompt } from './types.ts'
 export type Project = { id: string; cwd: string }
-type Record = { id: string; cwd: string; prompts: Prompt[]; importedLegacy?: boolean }
+type Record = { id: string; cwd: string; prompts: Prompt[]; importedLegacy?: boolean; initializedGitDefaults?: boolean }
 export async function projectOf(cwd: string | undefined): Promise<Project> {
   if (!cwd || !isAbsolute(cwd)) throw new Error('请先打开有项目目录的主会话。')
   const path = await realpath(cwd)
@@ -19,12 +20,24 @@ export class ProjectPrompts {
     this.legacy = new PromptStore(join(directory, 'quick-prompts.json'))
   }
   async list(project: Project) {
-    const records = await this.catalog.read()
-    return { prompts: records.find(item => item.id === project.id)?.prompts ?? [], legacyAvailable: !records.some(item => item.importedLegacy) && (await this.legacy.read()).length > 0 }
+    const git = await isGitWorktree(project.cwd)
+    let records = await this.catalog.read()
+    if (git && !records.find(item => item.id === project.id)?.initializedGitDefaults) {
+      records = await this.catalog.update(records => {
+        let record = records.find(item => item.id === project.id)
+        if (!record) { record = { ...project, prompts: [] }; records.push(record) }
+        if (!record.initializedGitDefaults) {
+          record.prompts.push(...gitDefaults())
+          record.initializedGitDefaults = true
+        }
+      })
+    }
+    return { prompts: (records.find(item => item.id === project.id)?.prompts ?? []).filter(prompt => !prompt.gitOnly || git), legacyAvailable: !records.some(item => item.importedLegacy) && (await this.legacy.read()).length > 0 }
   }
-  async change(project: Project, action: string, body: { id?: string; name?: unknown; text?: unknown }, validate: (value: typeof body) => Omit<Prompt, 'id'>) {
+  async change(project: Project, action: string, body: { id?: string; name?: unknown; text?: unknown; model?: unknown }, validate: (value: typeof body) => Omit<Prompt, 'id'>) {
+    await this.list(project)
     const legacy = action === 'import' ? (await this.legacy.read()).map(item => ({ id: randomUUID(), ...validate(item) })) : []
-    const records = await this.catalog.update(records => {
+    await this.catalog.update(records => {
       let record = records.find(item => item.id === project.id)
       if (!record) { record = { ...project, prompts: [] }; records.push(record) }
       const items = record.prompts
@@ -32,18 +45,21 @@ export class ProjectPrompts {
       if (action === 'import') {
         if (records.some(item => item.importedLegacy)) throw new Error('旧指令已导入其他项目。')
         if (!legacy.length) throw new Error('没有可导入的旧指令。')
-        if (items.length + legacy.length > 100) throw new Error('每个项目最多保存 100 条快捷任务。')
+        if (items.filter(item => !item.gitOnly).length + legacy.length > 100) throw new Error('每个项目最多保存 100 条快捷任务。')
         items.push(...legacy); record.importedLegacy = true
       } else if (action === 'save') {
         const value = validate(body)
         if (body.id && index < 0) throw new Error('快捷任务不属于当前项目或已删除，请刷新。')
-        if (index >= 0) items[index] = { id: body.id!, ...value }
-        else { if (items.length >= 100) throw new Error('每个项目最多保存 100 条快捷任务。'); items.push({ id: randomUUID(), ...value }) }
+        if (index >= 0) {
+          const { model: _previousModel, ...previous } = items[index]!
+          items[index] = { ...previous, ...value }
+        }
+        else { if (items.filter(item => !item.gitOnly).length >= 100) throw new Error('每个项目最多保存 100 条快捷任务。'); items.push({ id: randomUUID(), ...value }) }
       } else if (action === 'delete') {
         if (index < 0) throw new Error('快捷任务不属于当前项目或已删除。')
         items.splice(index, 1)
       } else throw new Error('未知操作。')
     })
-    return { prompts: records.find(item => item.id === project.id)!.prompts, legacyAvailable: !records.some(item => item.importedLegacy) && (await this.legacy.read()).length > 0 }
+    return this.list(project)
   }
 }

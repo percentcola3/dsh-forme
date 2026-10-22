@@ -7,6 +7,9 @@ import { ProjectPrompts, projectOf } from '../src/project-prompts.ts'
 import { validatePrompt, apply, inject } from '../src/index.ts'
 import { Context } from '@deepseek-ai/cordis'
 import { Readable } from 'node:stream'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+import { rename } from 'node:fs/promises'
 
 test('project configuration survives reload, aliases resolve identically and legacy import has one explicit owner', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'dsh-projects-'))
@@ -38,6 +41,8 @@ test('API scopes every action to the live session directory and refuses foreign 
     await ctx.plugin(provider => {
       provider.provide('connection', { requestRejection: () => undefined })
       provider.provide('webServer', { register: route => { handler = route.handler; return () => {} } })
+      provider.provide('sessionController', {})
+      provider.provide('workspaceRegistry', { archivedSessionIds: [] })
       provider.provide('sessions', { list: () => Object.values(parents).map(parent => parent.session) })
       provider.provide('agents', { get: id => parents[id] })
       provider.provide('subagents', { getProvider: () => ({}), resolveMaxDepth: () => 4, interrupt() {}, startActivation: async spec => {
@@ -46,7 +51,7 @@ test('API scopes every action to the live session directory and refuses foreign 
         return { childId: spec.childId, result: new Promise(resolve => { settle = resolve }), dispose: async () => settle({ stopReason: 'aborted' }) }
       } })
     })
-    await ctx.plugin({ inject, apply: scope => apply(scope, {}, { directory }) })
+    await ctx.plugin({ inject, apply: scope => apply(scope, {}, { directory, runtime: scope.get('subagents') }) })
     const call = async (sessionId, action, body = {}) => {
       const req = Readable.from([Buffer.from(JSON.stringify({ sessionId, action, ...body }))]); req.method = 'POST'; req.headers = { 'content-type': 'application/json' }
       let value; const res = { setHeader() {}, end(text) { value = JSON.parse(text) } }
@@ -66,5 +71,17 @@ test('API scopes every action to the live session directory and refuses foreign 
     for (const action of ['stop', 'close']) assert.equal((await call('A', action, { runId: other.run.id })).code, 400)
     assert.equal((await call('A', 'close', { runId: first.run.id })).runs.length, 1)
     assert.equal((await call('B', 'runs')).runs[0].id, other.run.id)
+    await promisify(execFile)('git', ['init', '-b', 'main'], { cwd: paths.A })
+    const defaults = (await call('A', 'list')).prompts.filter(prompt => prompt.gitOnly)
+    assert.equal(defaults.length, 2)
+    const gitRun = await call('A', 'start', { id: defaults[0].id, requestId: 'git-default' })
+    assert.equal(gitRun.code, 202)
+    assert.equal(admitted.at(-1).request.prompt.at(-1).text, defaults[0].text)
+    await rename(join(paths.A, '.git'), join(directory, 'saved-git'))
+    const admissionsBefore = admitted.length
+    assert.equal((await call('A', 'start', { id: defaults[1].id, requestId: 'no-longer-git', cwd: join(directory, 'saved-git') })).code, 400)
+    assert.equal(admitted.length, admissionsBefore)
+    assert.equal((await call('A', 'list')).prompts.some(prompt => prompt.gitOnly), false)
+
   } finally { await ctx.fiber.dispose(); await rm(directory, { recursive: true, force: true }) }
 })
