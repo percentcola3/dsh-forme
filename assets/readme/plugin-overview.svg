@@ -1,0 +1,121 @@
+<svg viewBox="0 0 893 791" role="img" lang="en" aria-labelledby="archify-diagram-title archify-diagram-description" xmlns="http://www.w3.org/2000/svg" width="893" height="791">
+  <title id="archify-diagram-title">Six plugins + 550W preset</title>
+  <desc id="archify-diagram-description">Six plugins and a separate 550W agent preset. Lines show feature containment, not runtime calls.</desc>
+  <rect width="893" height="791" rx="16" fill="#f4f7fb" />
+  <text x="32" y="35" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#17263c">Six plugins + 550W preset</text>
+  <path d="M 242 411.5 L 268 411.5 Q 278 411.5 278 401.5 L 278 112.5 Q 278 102.5 288 102.5 L 314 102.5" stroke-width="1.8" fill="none" stroke="#a6b3c5" stroke-linejoin="round" stroke-linecap="round" />
+  <path d="M 242 411.5 L 268 411.5 Q 278 411.5 278 401.5 L 278 215.5 Q 278 205.5 288 205.5 L 314 205.5" stroke-width="1.8" fill="none" stroke="#a6b3c5" stroke-linejoin="round" stroke-linecap="round" />
+  <path d="M 242 411.5 L 268 411.5 Q 278 411.5 278 401.5 L 278 318.5 Q 278 308.5 288 308.5 L 314 308.5" stroke-width="1.8" fill="none" stroke="#a6b3c5" stroke-linejoin="round" stroke-linecap="round" />
+  <path d="M 556 309 L 628 309" stroke-width="1.5" fill="none" stroke="#a6b3c5" stroke-linejoin="round" stroke-linecap="round" />
+  <path d="M 242 412 L 314 412" stroke-width="1.8" fill="none" stroke="#a6b3c5" stroke-linejoin="round" stroke-linecap="round" />
+  <path d="M 242 411.5 L 268 411.5 Q 278 411.5 278 421.5 L 278 504.5 Q 278 514.5 288 514.5 L 314 514.5" stroke-width="1.8" fill="none" stroke="#a6b3c5" stroke-linejoin="round" stroke-linecap="round" />
+  <path d="M 242 411.5 L 268 411.5 Q 278 411.5 278 421.5 L 278 607.5 Q 278 617.5 288 617.5 L 314 617.5" stroke-width="1.8" fill="none" stroke="#a6b3c5" stroke-linejoin="round" stroke-linecap="round" />
+  <path d="M 242 411.5 L 268 411.5 Q 278 411.5 278 421.5 L 278 710.5 Q 278 720.5 288 720.5 L 314 720.5" stroke-width="1.8" fill="none" stroke="#a6b3c5" stroke-linejoin="round" stroke-linecap="round" />
+  <g id="node-bundle">
+    <title>Plugin bundle · 6 plugins + 1 agent preset · Root</title>
+    <rect x="32" y="373" width="210" height="77" rx="10" fill="#27364b" stroke="#27364b" />
+    <rect x="32" y="373" width="210" height="77" rx="10" stroke-width="0" fill="#27364b" stroke="#27364b" />
+    <text x="137" font-size="14.5" font-weight="750" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif">
+      <tspan x="137" y="415.5">Plugin bundle</tspan>
+    </text>
+    <text x="137" font-size="11" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif">
+      <tspan x="137" y="434.5">6 plugins + 1 agent preset</tspan>
+    </text>
+  </g>
+  <g id="node-git">
+    <title>git-plus · Git status / diff / branches · Leaf</title>
+    <rect x="314" y="64" width="242" height="77" rx="10" fill="#ffffff" stroke="#16726b" />
+    <rect x="314" y="64" width="242" height="77" rx="10" stroke-width="1" fill="#ffffff" stroke="#16726b" />
+    <circle cx="314" cy="102.5" r="2.6" stroke-width="1.4" fill="#ffffff" stroke="#16726b" />
+    <text x="435" font-size="13" font-weight="560" text-anchor="middle" fill="#17263c" font-family="Arial, Helvetica, sans-serif">
+      <tspan x="435" y="106.5">git-plus</tspan>
+    </text>
+    <text x="435" font-size="11" text-anchor="middle" fill="#526179" font-family="Arial, Helvetica, sans-serif">
+      <tspan x="435" y="125.5">Git status / diff / branches</tspan>
+    </text>
+  </g>
+  <g id="node-files">
+    <title>file-preview · File tree / preview / references · Leaf</title>
+    <rect x="314" y="167" width="242" height="77" rx="10" fill="#ffffff" stroke="#5263ab" />
+    <rect x="314" y="167" width="242" height="77" rx="10" stroke-width="1" fill="#ffffff" stroke="#5263ab" />
+    <circle cx="314" cy="205.5" r="2.6" stroke-width="1.4" fill="#ffffff" stroke="#5263ab" />
+    <text x="435" font-size="13" font-weight="560" text-anchor="middle" fill="#17263c" font-family="Arial, Helvetica, sans-serif">
+      <tspan x="435" y="209.5">file-preview</tspan>
+    </text>
+    <text x="435" font-size="11" text-anchor="middle" fill="#526179" font-family="Arial, Helvetica, sans-serif">
+      <tspan x="435" y="228.5">File tree / preview / references</tspan>
+    </text>
+  </g>
+  <g id="node-tasks">
+    <title>quick-prompts · Headless task cards + push · Branch</title>
+    <rect x="314" y="270" width="242" height="77" rx="10" fill="#ffffff" stroke="#846024" />
+    <rect x="314" y="270" width="242" height="77" rx="10" stroke-width="1.2" fill="#ffffff" stroke="#846024" />
+    <circle cx="314" cy="308.5" r="2.6" stroke-width="1.4" fill="#ffffff" stroke="#846024" />
+    <text x="435" font-size="13" font-weight="700" text-anchor="middle" fill="#17263c" font-family="Arial, Helvetica, sans-serif">
+      <tspan x="435" y="312.5">quick-prompts</tspan>
+    </text>
+    <text x="435" font-size="11" text-anchor="middle" fill="#526179" font-family="Arial, Helvetica, sans-serif">
+      <tspan x="435" y="331.5">Headless task cards + push</tspan>
+    </text>
+  </g>
+  <g id="node-continuity">
+    <title>Conversation continuity · Drafts / recovery / titles · Leaf</title>
+    <rect x="628" y="270" width="221" height="77" rx="10" fill="#ffffff" stroke="#846024" />
+    <rect x="628" y="270" width="221" height="77" rx="10" stroke-width="1" fill="#ffffff" stroke="#846024" />
+    <circle cx="628" cy="308.5" r="2.6" stroke-width="1.4" fill="#ffffff" stroke="#846024" />
+    <text x="738.5" font-size="13" font-weight="560" text-anchor="middle" fill="#17263c" font-family="Arial, Helvetica, sans-serif">
+      <tspan x="738.5" y="312.5">Conversation continuity</tspan>
+    </text>
+    <text x="738.5" font-size="11" text-anchor="middle" fill="#526179" font-family="Arial, Helvetica, sans-serif">
+      <tspan x="738.5" y="331.5">Drafts / recovery / titles</tspan>
+    </text>
+  </g>
+  <g id="node-terminal">
+    <title>terminal · Native terminal card · Leaf</title>
+    <rect x="314" y="373" width="242" height="77" rx="10" fill="#ffffff" stroke="#266da0" />
+    <rect x="314" y="373" width="242" height="77" rx="10" stroke-width="1" fill="#ffffff" stroke="#266da0" />
+    <circle cx="314" cy="411.5" r="2.6" stroke-width="1.4" fill="#ffffff" stroke="#266da0" />
+    <text x="435" font-size="13" font-weight="560" text-anchor="middle" fill="#17263c" font-family="Arial, Helvetica, sans-serif">
+      <tspan x="435" y="415.5">terminal</tspan>
+    </text>
+    <text x="435" font-size="11" text-anchor="middle" fill="#526179" font-family="Arial, Helvetica, sans-serif">
+      <tspan x="435" y="434.5">Native terminal card</tspan>
+    </text>
+  </g>
+  <g id="node-alerts">
+    <title>desktop-notify · Native macOS planet alerts · Leaf</title>
+    <rect x="314" y="476" width="242" height="77" rx="10" fill="#ffffff" stroke="#a3445c" />
+    <rect x="314" y="476" width="242" height="77" rx="10" stroke-width="1" fill="#ffffff" stroke="#a3445c" />
+    <circle cx="314" cy="514.5" r="2.6" stroke-width="1.4" fill="#ffffff" stroke="#a3445c" />
+    <text x="435" font-size="13" font-weight="560" text-anchor="middle" fill="#17263c" font-family="Arial, Helvetica, sans-serif">
+      <tspan x="435" y="518.5">desktop-notify</tspan>
+    </text>
+    <text x="435" font-size="11" text-anchor="middle" fill="#526179" font-family="Arial, Helvetica, sans-serif">
+      <tspan x="435" y="537.5">Native macOS planet alerts</tspan>
+    </text>
+  </g>
+  <g id="node-theme">
+    <title>moss-theme · Appearance / live task state · Leaf</title>
+    <rect x="314" y="579" width="242" height="77" rx="10" fill="#ffffff" stroke="#5e6b82" />
+    <rect x="314" y="579" width="242" height="77" rx="10" stroke-width="1" fill="#ffffff" stroke="#5e6b82" />
+    <circle cx="314" cy="617.5" r="2.6" stroke-width="1.4" fill="#ffffff" stroke="#5e6b82" />
+    <text x="435" font-size="13" font-weight="560" text-anchor="middle" fill="#17263c" font-family="Arial, Helvetica, sans-serif">
+      <tspan x="435" y="621.5">moss-theme</tspan>
+    </text>
+    <text x="435" font-size="11" text-anchor="middle" fill="#526179" font-family="Arial, Helvetica, sans-serif">
+      <tspan x="435" y="640.5">Appearance / live task state</tspan>
+    </text>
+  </g>
+  <g id="node-preset">
+    <title>550W preset · Style / tool guidance · Leaf</title>
+    <rect x="314" y="682" width="242" height="77" rx="10" fill="#ffffff" stroke="#16726b" />
+    <rect x="314" y="682" width="242" height="77" rx="10" stroke-width="1" fill="#ffffff" stroke="#16726b" />
+    <circle cx="314" cy="720.5" r="2.6" stroke-width="1.4" fill="#ffffff" stroke="#16726b" />
+    <text x="435" font-size="13" font-weight="560" text-anchor="middle" fill="#17263c" font-family="Arial, Helvetica, sans-serif">
+      <tspan x="435" y="724.5">550W preset</tspan>
+    </text>
+    <text x="435" font-size="11" text-anchor="middle" fill="#526179" font-family="Arial, Helvetica, sans-serif">
+      <tspan x="435" y="743.5">Style / tool guidance</tspan>
+    </text>
+  </g>
+</svg>

@@ -1,4 +1,4 @@
-# The dsh-forme meta-bundle patch: one insert layer whose rows are the five
+# The dsh-forme meta-bundle patch: one insert layer whose rows are the six
 # plugin packages carried by this repository, plus the 550W agent preset. Row ids and configs match each
 # plugin's own cordis.patch.yml, so installing this bundle alone or the plugins
 # individually composes to the same tree.

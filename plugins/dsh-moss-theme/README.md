@@ -86,13 +86,9 @@ python3 -m http.server 4178 --bind 127.0.0.1 --directory .build/moss-preview
 
 ## 界面
 
-550W 字标与地球首页（早期模拟宿主，图中独立顶栏已移除）：
+550W 主题与预设功能示意（程序绘制，非截图；内容均为虚构示例）：
 
-![550W interface](../../assets/550w-blue-interface.png)
-
-启动预览（与宿主启动页共用字标和动画）：
-
-![550W startup](../../assets/550w-startup.png)
+![550W theme and preset illustration](../../assets/readme/theme.svg)
 
 已在本机 macOS 官方桌面端确认冷启动时显示 550W、侧栏标识完整，以及顶部拖动与原生窗口缩放/最小化操作。Tauri 外壳源码和构建权限同步更新，本轮未重新打包该历史外壳。开发预览提供「启动预览」「文字演示」「细节预览」和模拟状态切换。
 

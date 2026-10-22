@@ -1,15 +1,25 @@
 # dsh-forme plugins
 
-The current bundle contains five independently installable DSH Web UI plugins:
+The bundle contains **six plugins and the 550W agent preset**.
 
 | Package | Purpose |
 | --- | --- |
-| [dsh-git-plus](dsh-git-plus) | Git status, side-by-side diffs, branch selection, and commit-message generation. |
-| [dsh-file-preview](dsh-file-preview) | Native file tree and previews, with file and code-selection references. |
-| [dsh-moss-theme](dsh-moss-theme) | Wandering Earth console theme, 550W status light, live session status, and optional conversation-style prompt. |
-| [dsh-quick-prompts](dsh-quick-prompts) | Saved chat prompts, independent agents, and shell commands. |
-| [dsh-desktop-notify](dsh-desktop-notify) | Native macOS alerts for background task completion, approvals, and questions; configurable placement. |
+| [dsh-git-plus](dsh-git-plus/README.md) | Git status, side-by-side diffs, repository discovery, and branch selection. |
+| [dsh-file-preview](dsh-file-preview/README.md) | Native file tree and previews, with file and code-selection references. |
+| [dsh-quick-prompts](dsh-quick-prompts/README.md) | Project shortcuts, headless task cards with follow-up input, commit-and-push, draft reuse, restart continuation, and automatic titles. |
+| [dsh-terminal](dsh-terminal/README.md) | Native terminal cards through the Quick Prompts bar, with interrupt, close, and transfer to the official sidebar. |
+| [dsh-desktop-notify](dsh-desktop-notify/README.md) | Native macOS Jupiter alerts for completion, errors, approvals, and questions. |
+| [dsh-moss-theme](dsh-moss-theme/README.md) | 550W appearance, live task-state visuals, and an independently selected agent preset. |
 
-See the [installation and usage guide](../README.md) or [中文使用说明](../README.zh-CN.md).
+See the illustrated [English guide](../README.md) or [中文使用说明](../README.zh-CN.md) for installation and features. All guide illustrations use fictional data; none are screenshots.
 
-From this directory, run `pnpm install --frozen-lockfile --ignore-scripts`, then `pnpm -r run build`. The explicit workspace list includes only these five plugins. Other historical or local experimental directories are not installed by the bundle.
+From this directory:
+
+```sh
+pnpm install --frozen-lockfile --ignore-scripts
+pnpm -r run test
+pnpm -r exec tsc --noEmit
+pnpm -r run build
+```
+
+The workspace includes the six packages above. The historical desktop wrapper is not required by the official-app installation.
