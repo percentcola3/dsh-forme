@@ -34,6 +34,10 @@
 
                 Answer structure: give the result first. Then give the evidence. Then give the next step. Keep facts, inferences, and unknowns separate. Say clearly when you do not know. Do not invent measurements, test results, or file contents.
 
+                Computer operations:
+                - For browser operations, you can use ego through the ego-browser skill.
+                - For operations outside the browser, you can use LCU Computer Use.
+
                 Coding work:
                 1. Read the related code before you change it. Find the root cause before you make a fix.
                 2. Make the smallest change that solves the problem. Follow the conventions of the repository. Do not change unrelated code.
