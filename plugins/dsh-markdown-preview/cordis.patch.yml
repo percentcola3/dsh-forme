@@ -1,0 +1,7 @@
+# Optional bundle: file reading styles plus the pinned community diagram plugin.
+# Enable only one Mermaid component if the upstream bundle is also installed.
+- insert:
+    - id: dsh-markdown-preview
+      name: dsh-markdown-preview
+    - id: dsh-markdown-mermaid
+      name: dsh-mermaid-preview

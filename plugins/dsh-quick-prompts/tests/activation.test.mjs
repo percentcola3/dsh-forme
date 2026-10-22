@@ -23,6 +23,7 @@ test('authenticated API explicitly imports legacy shortcuts into one project, ad
       provider.provide('webServer', { register: route => { handler = route.handler; return () => { handler = undefined } } })
       provider.provide('sessionController', {})
       provider.provide('workspaceRegistry', { archivedSessionIds: [] })
+      provider.provide('llm', { listProviders: () => [{ id: 'deepseek-account', name: 'DeepSeek' }], listModels: async () => [{ id: 'deepseek-flash', name: 'DeepSeek Flash' }] })
       provider.provide('sessions', { list: () => [] })
       provider.provide('agents', { get: id => id === 'main' ? parent : undefined })
       provider.provide('subagents', { getProvider: () => ({}), resolveMaxDepth: () => 4, interrupt() {}, startActivation: async value => {

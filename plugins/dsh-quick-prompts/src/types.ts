@@ -1,6 +1,6 @@
 export type ModelSelection = { provider: string; model: string }
 export type ModelChoice = ModelSelection & { label: string; providerLabel?: string }
-export type Prompt = { id: string; name: string; text: string; gitOnly?: boolean; model?: ModelSelection }
+export type Prompt = { id: string; name: string; text: string; gitOnly?: boolean; model?: ModelSelection | null }
 export type RunStatus = 'starting' | 'running' | 'waiting' | 'stopping' | 'completed' | 'stopped' | 'failed'
 export type ChatMessage = { id: string; role: 'user' | 'assistant'; text: string }
 export type TaskRun = {

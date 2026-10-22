@@ -5,7 +5,7 @@ import { installRecovery } from './recovery.ts'
 import { installAutoTitles } from './auto-title.ts'
 import { TaskManager, type Parent, type Runtime } from './task-manager.ts'
 import { HeadlessRuntime, type HeadlessAgents } from './headless-runtime.ts'
-import { modelCatalog, requireAvailableModel, validateModel, type ModelRegistry } from './models.ts'
+import { modelCatalog, resolveTaskModel, validateModel, type ModelRegistry } from './models.ts'
 import type { AssistantFrame } from './live-output.ts'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
@@ -15,7 +15,7 @@ export function validatePrompt(value: { name?: unknown; text?: unknown; model?: 
   if (typeof value.name !== 'string' || !value.name.trim() || value.name.length > 100) throw new Error('名称不能为空，且不能超过 100 字。')
   if (typeof value.text !== 'string' || !value.text.trim() || value.text.length > 32000 || value.text.includes('\0')) throw new Error('任务内容不能为空，且不能超过 32,000 字。')
   const model = validateModel(value.model)
-  return { name: value.name.trim(), text: value.text, ...model ? { model } : {} }
+  return { name: value.name.trim(), text: value.text, ...model !== undefined ? { model } : {} }
 }
 export function apply(ctx: Context, _config: unknown = {}, internals: { directory?: string; runtime?: Runtime } = {}): void {
   const recovery = installRecovery(ctx, internals.directory ?? join(homedir(), '.dsh'))
@@ -53,8 +53,8 @@ export function apply(ctx: Context, _config: unknown = {}, internals: { director
         const prompt = (await store.list(project)).prompts.find(item => item.id === body.id)
         if (!prompt) throw new Error('快捷任务不属于当前项目或已删除，请刷新。')
         if (!parent) throw new Error('主会话尚未就绪，请先打开会话，连接就绪后重试。')
-        await requireAvailableModel(ctx.get('llm') as ModelRegistry | undefined, prompt.model)
-        send(res, 202, { ...scope, run: manager.start(parent, prompt, body.requestId, project) }); return
+        const model = await resolveTaskModel(ctx.get('llm') as ModelRegistry | undefined, prompt.model)
+        send(res, 202, { ...scope, run: manager.start(parent, { ...prompt, model }, body.requestId, project) }); return
       }
       if (body.action === 'reply') {
         const run = await manager.reply(body.runId, project.id, body.text, body.requestId)

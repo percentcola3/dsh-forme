@@ -9,10 +9,11 @@
 - insert:
     - id: preset-moss
       name: '@deepseek-ai/dsh-agent-preset'
+      disabled: true
       config:
         id: moss
         name: 550W
-        description: 550W 编码助手。标准工具组合，ASD-STE100 简明技术英语表达，先结论后依据，如实报告验证结果。
+        description: 550W 编码助手。默认禁用；启用前请自行安装并配置 ego（ego-browser）和 LCU Computer Use，确认 DSH 可调用。ASD-STE100 简明表达，如实报告验证结果。
         order: 0
         plugins:
           - id: persona

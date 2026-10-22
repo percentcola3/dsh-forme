@@ -116,8 +116,9 @@ export function createTasks(request: typeof taskRequest = taskRequest, now: () =
       if (!Array.isArray(value.models)) throw new Error('模型列表暂不可用，请重新加载插件后重试。')
       return value.models
     },
-    async save(action: 'save' | 'delete' | 'import', draft: Record<string, unknown> = {}) {
+    async save(action: 'save' | 'delete' | 'import', draft: Record<string, unknown> = {}, origin?: { sessionId: string; projectId: string }) {
       if (!current.ready) throw new Error('项目尚未就绪，请稍后重试。')
+      if (origin && (origin.sessionId !== current.sessionId || origin.projectId !== current.projectId)) throw new Error('项目已切换，请返回原项目或重新打开快捷任务。')
       const generation = epoch, projectId = current.projectId
       const revision = ++catalogRevision
       const value = await request(action, { ...draft, ...scope() })

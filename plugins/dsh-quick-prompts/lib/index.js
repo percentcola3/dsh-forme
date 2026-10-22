@@ -705,7 +705,7 @@ var LiveOutput = class {
 //#endregion
 //#region src/models.ts
 function validateModel(value) {
-	if (value === void 0) return void 0;
+	if (value === void 0 || value === null) return value;
 	if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("任务模型选择无效，请重新选择模型或跟随主会话。");
 	const { provider, model } = value;
 	if ([provider, model].some((part) => typeof part !== "string" || !part.trim() || part.length > 500 || /[\u0000-\u001f\u007f]/.test(part))) throw new Error("任务模型选择无效，请重新选择模型或跟随主会话。");
@@ -728,6 +728,34 @@ async function modelCatalog(registry) {
 			return [];
 		}
 	}))).flat();
+}
+async function resolveTaskModel(registry, value) {
+	const selection = validateModel(value);
+	if (selection === null) return void 0;
+	if (selection !== void 0) {
+		await requireAvailableModel(registry, selection);
+		return selection;
+	}
+	const identity = (text) => text.toLowerCase().replace(/[^a-z0-9]/g, "");
+	const choices = (await modelCatalog(registry)).filter((choice) => {
+		const modelIdentities = [choice.model, choice.label].map(identity);
+		const deepseekModel = modelIdentities.some((model) => model.includes("deepseek") && model.includes("flash"));
+		const provider = identity(`${choice.provider} ${choice.providerLabel ?? ""}`);
+		const shortFlash = modelIdentities.some((model) => /^(?:v\d+)?flash$/.test(model));
+		return !modelIdentities.some((model) => model.includes("glm")) && (deepseekModel || provider.includes("deepseek") && shortFlash);
+	});
+	choices.sort((a, b) => {
+		const official = (choice) => choice.provider.toLowerCase() === "deepseek-account" ? 0 : choice.provider.toLowerCase() === "deepseek" ? 1 : 2;
+		const rank = official(a) - official(b);
+		const aKey = JSON.stringify([a.provider, a.model]), bKey = JSON.stringify([b.provider, b.model]);
+		return rank || (aKey < bKey ? -1 : aKey > bKey ? 1 : 0);
+	});
+	const choice = choices[0];
+	if (!choice) throw new Error("默认 DeepSeek Flash 模型当前不可用，请先配置 DeepSeek Flash，或在任务编辑器选择其他模型或跟随当前会话。");
+	return {
+		provider: choice.provider,
+		model: choice.model
+	};
 }
 async function requireAvailableModel(registry, value) {
 	const selection = validateModel(value);
@@ -1255,7 +1283,7 @@ function validatePrompt(value) {
 	return {
 		name: value.name.trim(),
 		text: value.text,
-		...model ? { model } : {}
+		...model !== void 0 ? { model } : {}
 	};
 }
 function apply(ctx, _config = {}, internals = {}) {
@@ -1352,10 +1380,13 @@ function apply(ctx, _config = {}, internals = {}) {
 					const prompt = (await store.list(project)).prompts.find((item) => item.id === body.id);
 					if (!prompt) throw new Error("快捷任务不属于当前项目或已删除，请刷新。");
 					if (!parent) throw new Error("主会话尚未就绪，请先打开会话，连接就绪后重试。");
-					await requireAvailableModel(ctx.get("llm"), prompt.model);
+					const model = await resolveTaskModel(ctx.get("llm"), prompt.model);
 					send(res, 202, {
 						...scope,
-						run: manager.start(parent, prompt, body.requestId, project)
+						run: manager.start(parent, {
+							...prompt,
+							model
+						}, body.requestId, project)
 					});
 					return;
 				}

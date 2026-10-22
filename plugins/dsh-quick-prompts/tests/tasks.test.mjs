@@ -292,6 +292,30 @@ test('late catalog response cannot undo prompt edits or restore a different sess
   }
 })
 
+test('editor origin blocks stale new, edit, and delete drafts after project or conversation switches', async () => {
+  for (const switchSession of [false, true]) {
+    let project = 'A', now = 0
+    const writes = []
+    const tasks = createTasks(async (action, body) => {
+      if (action === 'list') return { projectId: project, cwd: '/code/' + project, prompts: [] }
+      if (action === 'runs') return { projectId: project, runs: [] }
+      writes.push({ action, body }); return { projectId: project, prompts: [] }
+    }, () => now)
+    await tasks.select('main')
+    const origin = { sessionId: 'main', projectId: 'A' }
+    project = 'B'; now = 15_000
+    if (switchSession) await tasks.select('other')
+    else await tasks.refresh()
+    for (const [action, draft] of [['save', { name: 'new', text: 'A-only' }], ['save', { id: 'old', name: 'edited', text: 'A-only' }], ['delete', { id: 'old' }]]) {
+      await assert.rejects(tasks.save(action, draft, origin), /项目已切换/)
+    }
+    assert.equal(writes.length, 0)
+    await tasks.save('save', { name: 'B-new', text: 'B-only' }, { sessionId: switchSession ? 'other' : 'main', projectId: 'B' })
+    assert.equal(writes.length, 1)
+    assert.equal(writes[0].body.projectId, 'B')
+  }
+})
+
 test('same-session cwd changes invalidate pending mutations and clear old task cards', async () => {
   let now = 0, project = 'A'
   const late = deferred()

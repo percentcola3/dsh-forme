@@ -12,7 +12,7 @@ import { installDraftNavigation } from './draft-memory.ts'
 import { ConversationCard } from './conversation-card.ts'
 export const inject = ['slots', 'uiWorkspace', 'sidebarRight', 'webTerminals', 'sessions', 'workspaces']
 const h = React.createElement
-type Draft = Omit<Prompt, 'id'> & { id?: string }
+type Draft = Omit<Prompt, 'id'> & { id?: string; origin: { sessionId: string; projectId: string; cwd: string } }
 export function apply(ctx: Context): void {
   const tasks = createTasks()
   ctx.effect(() => installDraftNavigation(
@@ -65,11 +65,17 @@ export function QuickPrompts({ ctx, tasks, sessionId }: { ctx: Context; tasks: T
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape' && !submitting.current) { setDraft(null); setError(''); trigger.current?.focus() } }
     document.addEventListener('keydown', onKey); return () => document.removeEventListener('keydown', onKey)
   }, [!!draft])
-  const open = (event: React.MouseEvent<HTMLButtonElement>, item?: Prompt) => { trigger.current = event.currentTarget; setError(''); setDraft(item ? { ...item } : { name: '', text: '' }) }
+  const open = (event: React.MouseEvent<HTMLButtonElement>, item?: Prompt) => {
+    if (!sessionId || !selected || !state.ready || currentSessionId(ctx) !== sessionId) return
+    trigger.current = event.currentTarget; setError('')
+    setDraft({ ...(item ?? { name: '', text: '' }), origin: { sessionId, projectId: state.projectId, cwd: state.cwd } })
+  }
+  const draftSelected = !!draft && selected && state.ready && draft.origin.sessionId === state.sessionId && draft.origin.projectId === state.projectId
   const save = async (action: 'save' | 'delete') => {
     if (!draft || submitting.current) return
+    if (!draftSelected || currentSessionId(ctx) !== draft.origin.sessionId) { setError('项目已切换，请返回原项目或重新打开快捷任务。'); return }
     submitting.current = true; setSaving(true); setError('')
-    try { await tasks.save(action, draft); setDraft(null); trigger.current?.focus() }
+    try { const { origin, ...value } = draft; await tasks.save(action, value, origin); setDraft(null); trigger.current?.focus() }
     catch (error) { setError(error instanceof Error ? error.message : String(error)) }
     finally { submitting.current = false; setSaving(false) }
   }
@@ -87,11 +93,12 @@ export function QuickPrompts({ ctx, tasks, sessionId }: { ctx: Context; tasks: T
     } }, h('h3', null, draft.id ? '编辑快捷任务' : '新增快捷任务'),
       h('small', null, '独立快捷对话 · 主对话继续运行'),
       h('label', null, '名称', h('input', { ref: nameInput, value: draft.name, maxLength: 100, disabled: saving, placeholder: '例如：检查代码', onChange: (event: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, name: event.target.value }) }), h('small', null, '按钮最多显示 5 个字，悬停查看全名。')),
-      h(TaskModelPicker, { key: `${sessionId}:${state.projectId}`, tasks, value: draft.model, disabled: saving, onChange: model => setDraft({ ...draft, model }) }),
+      h(TaskModelPicker, { key: `${draft.origin.sessionId}:${draft.origin.projectId}`, tasks, value: draft.model, disabled: saving || !draftSelected, onChange: model => setDraft({ ...draft, model }) }),
       h('label', null, '任务内容', h('textarea', { value: draft.text, maxLength: 32000, disabled: saving, placeholder: '描述要在独立对话中执行的任务，也可以填写需要 AI 执行的命令…', onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => setDraft({ ...draft, text: event.target.value }) })),
-      h('small', null, `使用当前项目目录：${state.cwd}。各任务独立运行，主对话可继续使用。`),
+      h('small', null, `编辑项目：${draft.origin.cwd}。同一项目的会话共用指令，其他项目使用各自副本。`),
+      !draftSelected && h('p', { role: 'alert' }, '项目已切换，请返回原项目继续编辑，或取消后重新打开。'),
       error && h('p', { role: 'alert' }, error),
-      h('footer', null, draft.id && h('button', { type: 'button', className: 'dqp-delete', disabled: saving, onClick: () => { void save('delete') } }, '删除'), h('button', { type: 'button', disabled: saving, onClick: close }, '取消'), h('button', { type: 'submit', className: 'dqp-save', disabled: saving || !draft.name.trim() || !draft.text.trim() }, saving ? '保存中…' : '保存')))), document.body) : null
+      h('footer', null, draft.id && h('button', { type: 'button', className: 'dqp-delete', disabled: saving || !draftSelected, onClick: () => { void save('delete') } }, '删除'), h('button', { type: 'button', disabled: saving, onClick: close }, '取消'), h('button', { type: 'submit', className: 'dqp-save', disabled: saving || !draftSelected || !draft.name.trim() || !draft.text.trim() }, saving ? '保存中…' : '保存')))), document.body) : null
   const running = selected ? sessionRuns(state.runs, state.sessionId, state.projectId).filter(run => active(run.status)).length : 0
   const recoveryNotice = state.recovery?.state === 'reserved' || state.recovery?.state === 'failed'
     ? '上次任务的自动续接未能确认。请检查本对话记录后发送「继续」；系统不会自动重复提交。' : ''
@@ -110,7 +117,7 @@ export function QuickPrompts({ ctx, tasks, sessionId }: { ctx: Context; tasks: T
         h('span', { className: 'dqp-task-chip', key: item.id },
           h('button', {
             type: 'button', disabled: !selected || !state.ready || !sessionId || tasks.busy(sessionId, item.id),
-            title: `${item.name} · 独立快捷对话\n${item.model ? `${item.model.provider} / ${item.model.model}` : '跟随当前会话模型'}\n点击执行 · 右键编辑`,
+            title: `${item.name} · 独立快捷对话\n${item.model ? `${item.model.provider} / ${item.model.model}` : item.model === null ? '跟随当前会话模型' : '默认 DeepSeek Flash'}\n点击执行 · 右键编辑`,
             onClick: () => start(item),
             onContextMenu: (event: React.MouseEvent<HTMLButtonElement>) => { event.preventDefault(); open(event, item) },
           }, shortName(item.name)),

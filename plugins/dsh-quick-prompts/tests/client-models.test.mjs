@@ -36,7 +36,7 @@ test('malformed or stale model catalog responses surface errors', async () => {
   response = { projectId: 'other', models: [choice] }
   await assert.rejects(tasks.models(), /项目已切换/)
 })
-test('saving a task forwards the fixed route, and resetting omits it from JSON', async () => {
+test('saving forwards fixed and follow modes, while default Flash omits model from JSON', async () => {
   const saved = []
   const tasks = createTasks(async (action, body) => {
     if (action === 'save') saved.push(JSON.parse(JSON.stringify(body)))
@@ -46,6 +46,8 @@ test('saving a task forwards the fixed route, and resetting omits it from JSON',
   const draft = { id: 'task', name: '检查', text: '检查项目', model: { provider: choice.provider, model: choice.model } }
   await tasks.save('save', draft)
   await tasks.save('save', { ...draft, model: undefined })
+  await tasks.save('save', { ...draft, model: null })
+  assert.equal(saved[2].model, null)
   assert.deepEqual(saved[0].model, draft.model)
   assert.equal('model' in saved[1], false)
 })
@@ -57,4 +59,15 @@ test('saved model remains selected during initial catalog loading', () => {
   assert.match(html, /正在核对/)
   assert.match(html, /selected=""/)
   assert.notEqual(modelKey({ provider: 'a:b', model: 'c' }), modelKey({ provider: 'a', model: 'b:c' }))
+})
+
+test('picker distinguishes default Flash from explicit conversation inheritance', () => {
+  assert.notEqual(modelKey(undefined), modelKey(null))
+  assert.notEqual(modelKey(null), modelKey(choice))
+  const render = value => renderToStaticMarkup(React.createElement(TaskModelPicker, { tasks: { models: async () => [] }, value, disabled: false, onChange() {} }))
+  const defaultHtml = render(undefined), followHtml = render(null)
+  assert.match(defaultHtml, /value="" selected="">默认 DeepSeek Flash/)
+  assert.match(defaultHtml, /不可用时停止启动/)
+  assert.match(followHtml, /value="follow" selected="">跟随当前会话模型/)
+  assert.match(followHtml, /以后切换会话模型时自动跟随/)
 })

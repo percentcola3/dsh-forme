@@ -1,6 +1,7 @@
 packages:
   - dsh-git-plus
   - dsh-file-preview
+  - dsh-markdown-preview
   - dsh-quick-prompts
   - dsh-moss-theme
   - dsh-desktop-notify

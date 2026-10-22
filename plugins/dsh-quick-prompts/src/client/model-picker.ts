@@ -2,10 +2,10 @@ import React from 'react'
 import type { ModelChoice, ModelSelection } from '../types.ts'
 import type { TaskStore } from './tasks.ts'
 const h = React.createElement
-export const modelKey = (value?: ModelSelection) => value ? JSON.stringify([value.provider, value.model]) : ''
+export const modelKey = (value?: ModelSelection | null) => value === undefined ? '' : value === null ? 'follow' : JSON.stringify([value.provider, value.model])
 
 export function TaskModelPicker({ tasks, value, disabled, onChange }: {
-  tasks: TaskStore; value?: ModelSelection; disabled: boolean; onChange(value: ModelSelection | undefined): void
+  tasks: TaskStore; value?: ModelSelection | null; disabled: boolean; onChange(value: ModelSelection | null | undefined): void
 }): React.ReactElement {
   const [models, setModels] = React.useState<ModelChoice[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -28,14 +28,15 @@ export function TaskModelPicker({ tasks, value, disabled, onChange }: {
       value: selected, disabled, 'aria-busy': loading,
       onChange: (event: React.ChangeEvent<HTMLSelectElement>) => {
         if (!event.target.value) { onChange(undefined); return }
+        if (event.target.value === 'follow') { onChange(null); return }
         const choice = models.find(item => modelKey(item) === event.target.value)
         if (choice) onChange({ provider: choice.provider, model: choice.model })
       },
-    }, h('option', { value: '' }, '跟随当前会话模型'),
+    }, h('option', { value: '' }, '默认 DeepSeek Flash'), h('option', { value: 'follow' }, '跟随当前会话模型'),
     missing && h('option', { value: selected, disabled: true }, `${value!.provider} / ${value!.model}（${loading ? '正在核对' : error ? '暂无法核对' : '当前不可用'}）`),
     ...[...groups].map(([provider, entries]) => h('optgroup', { key: provider, label: entries[0].providerLabel || provider },
       ...entries.map(item => h('option', { key: modelKey(item), value: modelKey(item) }, item.label === item.model ? item.label : `${item.label} · ${item.model}`)))))),
-    h('small', null, value ? '此快捷任务固定使用所选模型，主对话的模型不变。' : '执行时使用当前会话的模型；以后切换会话模型时自动跟随。'),
+    h('small', null, value === undefined ? '默认使用已配置的 DeepSeek Flash；不可用时停止启动，不会跟随主对话模型。' : value === null ? '执行时使用当前会话的模型；以后切换会话模型时自动跟随。' : '此快捷任务固定使用所选模型，主对话的模型不变。'),
     loading && h('small', { role: 'status' }, '正在加载可用模型…'),
     error && h('div', { className: 'dqp-model-message', role: 'alert' }, `模型列表加载失败：${error}`, h('button', { type: 'button', disabled, onClick: () => retry() }, '重试')),
     !loading && !error && !models.length && h('small', null, '没有可选模型，请先在 DSH 中配置模型提供方。'),

@@ -24,6 +24,7 @@ export const styles = `
   --dsh-chat-content-width:min(var(--dsh-chat-user-width,920px),calc(100% - 48px));
   --dsh-composer-card-max-width:calc(var(--dsh-chat-content-width) + 32px);
 }
+[data-conversation-content]:not([data-dqp-layout=stacked]):has(> .dqp-dock-seat > .dqp-dock:not([hidden]) .dqp-terminal-card){grid-template-columns:minmax(0,1fr) clamp(340px,34%,460px)}
 [data-conversation-content]:has(> .dqp-dock-seat > .dqp-dock:not([hidden]))>[data-conversation-scroll]{grid-column:1;grid-row:1;min-width:0;overflow-x:hidden}
 [data-conversation-content]:has(> .dqp-dock-seat > .dqp-dock:not([hidden]))>[data-width-handle]{display:none}
 .dqp-dock-seat:has(> .dqp-dock:not([hidden])){
@@ -67,6 +68,12 @@ export const styles = `
 .dqp-terminal-overlay{border-radius:8px 8px 0 0}
 .dqp-terminal-body:has(.dqp-terminal-return){border:1px solid var(--dsw-alias-border-l3,#a1b7cc22);background:color-mix(in srgb,var(--dsw-alias-bg-base,#101c29) 93%,#9ab9d1 7%)}
 [data-dqp-official-terminal]{position:fixed!important;left:var(--dqp-terminal-left)!important;top:var(--dqp-terminal-top)!important;width:var(--dqp-terminal-width)!important;height:var(--dqp-terminal-height)!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;transform:none!important;clip-path:var(--dqp-terminal-clip);visibility:var(--dqp-terminal-visibility)!important;z-index:70!important}
+/* The native pane sits inside the card's 1px border: 9px outer, 8px inner. */
+[data-dqp-official-terminal]{border:0!important;border-radius:8px!important;corner-shape:round;box-shadow:none!important;overflow:hidden!important}
+[data-dqp-official-terminal] [data-dockkit-float-grip]{box-sizing:border-box;height:30px!important;min-height:0!important;padding:0 7px!important;gap:4px;align-items:center}
+[data-dqp-official-terminal] [data-dockkit-float-title]{height:24px;min-height:0;padding:0 4px;font-size:12px;line-height:24px}
+[data-dqp-official-terminal] :is([data-dockkit-float-dock],[data-dockkit-float-close]){box-sizing:border-box;width:24px;height:24px;min-height:0;padding:3px}
+[data-dqp-official-terminal] [data-dockkit-float-grip] svg{width:14px;height:14px}
 .dqp-terminal-error{margin:6px 0 0;color:#ef9398;font-size:11px;display:flex;align-items:center;gap:8px}
 .dqp-terminal-error button{appearance:none;border:1px solid #ef939855;border-radius:5px;background:transparent;color:inherit;font:inherit;font-size:11px;padding:2px 8px;cursor:pointer}
 /* Lightweight conversations: plain text, scoped scrolling, small local composer. */

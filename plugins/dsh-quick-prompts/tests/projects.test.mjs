@@ -45,6 +45,7 @@ test('API scopes every action to the live session directory and refuses foreign 
       provider.provide('workspaceRegistry', { archivedSessionIds: [] })
       provider.provide('sessions', { list: () => Object.values(parents).map(parent => parent.session) })
       provider.provide('agents', { get: id => parents[id] })
+      provider.provide('llm', { listProviders: () => [{ id: 'deepseek-account', name: 'DeepSeek' }], listModels: async () => [{ id: 'deepseek-flash', name: 'DeepSeek Flash' }] })
       provider.provide('subagents', { getProvider: () => ({}), resolveMaxDepth: () => 4, interrupt() {}, startActivation: async spec => {
         admitted.push(spec)
         let settle

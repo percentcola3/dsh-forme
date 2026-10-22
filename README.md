@@ -24,6 +24,8 @@ Inspect Git changes, browse files, run small tasks, use a terminal, and receive 
 
 The theme and agent preset are separate. The theme does not change a session's identity or system prompt.
 
+**Optional extension:** [dsh-markdown-preview](plugins/dsh-markdown-preview/README.md) adds Markdown file colors and uses the community Mermaid plugin for diagrams. Install it separately; the default six-plugin bundle does not include it.
+
 ## Install
 
 ### Recommended: local checkout on official macOS Desktop
@@ -41,7 +43,9 @@ The installer uses the app's bundled pnpm and CLI. It builds all six plugins and
 1. Quit and reopen DSH.
 2. Open **Plugins** and check the six plugin components under `dsh-forme`.
 3. Select or create a conversation with a working directory.
-4. Select **550W** in the native preset selector if you want its agent instructions.
+4. The **550W preset is disabled by default**. Install and configure ego (`ego-browser`) and LCU Computer Use first.
+5. Confirm that DSH can use both tools.
+6. Enable `preset-moss` in **Plugins**, then select **550W** in the native Agent preset selector.
 
 Keep the checkout in place. This is a linked installation. The plugin manager also lists the 550W preset, for seven bundle components in total.
 
@@ -115,7 +119,7 @@ References preserve valid paths and add line context when available. They do not
 
 ![Illustration of a main conversation beside a separate task card](assets/readme/tasks.svg)
 
-Click **+** above the composer to save a name and instruction. Click a shortcut to run it. Use the pencil or right-click to edit it. Each shortcut can select a fixed model or follow the main session's model at launch.
+Click **+** above the composer to save a name and instruction. Click a shortcut to run it. Use the pencil or right-click to edit it. Shortcuts default to **DeepSeek Flash**. Each shortcut can select another fixed model or explicitly follow the main session's model. Each project keeps its own instruction copies; conversations in the same directory share those copies.
 
 - Each task has its own headless Agent and project directory, without copied main-session history.
 - Cards show user messages and public AI text, with follow-up input in the same task context.
@@ -176,7 +180,7 @@ The **550W preset** uses the standard tool composition with these instructions:
 - For browser operations, use the `ego-browser` skill when available.
 - For other computer operations, use LCU Computer Use when available.
 
-ego and LCU must be available separately in the host. This bundle does not install them or bypass permissions.
+The preset is disabled by default because it requires ego and LCU Computer Use. Install and configure them separately before enabling `preset-moss`. The theme works independently. This bundle does not install these tools or bypass permissions.
 
 ## Compatibility and troubleshooting
 

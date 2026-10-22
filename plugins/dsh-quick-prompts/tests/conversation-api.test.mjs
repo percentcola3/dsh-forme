@@ -30,6 +30,7 @@ test('production API starts independent chat without spawn and authenticates sco
         agents.set(sessionId, agent)
         return { agent, async dispose() { disposed.push(sessionId); agents.delete(sessionId) } }
       } })
+      provider.provide('llm', { listProviders: () => [{ id: 'deepseek-account', name: 'DeepSeek' }], listModels: async () => [{ id: 'deepseek-flash', name: 'DeepSeek Flash' }] })
       provider.provide('sessions', { list: () => [] })
       provider.provide('workspaceRegistry', { attachSession() { throw new Error('headless tasks must not join workspace conversations') } })
       provider.provide('sessionController', { create() { throw new Error('headless tasks must not create ordinary conversations') } })

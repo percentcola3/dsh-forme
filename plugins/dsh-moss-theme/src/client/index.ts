@@ -200,6 +200,8 @@ function ThemeSettings({ preferences }: { preferences: PreferenceStore }): React
     h('input', { type: 'checkbox', role: 'switch', checked: settings[key], onChange: (event: React.ChangeEvent<HTMLInputElement>) => preferences.update({ [key]: event.target.checked }) }))
   return h('section', { className: 'moss-settings', 'aria-label': '550W 主题设置' },
     h('h3', null, '550W / 流浪地球'),
+    h('p', null, '550W 智能体预设默认不启用。使用前请自行安装并配置 ego（ego-browser）和 LCU Computer Use，确认 DSH 可以调用它们。本插件不会自动安装这些工具；主题可独立使用。'),
+    h('p', null, '准备完成后，在「插件」中启用 preset-moss，再在原生 Agent 预设选择器中选择「550W」。'),
     setting('enabled', '流浪地球主题', '深蓝终端与信号红强调'),
     setting('ambient', '环境纹理', '仪表网格与冷光反射'),
     setting('motion', '界面动效', '地球航行与土星状态动画'))

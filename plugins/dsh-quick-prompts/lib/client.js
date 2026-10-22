@@ -267,8 +267,9 @@ window.__ModuleLoader__.load({
 					if (!Array.isArray(value.models)) throw new Error("模型列表暂不可用，请重新加载插件后重试。");
 					return value.models;
 				},
-				async save(action, draft = {}) {
+				async save(action, draft = {}, origin) {
 					if (!current.ready) throw new Error("项目尚未就绪，请稍后重试。");
+					if (origin && (origin.sessionId !== current.sessionId || origin.projectId !== current.projectId)) throw new Error("项目已切换，请返回原项目或重新打开快捷任务。");
 					const generation = epoch, projectId = current.projectId;
 					const revision = ++catalogRevision;
 					const value = await request(action, {
@@ -402,6 +403,7 @@ window.__ModuleLoader__.load({
   --dsh-chat-content-width:min(var(--dsh-chat-user-width,920px),calc(100% - 48px));
   --dsh-composer-card-max-width:calc(var(--dsh-chat-content-width) + 32px);
 }
+[data-conversation-content]:not([data-dqp-layout=stacked]):has(> .dqp-dock-seat > .dqp-dock:not([hidden]) .dqp-terminal-card){grid-template-columns:minmax(0,1fr) clamp(340px,34%,460px)}
 [data-conversation-content]:has(> .dqp-dock-seat > .dqp-dock:not([hidden]))>[data-conversation-scroll]{grid-column:1;grid-row:1;min-width:0;overflow-x:hidden}
 [data-conversation-content]:has(> .dqp-dock-seat > .dqp-dock:not([hidden]))>[data-width-handle]{display:none}
 .dqp-dock-seat:has(> .dqp-dock:not([hidden])){
@@ -445,6 +447,12 @@ window.__ModuleLoader__.load({
 .dqp-terminal-overlay{border-radius:8px 8px 0 0}
 .dqp-terminal-body:has(.dqp-terminal-return){border:1px solid var(--dsw-alias-border-l3,#a1b7cc22);background:color-mix(in srgb,var(--dsw-alias-bg-base,#101c29) 93%,#9ab9d1 7%)}
 [data-dqp-official-terminal]{position:fixed!important;left:var(--dqp-terminal-left)!important;top:var(--dqp-terminal-top)!important;width:var(--dqp-terminal-width)!important;height:var(--dqp-terminal-height)!important;min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;transform:none!important;clip-path:var(--dqp-terminal-clip);visibility:var(--dqp-terminal-visibility)!important;z-index:70!important}
+/* The native pane sits inside the card's 1px border: 9px outer, 8px inner. */
+[data-dqp-official-terminal]{border:0!important;border-radius:8px!important;corner-shape:round;box-shadow:none!important;overflow:hidden!important}
+[data-dqp-official-terminal] [data-dockkit-float-grip]{box-sizing:border-box;height:30px!important;min-height:0!important;padding:0 7px!important;gap:4px;align-items:center}
+[data-dqp-official-terminal] [data-dockkit-float-title]{height:24px;min-height:0;padding:0 4px;font-size:12px;line-height:24px}
+[data-dqp-official-terminal] :is([data-dockkit-float-dock],[data-dockkit-float-close]){box-sizing:border-box;width:24px;height:24px;min-height:0;padding:3px}
+[data-dqp-official-terminal] [data-dockkit-float-grip] svg{width:14px;height:14px}
 .dqp-terminal-error{margin:6px 0 0;color:#ef9398;font-size:11px;display:flex;align-items:center;gap:8px}
 .dqp-terminal-error button{appearance:none;border:1px solid #ef939855;border-radius:5px;background:transparent;color:inherit;font:inherit;font-size:11px;padding:2px 8px;cursor:pointer}
 /* Lightweight conversations: plain text, scoped scrolling, small local composer. */
@@ -469,7 +477,7 @@ window.__ModuleLoader__.load({
 		//#endregion
 		//#region src/client/model-picker.ts
 		const h$2 = react.default.createElement;
-		const modelKey = (value) => value ? JSON.stringify([value.provider, value.model]) : "";
+		const modelKey = (value) => value === void 0 ? "" : value === null ? "follow" : JSON.stringify([value.provider, value.model]);
 		function TaskModelPicker({ tasks, value, disabled, onChange }) {
 			const [models, setModels] = react.default.useState([]);
 			const [loading, setLoading] = react.default.useState(true);
@@ -503,13 +511,17 @@ window.__ModuleLoader__.load({
 						onChange(void 0);
 						return;
 					}
+					if (event.target.value === "follow") {
+						onChange(null);
+						return;
+					}
 					const choice = models.find((item) => modelKey(item) === event.target.value);
 					if (choice) onChange({
 						provider: choice.provider,
 						model: choice.model
 					});
 				}
-			}, h$2("option", { value: "" }, "跟随当前会话模型"), missing && h$2("option", {
+			}, h$2("option", { value: "" }, "默认 DeepSeek Flash"), h$2("option", { value: "follow" }, "跟随当前会话模型"), missing && h$2("option", {
 				value: selected,
 				disabled: true
 			}, `${value.provider} / ${value.model}（${loading ? "正在核对" : error ? "暂无法核对" : "当前不可用"}）`), ...[...groups].map(([provider, entries]) => h$2("optgroup", {
@@ -518,7 +530,7 @@ window.__ModuleLoader__.load({
 			}, ...entries.map((item) => h$2("option", {
 				key: modelKey(item),
 				value: modelKey(item)
-			}, item.label === item.model ? item.label : `${item.label} · ${item.model}`)))))), h$2("small", null, value ? "此快捷任务固定使用所选模型，主对话的模型不变。" : "执行时使用当前会话的模型；以后切换会话模型时自动跟随。"), loading && h$2("small", { role: "status" }, "正在加载可用模型…"), error && h$2("div", {
+			}, item.label === item.model ? item.label : `${item.label} · ${item.model}`)))))), h$2("small", null, value === void 0 ? "默认使用已配置的 DeepSeek Flash；不可用时停止启动，不会跟随主对话模型。" : value === null ? "执行时使用当前会话的模型；以后切换会话模型时自动跟随。" : "此快捷任务固定使用所选模型，主对话的模型不变。"), loading && h$2("small", { role: "status" }, "正在加载可用模型…"), error && h$2("div", {
 				className: "dqp-model-message",
 				role: "alert"
 			}, `模型列表加载失败：${error}`, h$2("button", {
@@ -1168,20 +1180,34 @@ window.__ModuleLoader__.load({
 				return () => document.removeEventListener("keydown", onKey);
 			}, [!!draft]);
 			const open = (event, item) => {
+				if (!sessionId || !selected || !state.ready || currentSessionId(ctx) !== sessionId) return;
 				trigger.current = event.currentTarget;
 				setError("");
-				setDraft(item ? { ...item } : {
-					name: "",
-					text: ""
+				setDraft({
+					...item ?? {
+						name: "",
+						text: ""
+					},
+					origin: {
+						sessionId,
+						projectId: state.projectId,
+						cwd: state.cwd
+					}
 				});
 			};
+			const draftSelected = !!draft && selected && state.ready && draft.origin.sessionId === state.sessionId && draft.origin.projectId === state.projectId;
 			const save = async (action) => {
 				if (!draft || submitting.current) return;
+				if (!draftSelected || currentSessionId(ctx) !== draft.origin.sessionId) {
+					setError("项目已切换，请返回原项目或重新打开快捷任务。");
+					return;
+				}
 				submitting.current = true;
 				setSaving(true);
 				setError("");
 				try {
-					await tasks.save(action, draft);
+					const { origin, ...value } = draft;
+					await tasks.save(action, value, origin);
 					setDraft(null);
 					trigger.current?.focus();
 				} catch (error) {
@@ -1236,10 +1262,10 @@ window.__ModuleLoader__.load({
 					name: event.target.value
 				})
 			}), h("small", null, "按钮最多显示 5 个字，悬停查看全名。")), h(TaskModelPicker, {
-				key: `${sessionId}:${state.projectId}`,
+				key: `${draft.origin.sessionId}:${draft.origin.projectId}`,
 				tasks,
 				value: draft.model,
-				disabled: saving,
+				disabled: saving || !draftSelected,
 				onChange: (model) => setDraft({
 					...draft,
 					model
@@ -1253,10 +1279,10 @@ window.__ModuleLoader__.load({
 					...draft,
 					text: event.target.value
 				})
-			})), h("small", null, `使用当前项目目录：${state.cwd}。各任务独立运行，主对话可继续使用。`), error && h("p", { role: "alert" }, error), h("footer", null, draft.id && h("button", {
+			})), h("small", null, `编辑项目：${draft.origin.cwd}。同一项目的会话共用指令，其他项目使用各自副本。`), !draftSelected && h("p", { role: "alert" }, "项目已切换，请返回原项目继续编辑，或取消后重新打开。"), error && h("p", { role: "alert" }, error), h("footer", null, draft.id && h("button", {
 				type: "button",
 				className: "dqp-delete",
-				disabled: saving,
+				disabled: saving || !draftSelected,
 				onClick: () => {
 					save("delete");
 				}
@@ -1267,7 +1293,7 @@ window.__ModuleLoader__.load({
 			}, "取消"), h("button", {
 				type: "submit",
 				className: "dqp-save",
-				disabled: saving || !draft.name.trim() || !draft.text.trim()
+				disabled: saving || !draftSelected || !draft.name.trim() || !draft.text.trim()
 			}, saving ? "保存中…" : "保存")))), document.body) : null;
 			const running = selected ? sessionRuns(state.runs, state.sessionId, state.projectId).filter((run) => active(run.status)).length : 0;
 			const recoveryNotice = state.recovery?.state === "reserved" || state.recovery?.state === "failed" ? "上次任务的自动续接未能确认。请检查本对话记录后发送「继续」；系统不会自动重复提交。" : "";
@@ -1315,7 +1341,7 @@ window.__ModuleLoader__.load({
 			}, h("button", {
 				type: "button",
 				disabled: !selected || !state.ready || !sessionId || tasks.busy(sessionId, item.id),
-				title: `${item.name} · 独立快捷对话\n${item.model ? `${item.model.provider} / ${item.model.model}` : "跟随当前会话模型"}\n点击执行 · 右键编辑`,
+				title: `${item.name} · 独立快捷对话\n${item.model ? `${item.model.provider} / ${item.model.model}` : item.model === null ? "跟随当前会话模型" : "默认 DeepSeek Flash"}\n点击执行 · 右键编辑`,
 				onClick: () => start(item),
 				onContextMenu: (event) => {
 					event.preventDefault();

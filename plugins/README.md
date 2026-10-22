@@ -22,4 +22,4 @@ pnpm -r exec tsc --noEmit
 pnpm -r run build
 ```
 
-The workspace includes the six packages above. The historical desktop wrapper is not required by the official-app installation.
+The workspace includes the six packages above and the optional [dsh-markdown-preview](dsh-markdown-preview/README.md) package. The optional package adds Markdown file colors and community Mermaid diagrams; install it separately. The historical desktop wrapper is not required by the official-app installation.
