@@ -10,12 +10,16 @@ export async function taskRequest(action: string, body: Record<string, unknown> 
   return value
 }
 export function openRun(ctx: Pick<Context, 'get'>, run: TaskRun): void {
+  if (run.sessionKind === 'headless') return
   const workspace = ctx.get('uiWorkspace') as { openSession(address: string | { kind: 'subagent'; parentSessionId: string; childSessionId: string; mode: 'continuable' }): void }
   if (run.sessionKind === 'conversation') { workspace.openSession(run.childId); return }
   workspace.openSession({ kind: 'subagent', parentSessionId: run.parentId, childSessionId: run.childId, mode: 'continuable' })
 }
 // Conversation cards retain their replies after completion until explicitly closed.
 export const ongoingRuns = (runs: TaskRun[]): TaskRun[] => runs.filter(run => !run.dismissed).sort((a, b) => b.startedAt - a.startedAt)
+// A card belongs to its launch conversation, not every conversation in the project.
+export const sessionRuns = (runs: TaskRun[], sessionId: string | undefined, projectId: string): TaskRun[] =>
+  sessionId ? ongoingRuns(runs).filter(run => run.parentId === sessionId && run.projectId === projectId) : []
 const same = (a: unknown, b: unknown) => a === b || JSON.stringify(a) === JSON.stringify(b)
 const messageOf = (error: unknown) => error instanceof Error ? error.message : String(error)
 export type ProjectTerminalCard = { projectId: string; sessionId: string }

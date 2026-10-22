@@ -6,7 +6,7 @@ export type ChatMessage = { id: string; role: 'user' | 'assistant'; text: string
 export type TaskRun = {
   id: string; requestId: string; promptId: string; name: string
   projectId: string; cwd: string; dismissed?: boolean
-  sessionKind?: 'conversation'
+  sessionKind?: 'conversation' | 'headless'
   parentId: string; parentTitle: string; childId: string
   status: RunStatus; startedAt: number; updatedAt: number; endedAt?: number
   messages?: ChatMessage[]

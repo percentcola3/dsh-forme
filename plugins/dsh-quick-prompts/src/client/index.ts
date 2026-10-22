@@ -1,7 +1,7 @@
 import React from 'react'
 import { createPortal } from 'react-dom'
 import type { Context } from '@deepseek-ai/cordis'
-import { createTasks, ongoingRuns, type TaskStore } from './tasks.ts'
+import { createTasks, sessionRuns, type TaskStore } from './tasks.ts'
 import { shortName, currentSessionId } from './logic.ts'
 import { active, statusLabels, type Prompt, type TaskRun } from '../types.ts'
 import { styles } from './styles.ts'
@@ -92,7 +92,7 @@ export function QuickPrompts({ ctx, tasks, sessionId }: { ctx: Context; tasks: T
       h('small', null, `使用当前项目目录：${state.cwd}。各任务独立运行，主对话可继续使用。`),
       error && h('p', { role: 'alert' }, error),
       h('footer', null, draft.id && h('button', { type: 'button', className: 'dqp-delete', disabled: saving, onClick: () => { void save('delete') } }, '删除'), h('button', { type: 'button', disabled: saving, onClick: close }, '取消'), h('button', { type: 'submit', className: 'dqp-save', disabled: saving || !draft.name.trim() || !draft.text.trim() }, saving ? '保存中…' : '保存')))), document.body) : null
-  const running = selected ? ongoingRuns(state.runs).filter(run => active(run.status)).length : 0
+  const running = selected ? sessionRuns(state.runs, state.sessionId, state.projectId).filter(run => active(run.status)).length : 0
   const recoveryNotice = state.recovery?.state === 'reserved' || state.recovery?.state === 'failed'
     ? '上次任务的自动续接未能确认。请检查本对话记录后发送「继续」；系统不会自动重复提交。' : ''
   const notice = error || (selected ? state.error || state.syncError || recoveryNotice : '')
@@ -121,7 +121,7 @@ export function QuickPrompts({ ctx, tasks, sessionId }: { ctx: Context; tasks: T
             h('path', { d: 'M15 5l4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15v5Z' }))),
         ))),
       selected && state.legacyAvailable && h('button', { type: 'button', title: '将旧版全局指令归入当前项目，仅可导入一次', onClick: () => { void tasks.save('import').catch(error => setError(String(error.message))) } }, '导入旧指令'),
-      selected && ongoingRuns(state.runs).length > 0 && h('button', { type: 'button', className: 'dqp-panel-trigger', 'aria-expanded': state.open, title: state.open ? '收起快捷对话' : '显示快捷对话', onClick: () => tasks.show(!state.open) }, `快捷对话 ${ongoingRuns(state.runs).length}${running ? ` · ${running} 运行中` : ''}`)),
+      selected && sessionRuns(state.runs, state.sessionId, state.projectId).length > 0 && h('button', { type: 'button', className: 'dqp-panel-trigger', 'aria-expanded': state.open, title: state.open ? '收起快捷对话' : '显示快捷对话', onClick: () => tasks.show(!state.open) }, `快捷对话 ${sessionRuns(state.runs, state.sessionId, state.projectId).length}${running ? ` · ${running} 运行中` : ''}`)),
     notice && !draft && h('div', { className: 'dqp-notice', role: 'alert', title: notice }, notice), modal)
 }
 export function TaskPanel({ ctx, tasks }: { ctx: Context; tasks: TaskStore }): React.ReactPortal | null {
@@ -134,7 +134,7 @@ export function TaskPanel({ ctx, tasks }: { ctx: Context; tasks: TaskStore }): R
   if (!seat) return null
   return createPortal(h(React.Fragment, null, ...projects.map(projectId => {
     const selected = state.ready && state.projectId === projectId
-    const runs = selected ? ongoingRuns(state.runs).filter(run => run.projectId === projectId) : []
+    const runs = selected ? sessionRuns(state.runs, state.sessionId, state.projectId).filter(run => run.projectId === projectId) : []
     const terminal = state.terminalCards.find(card => card.projectId === projectId)
     const visible = selected && state.open && (!!runs.length || !!terminal)
     return h('aside', { key: projectId, className: 'dqp-dock', hidden: !visible, 'data-dqp-project': projectId, 'aria-label': '快捷对话' },

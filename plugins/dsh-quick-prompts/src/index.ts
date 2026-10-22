@@ -4,13 +4,13 @@ import { ProjectPrompts, projectOf } from './project-prompts.ts'
 import { installRecovery } from './recovery.ts'
 import { installAutoTitles } from './auto-title.ts'
 import { TaskManager, type Parent, type Runtime } from './task-manager.ts'
-import { ConversationRuntime, type ConversationController, type ConversationAgent } from './conversation-runtime.ts'
+import { HeadlessRuntime, type HeadlessAgents } from './headless-runtime.ts'
 import { modelCatalog, requireAvailableModel, validateModel, type ModelRegistry } from './models.ts'
 import type { AssistantFrame } from './live-output.ts'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 export const name = 'dsh-quick-prompts'
-export const inject = ['webServer', 'connection', 'sessions', 'agents', 'sessionController', 'workspaceRegistry']
+export const inject = ['webServer', 'connection', 'sessions', 'agents']
 export function validatePrompt(value: { name?: unknown; text?: unknown; model?: unknown }) {
   if (typeof value.name !== 'string' || !value.name.trim() || value.name.length > 100) throw new Error('名称不能为空，且不能超过 100 字。')
   if (typeof value.text !== 'string' || !value.text.trim() || value.text.length > 32000 || value.text.includes('\0')) throw new Error('任务内容不能为空，且不能超过 32,000 字。')
@@ -20,11 +20,11 @@ export function validatePrompt(value: { name?: unknown; text?: unknown; model?: 
 export function apply(ctx: Context, _config: unknown = {}, internals: { directory?: string; runtime?: Runtime } = {}): void {
   const recovery = installRecovery(ctx, internals.directory ?? join(homedir(), '.dsh'))
   ctx.inject(['llm', 'agentDefaultModel', 'sessionProjections', 'sessionTitle'], scope => { installAutoTitles(scope) })
-  const runtime = internals.runtime ?? new ConversationRuntime(ctx.get('sessionController') as ConversationController, id => (ctx.get('agents') as { get(id: string): ConversationAgent | undefined }).get(id))
+  const runtime = internals.runtime ?? new HeadlessRuntime(ctx.get('agents') as HeadlessAgents)
   const manager = new TaskManager(runtime)
   const agents = ctx.get('agents') as { get(id: string): Parent | undefined }
   const host = ctx as unknown as { on(name: string, listener: (...args: any[]) => void, options: { global: boolean }): () => void }
-  host.on('session/event', (session: { id: string }, event: { type: string; data: Record<string, any> }) => { try { manager.observe(session.id, event); if (runtime instanceof ConversationRuntime) runtime.observe(session.id, event) } catch (error) { console.warn('dsh-quick-prompts: task observation failed', error) } }, { global: true })
+  host.on('session/event', (session: { id: string }, event: { type: string; data: Record<string, any> }) => { try { manager.observe(session.id, event); if (runtime instanceof HeadlessRuntime) runtime.observe(session.id, event) } catch (error) { console.warn('dsh-quick-prompts: task observation failed', error) } }, { global: true })
   host.on('agent/assistant-stream', ({ agent, frame }: { agent: { session: { id: string } }; frame: AssistantFrame }) => { try { manager.stream(agent.session.id, frame) } catch (error) { console.warn('dsh-quick-prompts: stream observation failed', error) } }, { global: true })
   ctx.effect(() => () => manager.dispose())
   const store = new ProjectPrompts(internals.directory ?? join(homedir(), '.dsh'))

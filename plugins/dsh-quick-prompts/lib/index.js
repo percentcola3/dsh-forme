@@ -21,18 +21,28 @@ async function isGitWorktree(cwd) {
 		return false;
 	}
 }
+const legacyCommit = "检查当前项目的 Git 状态和差异。优先审阅并提交现有已暂存改动，尊重暂存范围，不自动加入未暂存文件；若没有暂存改动，审阅当前工作区，在改动范围明确时选择相关改动提交。排除密钥、凭据及无关改动，保留其他未提交内容；若混杂无关改动或敏感内容且无法确定提交范围，先向用户澄清。运行适当的检查，使用准确简洁的提交说明完成提交，并报告结果。没有可提交改动时说明情况。不要推送。沿用原生权限与审批流程。";
+const legacyPush = "检查当前项目的 Git 分支、上游、远程仓库及待推送提交，然后将当前分支已有的提交正常推送到明确的目标。不要创建提交，不要强制推送，不要改写历史或丢弃工作区改动。若目标、权限或当前分支状态不明确，先向用户澄清；没有待推送提交时说明情况。报告推送结果，沿用原生权限与审批流程。";
+const pushText = "检查当前项目的 Git 状态、差异、分支、上游及远程仓库。先审阅并提交改动，再将当前分支的待推送提交正常推送到明确的目标。优先处理已有暂存改动，尊重暂存范围，不自动加入未暂存文件；若没有暂存改动，在改动范围明确时选择相关改动提交。排除密钥、凭据及无关改动，保留其他未提交内容；若提交范围或推送目标不明确，先向用户澄清。运行适当的检查，使用准确简洁的提交说明。没有可提交改动时仍检查并推送已有待推送提交；没有待推送提交时说明情况。提交或检查失败时停止，不继续推送。不要强制推送，不要改写历史或丢弃工作区改动。报告提交和推送结果，沿用原生权限与审批流程。";
 function gitDefaults() {
 	return [{
 		id: randomUUID(),
-		name: "提交",
-		gitOnly: true,
-		text: "检查当前项目的 Git 状态和差异。优先审阅并提交现有已暂存改动，尊重暂存范围，不自动加入未暂存文件；若没有暂存改动，审阅当前工作区，在改动范围明确时选择相关改动提交。排除密钥、凭据及无关改动，保留其他未提交内容；若混杂无关改动或敏感内容且无法确定提交范围，先向用户澄清。运行适当的检查，使用准确简洁的提交说明完成提交，并报告结果。没有可提交改动时说明情况。不要推送。沿用原生权限与审批流程。"
-	}, {
-		id: randomUUID(),
 		name: "推送",
 		gitOnly: true,
-		text: "检查当前项目的 Git 分支、上游、远程仓库及待推送提交，然后将当前分支已有的提交正常推送到明确的目标。不要创建提交，不要强制推送，不要改写历史或丢弃工作区改动。若目标、权限或当前分支状态不明确，先向用户澄清；没有待推送提交时说明情况。报告推送结果，沿用原生权限与审批流程。"
+		text: pushText
 	}];
+}
+/** Migrate only untouched automatic entries; never recreate a deleted default. */
+function migrateGitDefaults(prompts) {
+	return prompts.flatMap((prompt) => {
+		if (!prompt.gitOnly || prompt.model !== void 0) return [prompt];
+		if (prompt.name === "提交" && prompt.text === legacyCommit) return [];
+		if (prompt.name === "推送" && prompt.text === legacyPush) return [{
+			...prompt,
+			text: pushText
+		}];
+		return [prompt];
+	});
 }
 //#endregion
 //#region src/prompt-store.ts
@@ -94,7 +104,8 @@ var ProjectPrompts = class {
 	async list(project) {
 		const git = await isGitWorktree(project.cwd);
 		let records = await this.catalog.read();
-		if (git && !records.find((item) => item.id === project.id)?.initializedGitDefaults) records = await this.catalog.update((records) => {
+		const current = records.find((item) => item.id === project.id);
+		if (git && (!current?.initializedGitDefaults || (current.gitDefaultsVersion ?? 1) < 2)) records = await this.catalog.update((records) => {
 			let record = records.find((item) => item.id === project.id);
 			if (!record) {
 				record = {
@@ -106,6 +117,10 @@ var ProjectPrompts = class {
 			if (!record.initializedGitDefaults) {
 				record.prompts.push(...gitDefaults());
 				record.initializedGitDefaults = true;
+				record.gitDefaultsVersion = 2;
+			} else if ((record.gitDefaultsVersion ?? 1) < 2) {
+				record.prompts = migrateGitDefaults(record.prompts);
+				record.gitDefaultsVersion = 2;
 			}
 		});
 		return {
@@ -1100,27 +1115,16 @@ var TaskManager = class {
 	}
 };
 //#endregion
-//#region src/conversation-runtime.ts
-const routeOf = (value) => value && typeof value.provider === "string" && typeof value.model === "string" ? {
-	provider: value.provider,
-	model: value.model,
-	...value.reasoningEffort ? { reasoningEffort: value.reasoningEffort } : {}
-} : void 0;
-/** Ordinary durable sessions have no subagent settlement route to the main chat. */
-var ConversationRuntime = class {
-	kind = "conversation";
+//#region src/headless-runtime.ts
+const GUIDANCE = "这是即用即弃的快捷任务。只在当前对话回复，不联系主会话或其他 Agent。需要用户补充信息时直接用文本提问，用户会在卡片中回复。权限范围在启动时固定；遇到需要额外审批的操作，说明限制并停止，不重试或绕过限制。";
+/** Own a hidden agent directly: no workspace attachment or subagent settlement route. */
+var HeadlessRuntime = class {
+	kind = "headless";
+	handles = /* @__PURE__ */ new Map();
 	initial = /* @__PURE__ */ new Map();
-	owned = /* @__PURE__ */ new Set();
-	modelHooks = /* @__PURE__ */ new Map();
-	controller;
-	getAgent;
-	live = /* @__PURE__ */ new Map();
-	constructor(controller, getAgent) {
-		this.controller = controller;
-		this.getAgent = getAgent;
-	}
-	cancel(id) {
-		(this.getAgent ? this.getAgent(id) : this.live.get(id))?.cancel({ kind: "user" }, { keepInbox: false });
+	agents;
+	constructor(agents) {
+		this.agents = agents;
 	}
 	getProvider() {
 		return this;
@@ -1128,113 +1132,111 @@ var ConversationRuntime = class {
 	resolveMaxDepth() {}
 	observe(id, event) {
 		if (event.type !== "turn/end") return;
-		const pending = this.initial.get(id);
-		if (!pending) return;
+		const resolve = this.initial.get(id);
 		this.initial.delete(id);
-		pending.resolve({ stopReason: event.data.reason?.kind ?? "error" });
-	}
-	async configureModel(id, selected) {
-		const resolved = await this.controller.resolveAgent(id);
-		if ("error" in resolved) throw new Error("快捷对话模型配置失败。");
-		const agent = resolved.agent;
-		this.live.set(id, agent);
-		if (!selected) return;
-		agent.session.append("model/selection", selected);
-		let assembled = selected;
-		const assembly = agent.ctx.on("system-prompt/assemble", async (_value, _context, next) => {
-			const last = agent.session.snapshotEvents().findLast((event) => event.type === "model/selection")?.data;
-			assembled = routeOf(last) ?? selected;
-			const result = await next();
-			return {
-				...result,
-				variables: {
-					...result.variables,
-					provider: assembled.provider,
-					model: assembled.model
-				}
-			};
-		}, { prepend: true });
-		const request = agent.ctx.on("agent/request", async (_value, next) => {
-			const { reasoningEffort: _effort, ...result } = await next();
-			return {
-				...result,
-				...assembled
-			};
-		}, { prepend: true });
-		this.modelHooks.set(id, () => {
-			assembly();
-			request();
-		});
+		resolve?.({ stopReason: event.data.reason?.kind ?? "error" });
 	}
 	async startActivation(spec) {
-		spec.signal.throwIfAborted();
 		const parent = spec.request.parent;
+		if (spec.childId === parent.id || this.handles.has(spec.childId)) throw new Error("快捷任务必须使用独立会话。");
+		spec.signal.throwIfAborted();
+		const config = parent.session.requestHeader?.()?.config ?? parent.options ?? {};
 		const events = parent.session.snapshotEvents?.() ?? [];
-		const preset = events.findLast((event) => event.type === "agent-preset/selected")?.data.agentPreset ?? parent.session.header.agentPreset;
-		const selected = routeOf(spec.request.agentOptions) ?? routeOf(events.findLast((event) => event.type === "model/selection")?.data) ?? routeOf(parent.session.requestHeader?.()?.config) ?? routeOf(parent.options);
-		const id = (await this.controller.create({
+		const route = spec.request.agentOptions ?? events.findLast((event) => event.type === "model/selection")?.data ?? config;
+		const agentOptions = {
+			provider: route.provider,
+			model: route.model,
+			...!spec.request.agentOptions && route.provider === config.provider && route.model === config.model && config.reasoningEffort ? { reasoningEffort: config.reasoningEffort } : {}
+		};
+		const sandboxMode = parent.ctx.get("sandboxPolicy")?.overrideOf(parent.session);
+		const permissionPreset = parent.ctx.get("permissionPresets")?.current(parent.session);
+		const preset = parent.ctx.get("agentPresets")?.composedPreset(parent.ctx);
+		const handle = await this.agents.create({
 			sessionId: spec.childId,
-			cwd: spec.request.cwd,
-			...typeof preset === "string" ? { agentPreset: preset } : {}
-		})).sessionId;
-		this.owned.add(id);
+			meta: {
+				origin: "subagent",
+				parentSession: parent.session.header.id,
+				cwd: spec.request.cwd,
+				isSeeded: false,
+				...preset ? { agentPreset: preset } : {}
+			},
+			agentOptions,
+			signal: spec.signal,
+			setup: async (scope, agent) => {
+				const presets = scope.get("agentPresets");
+				if (!presets) throw new Error("DSH 尚未加载 Agent 配置服务。");
+				presets.composeFrom(scope, parent.ctx);
+				if (sandboxMode !== void 0) agent.session.append("sandbox/mode", {
+					mode: sandboxMode,
+					source: "delegation"
+				});
+				agent.session.append("approval/policy", {
+					policy: "never",
+					source: "delegation"
+				});
+				if (permissionPreset === "auto" || permissionPreset === "danger-full-access") agent.session.append("permission/preset", { preset: permissionPreset });
+				const tools = scope.get("tools");
+				if (!tools) throw new Error("DSH 尚未加载工具服务。");
+				const blocked = /* @__PURE__ */ new Set([
+					"send_message",
+					"subagent",
+					"subagent_fork",
+					"workflow",
+					"ask_user_question"
+				]);
+				tools.guard((exec) => blocked.has(exec.name) ? "快捷任务只通过当前卡片交流；需要补充信息时直接回复文本，不启动其他 Agent。" : void 0);
+				const directory = scope.get("workingDirectory");
+				if (!directory) throw new Error("DSH 尚未加载工作目录服务。");
+				await directory.set(agent, spec.request.cwd, spec.signal);
+			}
+		});
+		if (handle.agent.id !== spec.childId) {
+			await handle.dispose();
+			throw new Error("快捷任务会话身份不匹配。");
+		}
+		this.handles.set(spec.childId, handle);
+		const result = new Promise((resolve) => this.initial.set(spec.childId, resolve));
+		const dispose = async () => {
+			if (!this.handles.delete(spec.childId)) return;
+			this.initial.get(spec.childId)?.({ stopReason: "aborted" });
+			this.initial.delete(spec.childId);
+			await handle.dispose();
+		};
 		try {
 			spec.signal.throwIfAborted();
-			await this.configureModel(id, selected);
-			await this.controller.rename({
-				sessionId: id,
-				title: spec.label
+			handle.agent.followup({
+				id: `${spec.childId}:initial`,
+				role: "user",
+				source: { kind: "user" },
+				content: [{
+					type: "text",
+					text: GUIDANCE
+				}, ...spec.request.prompt]
 			});
-			spec.signal.throwIfAborted();
-			const result = new Promise((resolve) => this.initial.set(id, { resolve }));
-			await this.controller.prompt({
-				sessionId: id,
-				requestId: `${spec.childId}:initial`,
-				mode: "queue",
-				content: spec.request.prompt.slice(-1)
-			}, spec.signal);
 			return {
-				childId: id,
+				childId: spec.childId,
 				result,
-				dispose: async () => {
-					if (!this.owned.delete(id)) return;
-					try {
-						this.cancel(id);
-					} finally {
-						this.initial.get(id)?.resolve({ stopReason: "aborted" });
-						this.initial.delete(id);
-						this.modelHooks.get(id)?.();
-						this.modelHooks.delete(id);
-						this.live.delete(id);
-					}
-				}
+				dispose
 			};
 		} catch (error) {
-			this.initial.get(id)?.resolve({ stopReason: "aborted" });
-			this.initial.delete(id);
-			this.modelHooks.get(id)?.();
-			this.modelHooks.delete(id);
-			this.owned.delete(id);
-			try {
-				this.cancel(id);
-			} catch {}
-			this.live.delete(id);
+			await dispose();
 			throw error;
 		}
 	}
 	async prompt(request, signal) {
-		if (!this.owned.has(request.childSessionId)) throw new Error("快捷对话已关闭，请重新启动。");
 		signal.throwIfAborted();
-		await this.controller.prompt({
-			sessionId: request.childSessionId,
-			requestId: request.requestId,
-			mode: "queue",
+		const handle = this.handles.get(request.childSessionId);
+		if (!handle) throw new Error("快捷任务已关闭，请重新启动。");
+		handle.agent.followup({
+			id: request.requestId,
+			role: "user",
+			source: { kind: "user" },
 			content: request.content
-		}, signal);
+		});
 		return { messageId: request.requestId };
 	}
 	interrupt(id) {
-		if (this.owned.has(id)) this.cancel(id);
+		this.handles.get(id)?.agent.cancel({ kind: "user" }, { keepInbox: false });
 	}
 };
 //#endregion
@@ -1244,9 +1246,7 @@ const inject = [
 	"webServer",
 	"connection",
 	"sessions",
-	"agents",
-	"sessionController",
-	"workspaceRegistry"
+	"agents"
 ];
 function validatePrompt(value) {
 	if (typeof value.name !== "string" || !value.name.trim() || value.name.length > 100) throw new Error("名称不能为空，且不能超过 100 字。");
@@ -1268,14 +1268,14 @@ function apply(ctx, _config = {}, internals = {}) {
 	], (scope) => {
 		installAutoTitles(scope);
 	});
-	const runtime = internals.runtime ?? new ConversationRuntime(ctx.get("sessionController"), (id) => ctx.get("agents").get(id));
+	const runtime = internals.runtime ?? new HeadlessRuntime(ctx.get("agents"));
 	const manager = new TaskManager(runtime);
 	const agents = ctx.get("agents");
 	const host = ctx;
 	host.on("session/event", (session, event) => {
 		try {
 			manager.observe(session.id, event);
-			if (runtime instanceof ConversationRuntime) runtime.observe(session.id, event);
+			if (runtime instanceof HeadlessRuntime) runtime.observe(session.id, event);
 		} catch (error) {
 			console.warn("dsh-quick-prompts: task observation failed", error);
 		}

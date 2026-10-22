@@ -1,11 +1,11 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { realpath } from 'node:fs/promises'
 import { isAbsolute, join } from 'node:path'
-import { gitDefaults, isGitWorktree } from './git-defaults.ts'
+import { gitDefaults, isGitWorktree, migrateGitDefaults } from './git-defaults.ts'
 import { PromptStore } from './prompt-store.ts'
 import type { Prompt } from './types.ts'
 export type Project = { id: string; cwd: string }
-type Record = { id: string; cwd: string; prompts: Prompt[]; importedLegacy?: boolean; initializedGitDefaults?: boolean }
+type Record = { id: string; cwd: string; prompts: Prompt[]; importedLegacy?: boolean; initializedGitDefaults?: boolean; gitDefaultsVersion?: number }
 export async function projectOf(cwd: string | undefined): Promise<Project> {
   if (!cwd || !isAbsolute(cwd)) throw new Error('请先打开有项目目录的主会话。')
   const path = await realpath(cwd)
@@ -22,13 +22,18 @@ export class ProjectPrompts {
   async list(project: Project) {
     const git = await isGitWorktree(project.cwd)
     let records = await this.catalog.read()
-    if (git && !records.find(item => item.id === project.id)?.initializedGitDefaults) {
+    const current = records.find(item => item.id === project.id)
+    if (git && (!current?.initializedGitDefaults || (current.gitDefaultsVersion ?? 1) < 2)) {
       records = await this.catalog.update(records => {
         let record = records.find(item => item.id === project.id)
         if (!record) { record = { ...project, prompts: [] }; records.push(record) }
         if (!record.initializedGitDefaults) {
           record.prompts.push(...gitDefaults())
           record.initializedGitDefaults = true
+          record.gitDefaultsVersion = 2
+        } else if ((record.gitDefaultsVersion ?? 1) < 2) {
+          record.prompts = migrateGitDefaults(record.prompts)
+          record.gitDefaultsVersion = 2
         }
       })
     }

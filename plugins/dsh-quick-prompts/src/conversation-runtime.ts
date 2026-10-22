@@ -11,7 +11,7 @@ export type ConversationAgent = {
   session: { header: { agentPreset?: string }; snapshotEvents(): Event[]; requestHeader?(): { config?: Partial<Route> } | undefined; append(type: string, data: unknown): unknown }
 }
 export type ConversationController = {
-  create(request: { sessionId: string; cwd: string; agentPreset?: string }): Promise<{ sessionId: string }>
+  create(request: { sessionId: string; cwd?: string; workspaceId?: string; agentPreset?: string }): Promise<{ sessionId: string }>
   resolveAgent(id: string): Promise<{ agent: ConversationAgent } | { error: unknown }>
   rename(request: { sessionId: string; title: string }): Promise<unknown>
   prompt(request: { sessionId: string; requestId: string; mode: 'queue'; content: { type: 'text'; text: string }[] }, signal: AbortSignal): Promise<unknown>
@@ -29,7 +29,8 @@ export class ConversationRuntime implements Runtime {
   private controller: ConversationController
   private getAgent?: (id: string) => ConversationAgent | undefined
   private live = new Map<string, ConversationAgent>()
-  constructor(controller: ConversationController, getAgent?: (id: string) => ConversationAgent | undefined) { this.controller = controller; this.getAgent = getAgent }
+  private resolveWorkspaceId?: (cwd: string) => string | undefined
+  constructor(controller: ConversationController, getAgent?: (id: string) => ConversationAgent | undefined, resolveWorkspaceId?: (cwd: string) => string | undefined) { this.controller = controller; this.getAgent = getAgent; this.resolveWorkspaceId = resolveWorkspaceId }
   private cancel(id: string): void {
     const agent = this.getAgent ? this.getAgent(id) : this.live.get(id)
     agent?.cancel({ kind: 'user' }, { keepInbox: false })
@@ -72,8 +73,13 @@ export class ConversationRuntime implements Runtime {
     const events = parent.session.snapshotEvents?.() ?? []
     const preset = events.findLast(event => event.type === 'agent-preset/selected')?.data.agentPreset ?? parent.session.header.agentPreset
     const selected = routeOf(spec.request.agentOptions) ?? routeOf(events.findLast(event => event.type === 'model/selection')?.data as Route) ?? routeOf(parent.session.requestHeader?.()?.config) ?? routeOf(parent.options)
-    const created = await this.controller.create({ sessionId: spec.childId, cwd: spec.request.cwd, ...(typeof preset === 'string' ? { agentPreset: preset } : {}) })
+    // Prefer the Workspace that owns this cwd so the child lands in its project
+    // group; fall back to the raw cwd (session then appears under Ungrouped).
+    const workspaceId = this.resolveWorkspaceId?.(spec.request.cwd)
+    const created = await this.controller.create({ sessionId: spec.childId, ...(workspaceId === undefined ? { cwd: spec.request.cwd } : { workspaceId }), ...(typeof preset === 'string' ? { agentPreset: preset } : {}) })
     const id = created.sessionId
+    // Reject before configuration, prompts or cleanup can touch another session.
+    if (id === parent.id || id === parent.session.header.id || this.owned.has(id)) throw new Error('快捷对话必须使用独立会话。')
     this.owned.add(id)
     try {
       spec.signal.throwIfAborted()
@@ -81,9 +87,9 @@ export class ConversationRuntime implements Runtime {
       await this.controller.rename({ sessionId: id, title: spec.label })
       spec.signal.throwIfAborted()
       const result = new Promise<Awaited<Receipt['result']>>(resolve => this.initial.set(id, { resolve }))
-      // The shortcut text itself is the first human message; no parent history,
-      // protocol instructions, tool logs or implicit main-conversation wakeups.
-      await this.controller.prompt({ sessionId: id, requestId: `${spec.childId}:initial`, mode: 'queue', content: spec.request.prompt.slice(-1) }, spec.signal)
+      // The shortcut text is the human message; the leading instruction block
+      // from the task manager keeps the child scoped to its own task.
+      await this.controller.prompt({ sessionId: id, requestId: `${spec.childId}:initial`, mode: 'queue', content: spec.request.prompt }, spec.signal)
       return { childId: id, result, dispose: async () => {
         if (!this.owned.delete(id)) return
         try { this.cancel(id) }

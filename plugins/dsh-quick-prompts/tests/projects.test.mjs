@@ -73,13 +73,14 @@ test('API scopes every action to the live session directory and refuses foreign 
     assert.equal((await call('B', 'runs')).runs[0].id, other.run.id)
     await promisify(execFile)('git', ['init', '-b', 'main'], { cwd: paths.A })
     const defaults = (await call('A', 'list')).prompts.filter(prompt => prompt.gitOnly)
-    assert.equal(defaults.length, 2)
+    assert.equal(defaults.length, 1)
+    assert.equal(defaults[0].name, '推送')
     const gitRun = await call('A', 'start', { id: defaults[0].id, requestId: 'git-default' })
     assert.equal(gitRun.code, 202)
     assert.equal(admitted.at(-1).request.prompt.at(-1).text, defaults[0].text)
     await rename(join(paths.A, '.git'), join(directory, 'saved-git'))
     const admissionsBefore = admitted.length
-    assert.equal((await call('A', 'start', { id: defaults[1].id, requestId: 'no-longer-git', cwd: join(directory, 'saved-git') })).code, 400)
+    assert.equal((await call('A', 'start', { id: defaults[0].id, requestId: 'no-longer-git', cwd: join(directory, 'saved-git') })).code, 400)
     assert.equal(admitted.length, admissionsBefore)
     assert.equal((await call('A', 'list')).prompts.some(prompt => prompt.gitOnly), false)
 

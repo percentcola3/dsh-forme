@@ -62,6 +62,7 @@ window.__ModuleLoader__.load({
 			return value;
 		}
 		function openRun(ctx, run) {
+			if (run.sessionKind === "headless") return;
 			const workspace = ctx.get("uiWorkspace");
 			if (run.sessionKind === "conversation") {
 				workspace.openSession(run.childId);
@@ -75,6 +76,7 @@ window.__ModuleLoader__.load({
 			});
 		}
 		const ongoingRuns = (runs) => runs.filter((run) => !run.dismissed).sort((a, b) => b.startedAt - a.startedAt);
+		const sessionRuns = (runs, sessionId, projectId) => sessionId ? ongoingRuns(runs).filter((run) => run.parentId === sessionId && run.projectId === projectId) : [];
 		const same = (a, b) => a === b || JSON.stringify(a) === JSON.stringify(b);
 		const messageOf = (error) => error instanceof Error ? error.message : String(error);
 		function createTasks(request = taskRequest, now = Date.now) {
@@ -994,9 +996,9 @@ window.__ModuleLoader__.load({
 			}, run.name), h$1("span", {
 				className: "dqp-conversation-state",
 				role: "status"
-			}, statusLabels[run.status]), h$1("button", {
+			}, statusLabels[run.status]), run.sessionKind !== "headless" && h$1("button", {
 				type: "button",
-				title: "在完整对话中查看工具、审批与全部记录",
+				title: "切换到此任务的完整对话，查看工具和审批；日常回复可直接在卡片内输入",
 				"aria-label": `打开 ${run.name} 的完整对话`,
 				onClick: () => openRun(ctx, run)
 			}, "↗"), active(run.status) && h$1("button", {
@@ -1034,6 +1036,7 @@ window.__ModuleLoader__.load({
 				className: "dqp-conversation-input",
 				onSubmit: (event) => {
 					event.preventDefault();
+					event.stopPropagation();
 					send();
 				}
 			}, h$1("textarea", {
@@ -1266,7 +1269,7 @@ window.__ModuleLoader__.load({
 				className: "dqp-save",
 				disabled: saving || !draft.name.trim() || !draft.text.trim()
 			}, saving ? "保存中…" : "保存")))), document.body) : null;
-			const running = selected ? ongoingRuns(state.runs).filter((run) => active(run.status)).length : 0;
+			const running = selected ? sessionRuns(state.runs, state.sessionId, state.projectId).filter((run) => active(run.status)).length : 0;
 			const recoveryNotice = state.recovery?.state === "reserved" || state.recovery?.state === "failed" ? "上次任务的自动续接未能确认。请检查本对话记录后发送「继续」；系统不会自动重复提交。" : "";
 			const notice = error || (selected ? state.error || state.syncError || recoveryNotice : "");
 			return h(react.default.Fragment, null, h("div", {
@@ -1337,13 +1340,13 @@ window.__ModuleLoader__.load({
 				onClick: () => {
 					tasks.save("import").catch((error) => setError(String(error.message)));
 				}
-			}, "导入旧指令"), selected && ongoingRuns(state.runs).length > 0 && h("button", {
+			}, "导入旧指令"), selected && sessionRuns(state.runs, state.sessionId, state.projectId).length > 0 && h("button", {
 				type: "button",
 				className: "dqp-panel-trigger",
 				"aria-expanded": state.open,
 				title: state.open ? "收起快捷对话" : "显示快捷对话",
 				onClick: () => tasks.show(!state.open)
-			}, `快捷对话 ${ongoingRuns(state.runs).length}${running ? ` · ${running} 运行中` : ""}`)), notice && !draft && h("div", {
+			}, `快捷对话 ${sessionRuns(state.runs, state.sessionId, state.projectId).length}${running ? ` · ${running} 运行中` : ""}`)), notice && !draft && h("div", {
 				className: "dqp-notice",
 				role: "alert",
 				title: notice
@@ -1357,7 +1360,7 @@ window.__ModuleLoader__.load({
 			if (!seat) return null;
 			return (0, react_dom.createPortal)(h(react.default.Fragment, null, ...projects.map((projectId) => {
 				const selected = state.ready && state.projectId === projectId;
-				const runs = selected ? ongoingRuns(state.runs).filter((run) => run.projectId === projectId) : [];
+				const runs = selected ? sessionRuns(state.runs, state.sessionId, state.projectId).filter((run) => run.projectId === projectId) : [];
 				const terminal = state.terminalCards.find((card) => card.projectId === projectId);
 				const visible = selected && state.open && (!!runs.length || !!terminal);
 				return h("aside", {

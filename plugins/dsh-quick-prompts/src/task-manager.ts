@@ -6,7 +6,7 @@ import { active, type ModelSelection, type Prompt, type TaskRun } from './types.
 export type Parent = { id: string; session: { header: { id: string; cwd?: string }; snapshotEvents?(): { type: string; data: Record<string, any> }[] } }
 export type Receipt = { childId: string; result: Promise<{ output?: { type: string; text?: string }[]; stopReason: string; diagnostic?: unknown }>; dispose(): Promise<unknown> }
 export type Runtime = {
-  kind?: 'conversation'
+  kind?: 'conversation' | 'headless'
   getProvider(name: string): unknown
   resolveMaxDepth(config?: number): number | undefined
   startActivation(spec: { provider: string; childId: string; label: string; request: { parent: Parent; cwd: string; prompt: { type: 'text'; text: string }[]; maxDepth?: number; agentOptions?: ModelSelection }; signal: AbortSignal; delivery: 'caller' }): Promise<Receipt>
@@ -16,7 +16,7 @@ export type Runtime = {
 type Entry = { run: TaskRun; controller: AbortController; receipt?: Receipt; admission?: Promise<void>; pending: Set<string>; parent: Parent; live: LiveOutput; chat: LiveOutput; replyId: string; replies: Map<string, string>; replying?: boolean; settled?: boolean; turnActive?: boolean }
 const textOf = (blocks: unknown): string => Array.isArray(blocks) ? blocks.filter(block => block?.type === 'text' && typeof block.text === 'string').map(block => block.text).join('\n').slice(-24000) : ''
 const messageOf = (error: unknown) => error instanceof Error ? error.message : String(error)
-const CONTEXT = '你正在执行用户从快捷指令栏启动的后台子任务。仅处理下面的任务内容，完成后给出清晰结果。主对话继续独立运行，不要调用 send_message 给主 Agent 发送进度或触发它继续执行。若内容是命令，请由你使用当前获准的工具执行并反馈结果；遵守继承的权限和审批规则，遇到限制明确说明。'
+export const CONTEXT = '你正在执行用户从快捷指令栏启动的后台子任务。仅处理下面的任务内容，完成后给出清晰结果。主对话继续独立运行，不要调用 send_message 给主 Agent 发送进度或触发它继续执行。若内容是命令，请由你使用当前获准的工具执行并反馈结果；遵守继承的权限和审批规则，遇到限制明确说明。'
 export class TaskManager {
   private entries = new Map<string, Entry>()
   private runtime: Runtime

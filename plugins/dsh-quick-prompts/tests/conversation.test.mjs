@@ -3,8 +3,8 @@ import assert from 'node:assert/strict'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { ConversationRuntime } from '../src/conversation-runtime.ts'
-import { TaskManager } from '../src/task-manager.ts'
-import { createTasks, openRun, ongoingRuns } from '../src/client/tasks.ts'
+import { TaskManager, CONTEXT } from '../src/task-manager.ts'
+import { createTasks, openRun, ongoingRuns, sessionRuns } from '../src/client/tasks.ts'
 import { ConversationCard } from '../src/client/conversation-card.ts'
 const tick = () => new Promise(resolve => setImmediate(resolve))
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no }); return { promise, resolve, reject } }
@@ -41,7 +41,7 @@ test('shortcut starts an ordinary independent session with real human prompt, pr
   assert.deepEqual(created, { sessionId: run.childId, cwd: '/code', agentPreset: 'standard' })
   const prompt = f.calls.find(([action]) => action === 'prompt')[1]
   assert.equal(prompt.sessionId, run.childId); assert.equal(prompt.mode, 'queue')
-  assert.deepEqual(prompt.content, [{ type: 'text', text: '请检查当前代码' }])
+  assert.deepEqual(prompt.content, [{ type: 'text', text: CONTEXT }, { type: 'text', text: '请检查当前代码' }])
   assert.equal(f.run.sessionKind, 'conversation')
   assert.deepEqual(f.models[0], { type: 'model/selection', data: { provider: 'fixed', model: 'fast' } })
   assert.equal(f.hooks.get('agent/request').options.prepend, true)
@@ -123,6 +123,22 @@ test('stopping during follow-up admission cancels only this conversation and nev
   assert.ok(stopped.every(([, request]) => request.id === f.run.childId && request.keepInbox === false))
   await f.manager.dispose()
 })
+test('child session joins the owning workspace when resolvable and falls back to cwd', async () => {
+  const base = fixture()
+  const calls = base.calls
+  const runtime = new ConversationRuntime({ create: async request => { calls.push(['create', request]); return { sessionId: request.sessionId } } }, undefined, cwd => cwd === '/code' ? 'ws-1' : undefined)
+  const manager = new TaskManager(runtime)
+  manager.start(base.parent, { id: 'shortcut', name: '检查代码', text: '任务' }, 'ws-run')
+  await tick()
+  assert.deepEqual({ ...calls.find(([action]) => action === 'create')[1], sessionId: 'kept' }, { sessionId: 'kept', workspaceId: 'ws-1', agentPreset: 'standard' })
+  const fallback = []
+  const runtime2 = new ConversationRuntime({ create: async request => { fallback.push(request); return { sessionId: request.sessionId } } }, undefined, () => undefined)
+  const manager2 = new TaskManager(runtime2)
+  manager2.start(base.parent, { id: 'shortcut', name: '检查代码', text: '任务' }, 'cwd-run')
+  await tick()
+  assert.equal(fallback[0].workspaceId, undefined); assert.equal(fallback[0].cwd, '/code')
+  await manager.dispose(); await manager2.dispose()
+})
 test('client rejects stale follow-up responses after project switch and opens root full conversations', async () => {
   const pending = deferred(); const tasks = createTasks(async (action, body) => {
     if (action === 'list') return { projectId: body.sessionId, cwd: '/code', prompts: [] }
@@ -142,6 +158,49 @@ test('lightweight card contains transcript and composer, escapes text, and exclu
   assert.match(markup, /打开 检查 的完整对话/)
 })
 
+test('cards stay with their launch session across navigation within one project', () => {
+  const runs = [
+    { id: 'a', parentId: 'main-a', childId: 'child-a', projectId: 'p', startedAt: 1 },
+    { id: 'b', parentId: 'main-b', childId: 'child-b', projectId: 'p', startedAt: 2 },
+    { id: 'closed', parentId: 'main-a', projectId: 'p', dismissed: true },
+    { id: 'foreign', parentId: 'main-a', projectId: 'other' },
+  ]
+  assert.deepEqual(sessionRuns(runs, 'main-a', 'p').map(run => run.id), ['a'])
+  assert.deepEqual(sessionRuns(runs, 'main-b', 'p').map(run => run.id), ['b'])
+  assert.deepEqual(sessionRuns(runs, 'child-a', 'p'), [])
+  assert.deepEqual(sessionRuns(runs, undefined, 'p'), [])
+  assert.deepEqual(sessionRuns(runs, 'main-a', 'p').map(run => run.id), ['a'])
+})
+test('main and unrelated session events never enter a shortcut card', async () => {
+  const f = fixture(); await f.start()
+  for (const id of ['main', 'unrelated']) {
+    f.manager.observe(id, { type: 'assistant/message', data: { message: { content: [{ type: 'text', text: 'foreign output' }] } } })
+    f.manager.stream(id, { type: 'start', attemptId: id })
+    f.manager.stream(id, { type: 'chunk', attemptId: id, index: 0, chunk: { type: 'text-delta', text: 'foreign stream' } })
+    f.runtime.observe(id, { type: 'turn/end', data: { reason: { kind: 'completed' } } })
+  }
+  await tick()
+  assert.deepEqual(f.run.messages.map(message => message.text), ['请检查当前代码'])
+  await f.complete('own output')
+  assert.deepEqual(f.run.messages.map(message => message.text), ['请检查当前代码', 'own output'])
+  assert.ok(f.calls.filter(([action]) => action === 'prompt').every(([, request]) => request.sessionId === f.run.childId))
+  await f.manager.dispose()
+})
+test('a controller returning the main session cannot prompt, rename or cancel it', async () => {
+  const touched = []
+  const runtime = new ConversationRuntime({
+    create: async () => ({ sessionId: 'main' }),
+    resolveAgent: async () => { touched.push('resolve'); throw new Error('unexpected') },
+    rename: async () => touched.push('rename'), prompt: async () => touched.push('prompt'), cancel: async () => touched.push('cancel'),
+  }, () => { touched.push('getAgent'); return undefined })
+  const manager = new TaskManager(runtime)
+  manager.start({ id: 'main', session: { header: { id: 'main', cwd: '/code' } } }, { id: 'p', name: 'test', text: 'task' }, 'req')
+  await tick()
+  assert.equal(manager.list()[0].status, 'failed')
+  assert.match(manager.list()[0].error, /独立会话/)
+  await manager.dispose()
+  assert.deepEqual(touched, [])
+})
 test('drafts and retry identity survive card remount without publishing on keystrokes', () => {
   const tasks = createTasks(); let notifications = 0; tasks.subscribe(() => notifications++)
   tasks.setDraft('card', '未发送的输入')
