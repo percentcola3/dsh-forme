@@ -1122,7 +1122,8 @@ ${interfaceCSS}
 html[data-moss-window-carrier="electron"] body[data-moss-theme="on"] :is(header[data-window-drag],div[data-window-drag]:has([data-slot="sidebar.brand.name"]),div[data-window-drag]:has(+ div[data-window-drag] [data-slot="sidebar.brand.name"])) {
   -webkit-app-region:drag !important; app-region:drag !important; user-select:none;
 }
-html[data-moss-window-carrier="electron"] body[data-moss-theme="on"] header[data-window-drag] :not(:is(button,a,input,textarea,select,summary,[role="button"],[role="tab"],[role="link"],[role="menuitem"],[role="checkbox"],[role="radio"],[role="switch"],[role="slider"],[role="combobox"],[role="textbox"],[contenteditable="true"],[data-moss-no-drag])) {
+/* Keep this fallback below the no-drag rules for controls, their contents and corners. */
+html[data-moss-window-carrier="electron"] body[data-moss-theme="on"] :where(header[data-window-drag]) :not(:is(button,a,input,textarea,select,summary,[role="button"],[role="tab"],[role="link"],[role="menuitem"],[role="checkbox"],[role="radio"],[role="switch"],[role="slider"],[role="combobox"],[role="textbox"],[contenteditable="true"],[data-moss-no-drag])) {
   -webkit-app-region:drag !important; app-region:drag !important;
 }
 html[data-moss-window-carrier="electron"] body[data-moss-theme="on"] [data-window-drag] :is(button,a,input,textarea,select,summary,[role="button"],[role="tab"],[role="link"],[role="menuitem"],[role="checkbox"],[role="radio"],[role="switch"],[role="slider"],[role="combobox"],[role="textbox"],[contenteditable="true"],[data-moss-no-drag]),
