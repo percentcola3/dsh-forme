@@ -12,7 +12,7 @@ import { installDepartmentIcons, type DepartmentSlots } from './departments.ts'
 import { installWorkspaceIcons } from './workspace-icons.ts'
 import { installModelSourceMenu, type ModelMenuSlots, type ModelDirectories } from './model-menu.ts'
 
-export const inject = ['slots', 'sessions', 'uiWorkspace', 'uiSession']
+export const inject = ['slots', 'sessions', 'uiWorkspace', 'uiSession', 'remote', 'remote.session', 'modelDirectories']
 type Store<T> = { getSnapshot(): T; subscribe(listener: () => void): () => void }
 type Reference = { ready: Promise<void>; binding: { session: Store<SessionSnapshot> }; release(): void }
 type Services = {
@@ -83,7 +83,7 @@ function activate(ctx: Context): void {
   ))) ?? noop)
   ctx.effect(() => guard('department icons', () => installDepartmentIcons(slots as DepartmentSlots, preferences)) ?? noop)
   ctx.effect(() => guard('workspace icons', () => installWorkspaceIcons(storage)) ?? noop)
-  ctx.inject(['modelDirectories'], scope => scope.effect(() => guard('model source menu', () => installModelSourceMenu(
+  ctx.inject(['modelDirectories', 'sessions', 'remote', 'remote.session'], scope => scope.effect(() => guard('model source menu', () => installModelSourceMenu(
     scope.get('slots') as ModelMenuSlots,
     scope.get('modelDirectories') as ModelDirectories,
     scope.get('sessions') as { subagentAddress(id: string): unknown },

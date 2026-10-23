@@ -2474,7 +2474,10 @@ void main(){
 			"slots",
 			"sessions",
 			"uiWorkspace",
-			"uiSession"
+			"uiSession",
+			"remote",
+			"remote.session",
+			"modelDirectories"
 		];
 		/** Breadcrumb for the last activation step, so a host-side failure names itself. */
 		let step = "start";
@@ -2541,7 +2544,12 @@ void main(){
 			}, () => react.default.createElement(ThemeSettings, { preferences })))) ?? noop);
 			ctx.effect(() => guard("department icons", () => installDepartmentIcons(slots, preferences)) ?? noop);
 			ctx.effect(() => guard("workspace icons", () => installWorkspaceIcons(storage)) ?? noop);
-			ctx.inject(["modelDirectories"], (scope) => scope.effect(() => guard("model source menu", () => installModelSourceMenu(scope.get("slots"), scope.get("modelDirectories"), scope.get("sessions"))) ?? noop));
+			ctx.inject([
+				"modelDirectories",
+				"sessions",
+				"remote",
+				"remote.session"
+			], (scope) => scope.effect(() => guard("model source menu", () => installModelSourceMenu(scope.get("slots"), scope.get("modelDirectories"), scope.get("sessions"))) ?? noop));
 			ctx.effect(() => {
 				let stop;
 				const sync = () => {
