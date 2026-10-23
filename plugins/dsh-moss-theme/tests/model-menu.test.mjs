@@ -38,7 +38,7 @@ function harness({ enabled = true, restricted = false } = {}) {
   }
   const dispose = installModelSourceMenu(slots, {
     directoryFor(id) { sessionIds.push(id); return directory },
-  }, { subagentAddress: () => restricted ? { parent: 'parent' } : undefined }, preferences)
+  }, { subagentAddress: () => restricted ? { parent: 'parent' } : undefined })
   return {
     preferences, listeners, entries, original, store, result, directory, selections, sessionIds, dispose,
     loadCount: () => loadCount,
@@ -48,11 +48,8 @@ function harness({ enabled = true, restricted = false } = {}) {
   }
 }
 
-test('registers only while enabled and restores the original menu on toggle and disposal', () => {
+test('registers while the plugin component is enabled and restores the original menu on disposal', () => {
   const f = harness({ enabled: false })
-  assert.strictEqual(f.active(), f.original)
-  assert.equal(f.entries.length, 1)
-  f.preferences.update({ enabled: true })
   const replacement = f.active()
   assert.notStrictEqual(replacement, f.original)
   assert.equal(replacement.options.name, 'conversation.input.model')
@@ -60,15 +57,8 @@ test('registers only while enabled and restores the original menu on toggle and 
   f.preferences.update({ motion: false })
   assert.strictEqual(f.active(), replacement)
   assert.equal(f.entries.length, 2)
-  f.preferences.update({ enabled: false })
-  assert.strictEqual(f.active(), f.original)
-  f.preferences.update({ enabled: true })
-  assert.notStrictEqual(f.active(), f.original)
   f.dispose()
   assert.strictEqual(f.active(), f.original)
-  assert.equal(f.listeners.size, 0)
-  f.preferences.update({ enabled: false })
-  f.preferences.update({ enabled: true })
   assert.equal(f.entries.length, 1)
 })
 
@@ -77,13 +67,10 @@ test('tracks declaration disposal and recreation without duplicate registrations
   assert.equal(f.entries.length, 2)
   f.removeDeclaration()
   assert.strictEqual(f.active(), f.original)
-  assert.equal(f.listeners.size, 0)
   f.restoreDeclaration()
   assert.equal(f.entries.length, 2)
-  assert.equal(f.listeners.size, 1)
   f.dispose()
   assert.equal(f.entries.length, 1)
-  assert.equal(f.listeners.size, 0)
 })
 
 test('uses the shared directory and forwards exact provider/model/effort without rewriting', async () => {

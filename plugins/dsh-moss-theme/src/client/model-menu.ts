@@ -1,7 +1,6 @@
 import React from 'react'
 import { createPortal } from 'react-dom'
 import { filterModelSources, groupModelSources, rowSelection, sameModel, type ProviderGroup, type Selection, type SourceRow } from './model-sources.ts'
-import type { PreferenceStore } from './state.ts'
 
 const h = React.createElement
 export type DirectoryState = {
@@ -21,27 +20,17 @@ export type ModelMenuSlots = {
 }
 
 /** Shadow only this display seat. The host still owns catalogs, sessions and model routing. */
-export function installModelSourceMenu(slots: ModelMenuSlots, models: ModelDirectories, sessions: { subagentAddress(id: string): unknown }, preferences: PreferenceStore): () => void {
-  return slots.inject('conversation.input.model', () => {
-    let dispose: (() => void) | undefined
-    const sync = () => {
-      if (!preferences.getSnapshot().enabled) { dispose?.(); dispose = undefined; return }
-      if (dispose) return
-      dispose = slots.register({ name: 'conversation.input.model', id: 'dsh-moss-model-sources', priority: -200,
-        inject: sessionId => {
-          const directory = models.directoryFor(sessionId)
-          const available = sessions.subagentAddress(sessionId) === undefined
-          return { available, directory: directory.store,
-            load: () => { if (available) void directory.load().catch(() => {}) },
-            select: value => available ? directory.select(value) : Promise.resolve(undefined),
-          }
-        },
-      }, props => h(ModelSourceMenu, props))
-    }
-    const unsubscribe = preferences.subscribe(sync)
-    sync()
-    return () => { unsubscribe(); dispose?.() }
-  })
+export function installModelSourceMenu(slots: ModelMenuSlots, models: ModelDirectories, sessions: { subagentAddress(id: string): unknown }): () => void {
+  return slots.inject('conversation.input.model', () => slots.register({ name: 'conversation.input.model', id: 'dsh-moss-model-sources', priority: -200,
+    inject: sessionId => {
+      const directory = models.directoryFor(sessionId)
+      const available = sessions.subagentAddress(sessionId) === undefined
+      return { available, directory: directory.store,
+        load: () => { if (available) void directory.load().catch(() => {}) },
+        select: value => available ? directory.select(value) : Promise.resolve(undefined),
+      }
+    },
+  }, props => h(ModelSourceMenu, props)))
 }
 
 export function ModelSourceMenu({ locked = false, available, directory, load, select }: ModelMenuProps): React.ReactElement | null {

@@ -87,7 +87,6 @@ function activate(ctx: Context): void {
     scope.get('slots') as ModelMenuSlots,
     scope.get('modelDirectories') as ModelDirectories,
     scope.get('sessions') as { subagentAddress(id: string): unknown },
-    preferences,
   )) ?? noop))
   // Unregister the brand override when disabled so DSH's original mark returns.
   ctx.effect(() => {

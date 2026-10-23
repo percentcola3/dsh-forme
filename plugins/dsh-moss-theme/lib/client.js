@@ -2170,41 +2170,24 @@ void main(){
 		//#region src/client/model-menu.ts
 		const h = react.default.createElement;
 		/** Shadow only this display seat. The host still owns catalogs, sessions and model routing. */
-		function installModelSourceMenu(slots, models, sessions, preferences) {
-			return slots.inject("conversation.input.model", () => {
-				let dispose;
-				const sync = () => {
-					if (!preferences.getSnapshot().enabled) {
-						dispose?.();
-						dispose = void 0;
-						return;
-					}
-					if (dispose) return;
-					dispose = slots.register({
-						name: "conversation.input.model",
-						id: "dsh-moss-model-sources",
-						priority: -200,
-						inject: (sessionId) => {
-							const directory = models.directoryFor(sessionId);
-							const available = sessions.subagentAddress(sessionId) === void 0;
-							return {
-								available,
-								directory: directory.store,
-								load: () => {
-									if (available) directory.load().catch(() => {});
-								},
-								select: (value) => available ? directory.select(value) : Promise.resolve(void 0)
-							};
-						}
-					}, (props) => h(ModelSourceMenu, props));
-				};
-				const unsubscribe = preferences.subscribe(sync);
-				sync();
-				return () => {
-					unsubscribe();
-					dispose?.();
-				};
-			});
+		function installModelSourceMenu(slots, models, sessions) {
+			return slots.inject("conversation.input.model", () => slots.register({
+				name: "conversation.input.model",
+				id: "dsh-moss-model-sources",
+				priority: -200,
+				inject: (sessionId) => {
+					const directory = models.directoryFor(sessionId);
+					const available = sessions.subagentAddress(sessionId) === void 0;
+					return {
+						available,
+						directory: directory.store,
+						load: () => {
+							if (available) directory.load().catch(() => {});
+						},
+						select: (value) => available ? directory.select(value) : Promise.resolve(void 0)
+					};
+				}
+			}, (props) => h(ModelSourceMenu, props)));
 		}
 		function ModelSourceMenu({ locked = false, available, directory, load, select }) {
 			const state = react.default.useSyncExternalStore((listener) => directory.subscribe(listener), () => directory.getSnapshot());
@@ -2558,7 +2541,7 @@ void main(){
 			}, () => react.default.createElement(ThemeSettings, { preferences })))) ?? noop);
 			ctx.effect(() => guard("department icons", () => installDepartmentIcons(slots, preferences)) ?? noop);
 			ctx.effect(() => guard("workspace icons", () => installWorkspaceIcons(storage)) ?? noop);
-			ctx.inject(["modelDirectories"], (scope) => scope.effect(() => guard("model source menu", () => installModelSourceMenu(scope.get("slots"), scope.get("modelDirectories"), scope.get("sessions"), preferences)) ?? noop));
+			ctx.inject(["modelDirectories"], (scope) => scope.effect(() => guard("model source menu", () => installModelSourceMenu(scope.get("slots"), scope.get("modelDirectories"), scope.get("sessions"))) ?? noop));
 			ctx.effect(() => {
 				let stop;
 				const sync = () => {
