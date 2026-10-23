@@ -2,6 +2,7 @@ import { transmissionCSS } from './transmission-styles.ts'
 import { interfaceCSS } from './interface-styles.ts'
 import { chromeCSS } from './chrome-styles.ts'
 import { engineCSS } from './engine-styles.ts'
+import { modelMenuCSS } from './model-menu-styles.ts'
 
 /*
  * A midnight-blue control room with red reserved for emphasis:
@@ -166,4 +167,5 @@ ${engineCSS}
 
 ${interfaceCSS}
 ${chromeCSS}
+${modelMenuCSS}
 `

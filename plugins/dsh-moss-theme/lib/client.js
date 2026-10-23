@@ -421,26 +421,26 @@ void main(){
 		}
 		//#endregion
 		//#region src/client/engine.ts
-		const h$2 = react.default.createElement;
+		const h$3 = react.default.createElement;
 		/** A small industrial engine, driven only by the selected session's real status. */
 		function EngineIndicator({ status }) {
 			const canvas = react.default.useRef(null);
 			react.default.useEffect(() => canvas.current ? mountEngine(canvas.current) : void 0, []);
 			const description = `土星状态 · ${statusText[status].label}。${statusText[status].message}`;
-			return h$2("span", {
+			return h$3("span", {
 				className: "moss-status-indicator moss-engine",
 				"data-status": status,
 				role: "img",
 				"aria-label": description,
 				title: description
-			}, h$2("canvas", {
+			}, h$3("canvas", {
 				ref: canvas,
 				className: "moss-engine-canvas",
 				width: 64,
 				height: 64,
 				"data-status": status,
 				"aria-hidden": true
-			}), h$2("svg", {
+			}), h$3("svg", {
 				className: "moss-engine-art",
 				viewBox: "0 0 40 32",
 				width: 40,
@@ -448,44 +448,44 @@ void main(){
 				fill: "none",
 				"aria-hidden": true,
 				focusable: false
-			}, h$2("circle", {
+			}, h$3("circle", {
 				className: "moss-engine-corona",
 				cx: 20,
 				cy: 16,
 				r: 10.5
-			}), h$2("g", { transform: "rotate(-17.2 20 16)" }, h$2("ellipse", {
+			}), h$3("g", { transform: "rotate(-17.2 20 16)" }, h$3("ellipse", {
 				className: "moss-engine-ring-back",
 				cx: 20,
 				cy: 16,
 				rx: 13.5,
 				ry: 4.05
-			}), h$2("ellipse", {
+			}), h$3("ellipse", {
 				className: "moss-engine-ring-outer",
 				cx: 20,
 				cy: 16,
 				rx: 16.4,
 				ry: 4.9
-			})), h$2("circle", {
+			})), h$3("circle", {
 				className: "moss-engine-plasma",
 				cx: 20,
 				cy: 16,
 				r: 8
-			}), h$2("path", {
+			}), h$3("path", {
 				className: "moss-engine-filament",
 				d: "M13.2 13.4Q20 12.2 26.8 13.4M12.6 15.8Q20 15 27.4 15.8M13.4 18.4Q20 17.7 26.6 18.4"
-			}), h$2("g", { transform: "rotate(-17.2 20 16)" }, h$2("path", {
+			}), h$3("g", { transform: "rotate(-17.2 20 16)" }, h$3("path", {
 				className: "moss-engine-ring-front",
 				d: "M6.5 16A13.5 4.05 0 0 0 33.5 16"
-			}), h$2("path", {
+			}), h$3("path", {
 				className: "moss-engine-ring-outer",
 				d: "M3.6 16A16.4 4.9 0 0 0 36.4 16"
-			})), h$2("g", {
+			})), h$3("g", {
 				className: "moss-engine-pause",
 				transform: "translate(28 2.5) scale(.5)"
-			}, h$2("path", { d: "M4 2V10M10 2V10" })), h$2("g", {
+			}, h$3("path", { d: "M4 2V10M10 2V10" })), h$3("g", {
 				className: "moss-engine-fault",
 				transform: "translate(28 2.5) scale(.5)"
-			}, h$2("path", { d: "M7 1L13 11H1Z" }), h$2("path", { d: "M7 4.4V7.2M7 8.8V9" })), h$2("path", {
+			}, h$3("path", { d: "M7 1L13 11H1Z" }), h$3("path", { d: "M7 4.4V7.2M7 8.8V9" })), h$3("path", {
 				className: "moss-engine-disconnected",
 				transform: "translate(28 2.5) scale(.5)",
 				d: "M1 2L5.5 6.5M8.5 9.5L13 14M3 8L11 2"
@@ -1172,6 +1172,23 @@ html[data-platform="darwin"]:not([data-fullscreen]) body[data-moss-theme="on"] d
 body[data-moss-theme="on"] header [data-slot="conversation.session.header"] nav[aria-label] { display:none; }
 
 
+
+.moss-model-trigger{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:100%;padding:5px 7px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary,#bbc6d2);font:inherit;font-size:12px;cursor:pointer}
+.moss-model-trigger>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.moss-model-trigger small{flex:none;opacity:.7;font-size:11px}
+.moss-model-trigger:hover{background:var(--dsw-alias-interactive-bg-hover,#ffffff0c)}.moss-model-trigger:disabled{opacity:.5;cursor:default}
+.moss-model-menu{position:fixed;z-index:11030;display:flex;flex-direction:column;width:300px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);box-sizing:border-box;padding:6px;border:1px solid var(--dsw-alias-border-l2,#899bb433);border-radius:12px;corner-shape:round;background:var(--dsw-alias-bg-layer-3,#192b3e);color:var(--dsw-alias-label-primary,#dce7ef);box-shadow:0 12px 40px #0004;font:13px/1.5 var(--moss-text,system-ui);overflow:hidden}
+.moss-model-menu button{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:34px;box-sizing:border-box;padding:7px 9px;border:0;border-radius:6px;background:transparent;color:inherit;text-align:left;font:inherit;cursor:pointer}
+.moss-model-menu button>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.moss-model-menu button>span:last-child:not(:first-child){flex:none}
+.moss-model-menu button:hover,.moss-model-menu button[data-active],.moss-model-menu button[aria-selected=true],.moss-model-menu button[aria-checked=true]{background:var(--dsw-alias-interactive-bg-hover,#ffffff0c)}
+.moss-model-menu button:disabled{opacity:.5;cursor:default}
+.moss-model-menu .moss-model-back{min-height:26px;padding:3px 8px;color:var(--dsw-alias-label-tertiary,#8ea4b8);font-size:11px}
+.moss-model-search{flex:none;width:100%;box-sizing:border-box;border:0;border-bottom:1px solid var(--dsw-alias-border-l3,#a1b7cc22);border-radius:0;padding:9px;background:transparent;color:inherit;font:inherit;outline:none}
+.moss-model-list{min-height:0;overflow:auto;max-height:min(420px,65vh);overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#839eb644 transparent;padding:3px 0}
+.moss-model-list section+section{margin-top:9px}.moss-model-heading{padding:6px 9px 3px;color:var(--dsw-alias-label-tertiary,#8ea4b8);font-size:11px;line-height:1.5}.moss-model-list p{margin:10px;color:var(--dsw-alias-label-tertiary,#8ea4b8)}
+.moss-model-root button>span:last-child{max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-secondary,#bbc6d2)}
+.moss-model-error{overflow:auto;max-height:100px;padding:6px 9px;color:#ef9398;overflow-wrap:anywhere;font-size:11px}.moss-model-error button{min-height:24px;padding:3px 0;font-size:11px}
+.moss-model-trigger:focus-visible,.moss-model-menu button:focus-visible{outline:2px solid #a3c8e1;outline-offset:-2px}.moss-model-search:focus-visible{box-shadow:inset 0 -2px #a3c8e1}
+
 `;
 		//#endregion
 		//#region src/client/earth-styles.ts
@@ -1798,7 +1815,7 @@ void main(){
 		}));
 		//#endregion
 		//#region src/client/earth.ts
-		const h$1 = react.default.createElement;
+		const h$2 = react.default.createElement;
 		/** Engine output follows the real session state; it is a mood, not telemetry. */
 		const thrustFor = {
 			standby: .38,
@@ -1827,11 +1844,11 @@ void main(){
 					stop?.();
 				};
 			}, []);
-			return h$1("span", {
+			return h$2("span", {
 				className: `moss-scene moss-scene-${scene}`,
 				"data-status": status,
 				"aria-hidden": true
-			}, h$1("span", { className: "moss-scene-fallback" }, h$1("span", { className: "moss-fallback-tail" }), h$1("span", { className: "moss-fallback-earth" })), h$1("canvas", {
+			}, h$2("span", { className: "moss-scene-fallback" }, h$2("span", { className: "moss-fallback-tail" }), h$2("span", { className: "moss-fallback-earth" })), h$2("canvas", {
 				className: "moss-scene-canvas",
 				ref: canvas,
 				"data-scene": scene,
@@ -1842,7 +1859,7 @@ void main(){
 		}
 		//#endregion
 		//#region src/client/running.ts
-		const h = react.default.createElement;
+		const h$1 = react.default.createElement;
 		/** The host's live "deep diving" row; a stable data attribute, not a hashed class. */
 		const HOST = "[data-chat-running]";
 		let owner$1;
@@ -1879,7 +1896,7 @@ void main(){
 					host.removeAttribute("data-moss-run");
 				};
 			}, [host, container]);
-			return host && container ? (0, react_dom.createPortal)(h(Strip, { host }), container) : null;
+			return host && container ? (0, react_dom.createPortal)(h$1(Strip, { host }), container) : null;
 		}
 		function useHost(active) {
 			const [host, setHost] = react.default.useState();
@@ -1926,13 +1943,13 @@ void main(){
 				read();
 				return () => clearInterval(timer);
 			}, [host]);
-			return h("span", {
+			return h$1("span", {
 				className: "moss-run",
 				"aria-hidden": true
-			}, h(EarthScene, {
+			}, h$1(EarthScene, {
 				status: "working",
 				scene: "loading"
-			}), h("span", { className: "moss-run-time" }, clock));
+			}), h$1("span", { className: "moss-run-time" }, clock));
 		}
 		const LOGO_URL = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 356 128" fill="none"><g stroke="#f1f2f4" stroke-width="7" stroke-linecap="butt" stroke-linejoin="miter"><path d="M78 16H38L25 54C39 37 66 37 82 54C102 77 90 109 63 114C43 118 23 107 13 90"/><path transform="translate(82)" d="M78 16H38L25 54C39 37 66 37 82 54C102 77 90 109 63 114C43 118 23 107 13 90"/><path d="M181 47C164 73 178 106 207 114C218 117 229 117 240 113"/><path d="M271 18L306 111L342 18"/></g><path d="M181 47C192 26 210 17 224 16L255 106C274 92 278 65 263 46C260 41 255 37 251 34" stroke="#dc1830" stroke-width="7" stroke-linecap="butt" stroke-linejoin="miter"/></svg>`)}`;
 		//#endregion
@@ -2054,6 +2071,421 @@ void main(){
 			});
 		}
 		//#endregion
+		//#region src/client/model-sources.ts
+		const sources = [
+			{
+				id: "official",
+				name: "DS官方",
+				suffix: " · DeepSeek"
+			},
+			{
+				id: "dcc",
+				name: "DCC",
+				suffix: " · DCC"
+			},
+			{
+				id: "devin",
+				name: "Devin",
+				suffix: " · Devin"
+			},
+			{
+				id: "codex",
+				name: "Codex",
+				suffix: " · Codex"
+			},
+			{
+				id: "routing",
+				name: "路由组",
+				suffix: " · routing group"
+			}
+		];
+		/** Derive display groups without changes to catalog metadata or routes. */
+		function groupModelSources(groups) {
+			const known = /* @__PURE__ */ new Map();
+			const other = /* @__PURE__ */ new Map();
+			for (const provider of groups) for (const model of provider.models) {
+				const source = [
+					"deepseek-account",
+					"deepseek-official",
+					"deepseek"
+				].includes(provider.id) ? sources[0] : sources.find((candidate) => model.name.endsWith(candidate.suffix));
+				const id = source === void 0 ? `provider:${provider.id}` : `source:${source.id}`;
+				const bucket = source === void 0 ? other : known;
+				let group = bucket.get(id);
+				if (group === void 0) {
+					group = {
+						id,
+						name: source?.name ?? provider.name,
+						rows: []
+					};
+					bucket.set(id, group);
+				}
+				group.rows.push({
+					key: JSON.stringify([provider.id, model.id]),
+					provider: {
+						id: provider.id,
+						name: provider.name
+					},
+					model
+				});
+			}
+			return [...sources.flatMap((source) => {
+				const group = known.get(`source:${source.id}`);
+				return group === void 0 ? [] : [group];
+			}), ...other.values()];
+		}
+		/** Match model name, model ID, provider name, or source name without case sensitivity. */
+		function filterModelSources(groups, query) {
+			const needle = query.trim().toLowerCase();
+			return groups.flatMap((group) => {
+				const rows = group.rows.filter((row) => [
+					row.model.name,
+					row.model.id,
+					row.provider.name,
+					group.name
+				].some((value) => value.toLowerCase().includes(needle)));
+				return rows.length === 0 ? [] : [{
+					...group,
+					rows
+				}];
+			});
+		}
+		/** Compare model routes; absent selections do not identify a model. */
+		function sameModel(a, b) {
+			return a != null && b != null && a.provider === b.provider && a.model === b.model;
+		}
+		/** Preserve explicit effort on the current route; otherwise use the model default. */
+		function rowSelection(row, current) {
+			const route = {
+				provider: row.provider.id,
+				model: row.model.id
+			};
+			const effort = sameModel(route, current) ? current?.reasoningEffort ?? row.model.reasoning?.defaultEffort : row.model.reasoning?.defaultEffort;
+			return {
+				...route,
+				...effort === void 0 ? {} : { reasoningEffort: effort }
+			};
+		}
+		//#endregion
+		//#region src/client/model-menu.ts
+		const h = react.default.createElement;
+		/** Shadow only this display seat. The host still owns catalogs, sessions and model routing. */
+		function installModelSourceMenu(slots, models, sessions, preferences) {
+			return slots.inject("conversation.input.model", () => {
+				let dispose;
+				const sync = () => {
+					if (!preferences.getSnapshot().enabled) {
+						dispose?.();
+						dispose = void 0;
+						return;
+					}
+					if (dispose) return;
+					dispose = slots.register({
+						name: "conversation.input.model",
+						id: "dsh-moss-model-sources",
+						priority: -200,
+						inject: (sessionId) => {
+							const directory = models.directoryFor(sessionId);
+							const available = sessions.subagentAddress(sessionId) === void 0;
+							return {
+								available,
+								directory: directory.store,
+								load: () => {
+									if (available) directory.load().catch(() => {});
+								},
+								select: (value) => available ? directory.select(value) : Promise.resolve(void 0)
+							};
+						}
+					}, (props) => h(ModelSourceMenu, props));
+				};
+				const unsubscribe = preferences.subscribe(sync);
+				sync();
+				return () => {
+					unsubscribe();
+					dispose?.();
+				};
+			});
+		}
+		function ModelSourceMenu({ locked = false, available, directory, load, select }) {
+			const state = react.default.useSyncExternalStore((listener) => directory.subscribe(listener), () => directory.getSnapshot());
+			const [pane, setPane] = react.default.useState(null);
+			const [query, setQuery] = react.default.useState("");
+			const [active, setActive] = react.default.useState(0);
+			const [error, setError] = react.default.useState("");
+			const [submitting, setSubmitting] = react.default.useState(false);
+			const [position, setPosition] = react.default.useState({ visibility: "hidden" });
+			const trigger = react.default.useRef(null), menu = react.default.useRef(null), search = react.default.useRef(null);
+			const options = react.default.useRef([]);
+			const operation = react.default.useRef(0);
+			const busyRef = react.default.useRef(false);
+			const restoreFocus = react.default.useRef(false);
+			const id = react.default.useId();
+			const groups = react.default.useMemo(() => groupModelSources(state.groups), [state.groups]);
+			const rows = react.default.useMemo(() => groups.flatMap((group) => group.rows), [groups]);
+			const visible = react.default.useMemo(() => filterModelSources(groups, query), [groups, query]);
+			const visibleRows = react.default.useMemo(() => visible.flatMap((group) => group.rows), [visible]);
+			const current = rows.find((row) => sameModel({
+				provider: row.provider.id,
+				model: row.model.id
+			}, state.current));
+			const reasoning = current?.model.reasoning;
+			const effort = state.current?.reasoningEffort ?? reasoning?.defaultEffort;
+			const effortName = reasoning ? reasoning.efforts.find((item) => item.id === effort)?.name ?? effort : void 0;
+			const effortChoices = reasoning ? [...reasoning.defaultEffort === void 0 ? [{
+				id: void 0,
+				name: "提供方默认"
+			}] : [], ...reasoning.efforts] : [];
+			const busy = submitting || state.pending !== null;
+			const caption = current?.model.name ?? state.current?.model ?? "选择模型";
+			const close = () => {
+				restoreFocus.current = true;
+				setPane(null);
+			};
+			react.default.useLayoutEffect(() => {
+				if (!pane && !busy && restoreFocus.current) {
+					restoreFocus.current = false;
+					trigger.current?.focus();
+				}
+			}, [pane, busy]);
+			react.default.useEffect(() => {
+				if (available) load();
+			}, [directory, available]);
+			const openPane = (next) => {
+				setQuery("");
+				setError("");
+				setPane(next);
+				setActive(next === "model" ? Math.max(0, rows.findIndex((row) => sameModel({
+					provider: row.provider.id,
+					model: row.model.id
+				}, state.current))) : next === "effort" ? Math.max(0, effortChoices.findIndex((item) => item.id === effort)) : 0);
+			};
+			react.default.useEffect(() => {
+				operation.current++;
+				busyRef.current = false;
+				setSubmitting(false);
+				setPane(null);
+				setError("");
+				return () => {
+					operation.current++;
+				};
+			}, [directory]);
+			react.default.useEffect(() => {
+				if (locked || !available) setPane(null);
+			}, [locked, available]);
+			react.default.useLayoutEffect(() => {
+				if (!pane) return;
+				const place = () => {
+					const anchor = trigger.current?.getBoundingClientRect(), box = menu.current?.getBoundingClientRect();
+					if (!anchor || !box) return;
+					setPosition({
+						left: Math.max(8, Math.min(anchor.right - box.width, innerWidth - box.width - 8)),
+						top: Math.max(8, Math.min(anchor.top - box.height - 8, innerHeight - box.height - 8))
+					});
+				};
+				place();
+				const observer = new ResizeObserver(place);
+				if (menu.current) observer.observe(menu.current);
+				window.addEventListener("resize", place);
+				window.addEventListener("scroll", place, true);
+				return () => {
+					observer.disconnect();
+					window.removeEventListener("resize", place);
+					window.removeEventListener("scroll", place, true);
+				};
+			}, [pane]);
+			react.default.useEffect(() => {
+				if (!pane) return;
+				const outside = (event) => {
+					if (!menu.current?.contains(event.target) && !trigger.current?.contains(event.target)) setPane(null);
+				};
+				document.addEventListener("pointerdown", outside);
+				if (pane === "model") search.current?.focus();
+				else (options.current[active] ?? options.current[0])?.focus();
+				return () => document.removeEventListener("pointerdown", outside);
+			}, [pane]);
+			react.default.useEffect(() => {
+				if (pane === "model") options.current[Math.min(active, visibleRows.length - 1)]?.scrollIntoView({ block: "nearest" });
+			}, [
+				active,
+				visibleRows,
+				pane
+			]);
+			const choose = async (selection) => {
+				if (busyRef.current || busy || locked || !available) return;
+				busyRef.current = true;
+				setSubmitting(true);
+				setError("");
+				const epoch = operation.current;
+				try {
+					const result = await select(selection);
+					if (epoch !== operation.current) return;
+					if (result?.ok) close();
+					else setError(result?.error?.message ?? "模型切换未完成，请重试。");
+				} catch (cause) {
+					if (epoch === operation.current) setError(cause instanceof Error ? cause.message : String(cause));
+				} finally {
+					if (epoch === operation.current) {
+						busyRef.current = false;
+						setSubmitting(false);
+					}
+				}
+			};
+			const keyDown = (event) => {
+				if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+				if (event.key === "Escape" || event.key === "Tab" && event.shiftKey) {
+					event.preventDefault();
+					event.stopPropagation();
+					if (pane === "root") close();
+					else openPane("root");
+					return;
+				}
+				const count = pane === "model" ? visibleRows.length : pane === "effort" ? effortChoices.length : reasoning ? 2 : 1;
+				const index = Math.min(active, count - 1);
+				if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+					event.preventDefault();
+					if (!count) return;
+					const next = (index + (event.key === "ArrowDown" ? 1 : -1) + count) % count;
+					setActive(next);
+					if (pane === "model") search.current?.focus();
+					else options.current[next]?.focus();
+				} else if ((event.key === "Enter" || event.key === "Tab") && pane === "model" && event.target === search.current) {
+					event.preventDefault();
+					const row = visibleRows[index];
+					if (row) choose(rowSelection(row, state.current));
+					else if (event.key === "Tab") close();
+				} else if (event.key === "Tab") {
+					event.preventDefault();
+					const focused = options.current.find((option) => option === document.activeElement);
+					if (focused && !focused.disabled) focused.click();
+					else close();
+				}
+			};
+			const bindOption = (index) => (node) => {
+				options.current[index] = node;
+			};
+			const rowNode = (row, index) => {
+				const selected = sameModel({
+					provider: row.provider.id,
+					model: row.model.id
+				}, state.current);
+				return h("button", {
+					key: row.key,
+					ref: bindOption(index),
+					id: `${id}-option-${index}`,
+					type: "button",
+					role: "option",
+					"aria-selected": selected,
+					disabled: busy,
+					tabIndex: -1,
+					"data-active": index === Math.min(active, visibleRows.length - 1) || void 0,
+					title: `${row.provider.name} · ${row.provider.id} / ${row.model.id}`,
+					onFocus: () => setActive(index),
+					onPointerMove: () => setActive(index),
+					onClick: () => void choose(rowSelection(row, state.current))
+				}, h("span", null, row.model.name), selected ? h("span", { "aria-hidden": true }, "✓") : null);
+			};
+			if (!available) return null;
+			let offset = 0;
+			return h(react.default.Fragment, null, h("button", {
+				ref: trigger,
+				className: "moss-model-trigger",
+				type: "button",
+				disabled: locked || busy,
+				"aria-label": `模型：${caption}`,
+				"aria-haspopup": "dialog",
+				"aria-expanded": !!pane,
+				title: current ? `${current.provider.name} / ${current.model.id}` : caption,
+				onClick: () => {
+					if (pane) close();
+					else {
+						load();
+						openPane("root");
+					}
+				}
+			}, h("span", null, caption), effortName && h("small", null, effortName), h("span", { "aria-hidden": true }, busy ? "…" : "⌄")), pane && (0, react_dom.createPortal)(h("div", {
+				ref: menu,
+				className: "moss-model-menu",
+				style: position,
+				role: "dialog",
+				"aria-label": "模型选择",
+				onKeyDown: keyDown
+			}, pane !== "root" && h("button", {
+				className: "moss-model-back",
+				type: "button",
+				onClick: () => openPane("root")
+			}, "‹ 返回"), pane === "root" && h("div", { className: "moss-model-root" }, h("button", {
+				ref: bindOption(0),
+				type: "button",
+				onClick: () => openPane("model")
+			}, h("span", null, "模型"), h("span", null, `${caption} ›`)), reasoning && h("button", {
+				ref: bindOption(1),
+				type: "button",
+				onClick: () => openPane("effort")
+			}, h("span", null, "推理强度"), h("span", null, `${effortName ?? "提供方默认"} ›`))), pane === "model" && h(react.default.Fragment, null, h("input", {
+				ref: search,
+				className: "moss-model-search",
+				type: "search",
+				role: "combobox",
+				"aria-expanded": true,
+				"aria-controls": `${id}-list`,
+				"aria-autocomplete": "list",
+				"aria-activedescendant": visibleRows.length ? `${id}-option-${Math.min(active, visibleRows.length - 1)}` : void 0,
+				"aria-label": "搜索模型或来源",
+				placeholder: "搜索模型或来源…",
+				value: query,
+				onChange: (event) => {
+					setQuery(event.target.value);
+					setActive(0);
+				}
+			}), h("div", {
+				className: "moss-model-list",
+				id: `${id}-list`,
+				role: "listbox",
+				"aria-label": "模型",
+				"aria-busy": busy || state.status === "loading"
+			}, ...visible.map((group) => {
+				const start = offset;
+				offset += group.rows.length;
+				return h("section", {
+					key: group.id,
+					role: "group",
+					"aria-label": group.name
+				}, h("div", {
+					className: "moss-model-heading",
+					"aria-hidden": true
+				}, group.name), ...group.rows.map((row, index) => rowNode(row, start + index)));
+			}), !visibleRows.length && h("p", { role: "status" }, state.status === "loading" ? "正在加载模型…" : query ? "没有匹配的模型" : "没有可用模型"))), pane === "effort" && h("div", {
+				className: "moss-model-list",
+				role: "menu",
+				"aria-label": "推理强度"
+			}, ...effortChoices.map((item, index) => h("button", {
+				key: item.id ?? "provider-default",
+				ref: bindOption(index),
+				onFocus: () => setActive(index),
+				type: "button",
+				role: "menuitemradio",
+				"aria-checked": item.id === effort,
+				disabled: busy,
+				onClick: () => {
+					if (current) choose({
+						provider: current.provider.id,
+						model: current.model.id,
+						...item.id === void 0 ? {} : { reasoningEffort: item.id }
+					});
+				}
+			}, h("span", null, item.name), item.id === effort ? "✓" : null))), (error || state.error || state.failures.length > 0) && h("div", {
+				className: "moss-model-error",
+				role: "alert"
+			}, error || state.error || state.failures.map((failure) => `${failure.name}：${failure.message}`).join("；"), h("button", {
+				type: "button",
+				disabled: busy,
+				onClick: () => {
+					setError("");
+					load();
+				}
+			}, "重试加载"))), document.body));
+		}
+		//#endregion
 		//#region src/client/index.ts
 		const inject = [
 			"slots",
@@ -2126,6 +2558,7 @@ void main(){
 			}, () => react.default.createElement(ThemeSettings, { preferences })))) ?? noop);
 			ctx.effect(() => guard("department icons", () => installDepartmentIcons(slots, preferences)) ?? noop);
 			ctx.effect(() => guard("workspace icons", () => installWorkspaceIcons(storage)) ?? noop);
+			ctx.inject(["modelDirectories"], (scope) => scope.effect(() => guard("model source menu", () => installModelSourceMenu(scope.get("slots"), scope.get("modelDirectories"), scope.get("sessions"), preferences)) ?? noop));
 			ctx.effect(() => {
 				let stop;
 				const sync = () => {
